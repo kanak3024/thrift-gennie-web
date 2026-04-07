@@ -65,16 +65,16 @@ function QuickViewDrawer({
         onClick={onClose}
       />
 
-      {/* Drawer */}
+      {/* Drawer — full width on mobile, 420px cap on desktop */}
       <motion.div
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 28, stiffness: 260 }}
-        className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-[420px] bg-[#F6F3EF] flex flex-col shadow-2xl"
+        className="fixed right-0 top-0 bottom-0 z-50 w-full sm:max-w-[420px] bg-[#F6F3EF] flex flex-col shadow-2xl"
       >
         {/* Close */}
-        <div className="flex items-center justify-between px-7 py-5 border-b border-[#2B0A0F]/08">
+        <div className="flex items-center justify-between px-5 sm:px-7 py-5 border-b border-[#2B0A0F]/08">
           <span className="text-[9px] uppercase tracking-[0.35em] opacity-40">Quick View</span>
           <button
             onClick={onClose}
@@ -104,7 +104,7 @@ function QuickViewDrawer({
         </div>
 
         {/* Info */}
-        <div className="flex-1 overflow-y-auto px-7 py-6 space-y-5">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-6 space-y-5">
           <div>
             <p className="text-[9px] uppercase tracking-[0.3em] opacity-40 mb-1">
               {product.location || "Archive"} · {product.mood || ""}
@@ -157,7 +157,7 @@ function QuickViewDrawer({
         </div>
 
         {/* CTA */}
-        <div className="px-7 py-5 border-t border-[#2B0A0F]/08 flex gap-3">
+        <div className="px-5 sm:px-7 py-5 border-t border-[#2B0A0F]/08 flex gap-3">
           <Link href={`/product/${product.id}`} className="flex-1">
             <button className="w-full py-3.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[11px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity">
               View Full Listing →
@@ -203,14 +203,19 @@ function ProductCard({
   onQuickView,
   isWishlisted,
   toggleWishlist,
+  isMobile,
 }: {
   product: any;
   isLarge: boolean;
   onQuickView: (p: any) => void;
   isWishlisted: (id: string) => boolean;
   toggleWishlist: (p: any) => void;
+  isMobile: boolean;
 }) {
   const [imgHovered, setImgHovered] = useState(false);
+
+  // On mobile, never span 2 cols/rows — it breaks a 2-col grid badly
+  const effectiveLarge = isLarge && !isMobile;
 
   return (
     <motion.div
@@ -219,14 +224,16 @@ function ProductCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.35 }}
-      className={`group relative flex flex-col ${isLarge ? "col-span-2 row-span-2" : ""}`}
+      className={`group relative flex flex-col ${effectiveLarge ? "col-span-2 row-span-2" : ""}`}
     >
-      {/* Image container — NO zoom on hover */}
+      {/* Image container */}
       <div
         className="relative overflow-hidden rounded-2xl bg-[#EAE3DB] flex-1"
-        style={{ minHeight: isLarge ? "420px" : "220px" }}
+        style={{ minHeight: effectiveLarge ? "420px" : isMobile ? "180px" : "220px" }}
         onMouseEnter={() => setImgHovered(true)}
         onMouseLeave={() => setImgHovered(false)}
+        onTouchStart={() => setImgHovered(true)}
+        onTouchEnd={() => setImgHovered(false)}
       >
         <Image
           src={product.image_url || "/final.png"}
@@ -247,10 +254,13 @@ function ProductCard({
           </div>
         )}
 
-        {/* Wishlist — top right, appears on hover */}
+        {/* Wishlist — top right; always visible on mobile, hover on desktop */}
         <motion.button
           initial={false}
-          animate={{ opacity: imgHovered ? 1 : 0, scale: imgHovered ? 1 : 0.8 }}
+          animate={{
+            opacity: isMobile ? 1 : imgHovered ? 1 : 0,
+            scale: isMobile ? 1 : imgHovered ? 1 : 0.8,
+          }}
           transition={{ duration: 0.15 }}
           onClick={(e) => { e.preventDefault(); toggleWishlist(product); }}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm"
@@ -260,19 +270,21 @@ function ProductCard({
           </svg>
         </motion.button>
 
-        {/* Quick view — bottom, appears on hover */}
-        <motion.button
-          initial={false}
-          animate={{ opacity: imgHovered ? 1 : 0, y: imgHovered ? 0 : 8 }}
-          transition={{ duration: 0.2 }}
-          onClick={(e) => { e.preventDefault(); onQuickView(product); }}
-          className="absolute bottom-14 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white/90 backdrop-blur-sm text-[#2B0A0F] text-[9px] uppercase tracking-[0.2em] px-4 py-2 rounded-full shadow-sm hover:bg-white transition-colors"
-        >
-          Quick View
-        </motion.button>
+        {/* Quick view — hidden on mobile (use the card link instead) */}
+        {!isMobile && (
+          <motion.button
+            initial={false}
+            animate={{ opacity: imgHovered ? 1 : 0, y: imgHovered ? 0 : 8 }}
+            transition={{ duration: 0.2 }}
+            onClick={(e) => { e.preventDefault(); onQuickView(product); }}
+            className="absolute bottom-14 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white/90 backdrop-blur-sm text-[#2B0A0F] text-[9px] uppercase tracking-[0.2em] px-4 py-2 rounded-full shadow-sm hover:bg-white transition-colors"
+          >
+            Quick View
+          </motion.button>
+        )}
 
         {/* Product info — always visible at bottom */}
-        <Link href={`/product/${product.id}`} className="absolute bottom-0 left-0 right-0 p-4">
+        <Link href={`/product/${product.id}`} className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
           <p className="text-[8px] uppercase tracking-[0.2em] text-white/60 mb-0.5">
             {product.location || "Archive"}
           </p>
@@ -280,7 +292,7 @@ function ProductCard({
             className="text-white leading-tight truncate"
             style={{
               fontFamily: "var(--font-playfair)",
-              fontSize: isLarge ? "1.15rem" : "0.9rem",
+              fontSize: effectiveLarge ? "1.15rem" : isMobile ? "0.8rem" : "0.9rem",
             }}
           >
             {product.title}
@@ -304,11 +316,12 @@ function ProductCard({
 /* ─────────────────────────────
    SKELETON CARD
 ───────────────────────────── */
-function SkeletonCard({ isLarge }: { isLarge: boolean }) {
+function SkeletonCard({ isLarge, isMobile }: { isLarge: boolean; isMobile: boolean }) {
+  const effectiveLarge = isLarge && !isMobile;
   return (
     <div
-      className={`rounded-2xl bg-[#EAE3DB] animate-pulse ${isLarge ? "col-span-2 row-span-2" : ""}`}
-      style={{ minHeight: isLarge ? "420px" : "220px" }}
+      className={`rounded-2xl bg-[#EAE3DB] animate-pulse ${effectiveLarge ? "col-span-2 row-span-2" : ""}`}
+      style={{ minHeight: effectiveLarge ? "420px" : isMobile ? "180px" : "220px" }}
     />
   );
 }
@@ -330,7 +343,16 @@ function BuyContent() {
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [quickViewProduct, setQuickViewProduct] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [isMobile, setIsMobile]         = useState(false);
   const { toggleWishlist, isWishlisted } = useWishlist();
+
+  /* ── DETECT MOBILE ── */
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   /* ── FETCH ── */
   useEffect(() => {
@@ -399,6 +421,11 @@ function BuyContent() {
     selectedCategories.length > 0 ||
     selectedConditions.length > 0;
 
+  const activeFilterCount =
+    [selectedSizes, selectedCategories, selectedConditions].flat().length +
+    (mood !== "all" ? 1 : 0) +
+    (maxPrice < 100000 ? 1 : 0);
+
   /* ── RENDER ── */
   return (
     <main className="min-h-screen bg-[#EFE8E1] text-[#2B0A0F]">
@@ -415,7 +442,7 @@ function BuyContent() {
         )}
       </AnimatePresence>
 
-      <div className="max-w-[1400px] mx-auto px-5 md:px-8 pt-28 pb-20 flex gap-8">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-8 pt-20 sm:pt-28 pb-20 flex gap-6 md:gap-8">
 
         {/* ══════════════════════
             SIDEBAR
@@ -578,64 +605,66 @@ function BuyContent() {
         <div className="flex-1 min-w-0">
 
           {/* ── PAGE HEADER ── */}
-          <div className="flex flex-col gap-5 mb-8">
-            <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:gap-5 mb-6 sm:mb-8">
+
+            {/* Title row — always horizontal, controls wrap below on mobile */}
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="uppercase text-[10px] tracking-[0.4em] opacity-40 mb-2">
+                <p className="uppercase text-[10px] tracking-[0.4em] opacity-40 mb-1 sm:mb-2">
                   Archive Collection
                 </p>
                 <h1
                   className="leading-none"
-                  style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(2rem,4vw,3rem)" }}
+                  style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.6rem,4vw,3rem)" }}
                 >
                   Gennie Picks
                   <span className="text-[#B48A5A] ml-2">✦</span>
                 </h1>
               </div>
 
-              {/* Right: search + sort + mobile filter toggle */}
-              <div className="flex items-center gap-3 flex-wrap justify-end">
-                {/* Mobile filter button */}
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="md:hidden flex items-center gap-2 border border-[#2B0A0F]/15 rounded-full px-4 py-2 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
-                >
-                  <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
-                    <path d="M0 1h12M2 5h8M4 9h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  Filters {hasActiveFilters && `(${[selectedSizes, selectedCategories, selectedConditions].flat().length + (mood !== "all" ? 1 : 0)})`}
-                </button>
+              {/* Mobile filter button — sits top-right */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden flex-shrink-0 mt-1 flex items-center gap-2 border border-[#2B0A0F]/15 rounded-full px-3 py-2 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
+              >
+                <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                  <path d="M0 1h12M2 5h8M4 9h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Filters {hasActiveFilters && `(${activeFilterCount})`}
+              </button>
+            </div>
 
-                {/* Search */}
-                <div className="relative">
-                  <svg className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" width="12" height="12" viewBox="0 0 16 16" fill="none">
-                    <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                    <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Search pieces..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 pr-4 py-2.5 text-xs bg-white/60 border border-[#2B0A0F]/10 rounded-full outline-none focus:border-[#2B0A0F]/30 focus:bg-white transition-all w-[180px] md:w-[220px]"
-                  />
-                </div>
-
-                {/* Sort */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-2.5 text-xs bg-white/60 border border-[#2B0A0F]/10 rounded-full outline-none focus:border-[#2B0A0F]/30 cursor-pointer"
-                >
-                  {SORT_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+            {/* Search + Sort row — full width on mobile */}
+            <div className="flex items-center gap-2 sm:gap-3 w-full md:justify-end">
+              {/* Search — full width on mobile */}
+              <div className="relative flex-1 md:flex-none">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" width="12" height="12" viewBox="0 0 16 16" fill="none">
+                  <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
+                  <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search pieces..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full md:w-[220px] pl-9 pr-4 py-2.5 text-xs bg-white/60 border border-[#2B0A0F]/10 rounded-full outline-none focus:border-[#2B0A0F]/30 focus:bg-white transition-all"
+                />
               </div>
+
+              {/* Sort */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="flex-shrink-0 px-3 sm:px-4 py-2.5 text-xs bg-white/60 border border-[#2B0A0F]/10 rounded-full outline-none focus:border-[#2B0A0F]/30 cursor-pointer"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
             </div>
 
             {/* ── ACTIVE FILTER CHIPS + RESULT COUNT ── */}
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <span className="text-[10px] uppercase tracking-[0.2em] opacity-40">
                 {loading ? "Loading..." : `${filtered.length} piece${filtered.length !== 1 ? "s" : ""} found`}
               </span>
@@ -683,12 +712,12 @@ function BuyContent() {
           {/* ── PRODUCT GRID ── */}
           <motion.div
             layout
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 auto-rows-[220px] md:auto-rows-[260px]"
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4 auto-rows-[180px] sm:auto-rows-[220px] md:auto-rows-[260px]"
           >
             <AnimatePresence>
               {loading
                 ? Array.from({ length: 8 }).map((_, i) => (
-                    <SkeletonCard key={i} isLarge={i === 0} />
+                    <SkeletonCard key={i} isLarge={i === 0} isMobile={isMobile} />
                   ))
                 : filtered.map((product, index) => (
                     <ProductCard
@@ -698,6 +727,7 @@ function BuyContent() {
                       onQuickView={setQuickViewProduct}
                       isWishlisted={isWishlisted}
                       toggleWishlist={toggleWishlist}
+                      isMobile={isMobile}
                     />
                   ))}
             </AnimatePresence>
@@ -710,10 +740,10 @@ function BuyContent() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="py-28 flex flex-col items-center gap-4"
+                className="py-20 sm:py-28 flex flex-col items-center gap-4"
               >
                 <p
-                  className="text-3xl opacity-20"
+                  className="text-2xl sm:text-3xl opacity-20"
                   style={{ fontFamily: "var(--font-playfair)" }}
                 >
                   Nothing found.
