@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  /* Set these to your brand colors so they match your UI */
+  --background: #F6F3EF; 
+  --foreground: #2B0A0F;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  /* Remove the hardcoded Arial so your Google Fonts actually work */
+  font-family: var(--font-inter), sans-serif; 
+  margin: 0;
+  padding: 0;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+@keyframes floatHeart {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) scale(1.4);
+  }
+}
+
+.floating-heart {
+  position: absolute;
+  animation: floatHeart 0.8s ease-out forwards;
+}
+
+.delay-1 {
+  animation-delay: 0.1s;
+}
+
+.delay-2 {
+  animation-delay: 0.2s;
+}
