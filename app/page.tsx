@@ -88,10 +88,10 @@ function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[999] bg-[#F6F3EF]/95 backdrop-blur-xl flex items-start justify-center pt-32"
+          className="fixed inset-0 z-[999] bg-[#F6F3EF]/95 backdrop-blur-xl flex items-start justify-center pt-24 px-5"
           onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-          <div className="w-[560px] max-w-[90vw]">
+          <div className="w-full max-w-[560px]">
             <div className="flex items-center gap-4 border-b border-[#2B0A0F]/20 pb-3">
               <svg width="20" height="20" viewBox="0 0 16 16" fill="none" className="opacity-40 flex-shrink-0">
                 <circle cx="6.5" cy="6.5" r="5" stroke="#2B0A0F" strokeWidth="1.5"/>
@@ -102,7 +102,7 @@ function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }
                 type="text"
                 placeholder="Search the archive..."
                 className="flex-1 bg-transparent border-none outline-none text-[#2B0A0F] placeholder:text-[#2B0A0F]/30"
-                style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.4rem,3vw,2rem)", fontStyle: "italic" }}
+                style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.2rem,4vw,2rem)", fontStyle: "italic" }}
               />
               <button
                 onClick={onClose}
@@ -140,7 +140,6 @@ export default function HomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeMoodIdx, setActiveMoodIdx] = useState(0);
 
-  /* Original Gennie carousel state — untouched */
   const gennies = ["/night.png", "/y2k.png", "/oldmoney.png", "/streetstyle.png"];
   const [index, setIndex] = useState(0);
   useEffect(() => {
@@ -150,7 +149,6 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  /* Supabase fetch */
   useEffect(() => {
     const fetchProducts = async () => {
       const { data, error } = await supabase
@@ -163,7 +161,6 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  /* Lock scroll when search open */
   useEffect(() => {
     document.body.style.overflow = searchOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -177,30 +174,30 @@ export default function HomePage() {
       {/* ── SEARCH OVERLAY ── */}
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* ── NAV — original Navbar component ── */}
+      {/* ── NAV ── */}
       <Navbar />
 
       {/* ═══════════════════════════
           HERO SECTION
       ═══════════════════════════ */}
-      <section className="relative min-h-screen flex items-center pt-24">
+      <section className="relative min-h-screen flex items-center pt-20 md:pt-24">
 
-        {/* Vertical Archive Label — kept from original */}
+        {/* Vertical Archive Label — desktop only */}
         <div className="absolute left-6 top-1/2 -translate-y-1/2 rotate-[-90deg] tracking-[0.4em] text-xs opacity-30 hidden lg:block">
           ARCHIVE NO. 001 · EST. 2025
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 w-full grid grid-cols-1 md:grid-cols-2 items-center gap-8">
+        <div className="max-w-7xl mx-auto px-5 md:px-6 w-full grid grid-cols-1 md:grid-cols-2 items-center gap-8 py-10 md:py-0">
 
           {/* ── LEFT ── */}
           <div className="relative z-10">
 
-            {/* Live pill — NEW */}
+            {/* Live pill */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="flex items-center gap-3 mb-7"
+              className="flex items-center gap-3 mb-6"
             >
               <span className="relative flex h-[7px] w-[7px]">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A1123F] opacity-60" />
@@ -217,7 +214,7 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.7 }}
               className="leading-[0.88] tracking-tight"
-              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(4rem,8vw,7rem)" }}
+              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(3.2rem,10vw,7rem)" }}
             >
               <span className="block">Thrift it.</span>
               <span className="block text-[#A1123F] italic">Love it.</span>
@@ -228,16 +225,16 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.38, duration: 0.6 }}
-              className="mt-10 max-w-lg space-y-3"
+              className="mt-7 md:mt-10 space-y-2 md:space-y-3"
               style={{ fontFamily: "var(--font-inter)" }}
             >
-              <p className="text-lg">This isn't thrift.</p>
-              <p className="italic text-lg">It's a fashion archive.</p>
-              <p className="text-[#2B0A0F]/65 leading-relaxed">
+              <p className="text-base md:text-lg">This isn't thrift.</p>
+              <p className="italic text-base md:text-lg">It's a fashion archive.</p>
+              <p className="text-[#2B0A0F]/65 leading-relaxed text-sm md:text-base max-w-sm">
                 Pre-loved pieces with history, taste, and attitude —
                 curated by people who know an outfit is never just an outfit.
               </p>
-              <p className="uppercase tracking-[0.3em] text-[10px] pt-2 opacity-40">
+              <p className="uppercase tracking-[0.3em] text-[10px] pt-1 opacity-40">
                 Buy less · Choose better · Wear it like it's yours
               </p>
             </motion.div>
@@ -247,41 +244,41 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.52 }}
-              className="mt-10 flex gap-4"
+              className="mt-7 md:mt-10 flex flex-wrap gap-3"
             >
               <Link href="/buy">
-                <button className="px-7 py-4 bg-[#2B0A0F] text-white rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-80 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                <button className="px-6 py-3.5 md:px-7 md:py-4 bg-[#2B0A0F] text-white rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-80 transition-all hover:scale-[1.02] active:scale-[0.98]">
                   Enter the Archive →
                 </button>
               </Link>
               <Link href="/sell">
-                <button className="px-7 py-4 border border-[#2B0A0F]/25 rounded-full text-xs tracking-[0.18em] uppercase hover:bg-[#2B0A0F] hover:text-white transition-all">
+                <button className="px-6 py-3.5 md:px-7 md:py-4 border border-[#2B0A0F]/25 rounded-full text-xs tracking-[0.18em] uppercase hover:bg-[#2B0A0F] hover:text-white transition-all">
                   Submit a Piece
                 </button>
               </Link>
             </motion.div>
 
-            {/* Social proof stats — NEW */}
+            {/* Social proof stats */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.7 }}
-              className="mt-12 flex gap-8 border-t border-[#2B0A0F]/08 pt-8"
+              className="mt-8 md:mt-12 flex gap-6 md:gap-8 border-t border-[#2B0A0F]/08 pt-6 md:pt-8"
             >
               {[
                 { num: "2.4k",  label: "Pieces Listed" },
                 { num: "₹340",  label: "Avg Price" },
-                { num: "5 Cities", label: "Mum · Pune · Del + more" },
+                { num: "5 Cities", label: "Mum · Pune · Del" },
               ].map((s) => (
                 <div key={s.label}>
-                  <div className="text-2xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>{s.num}</div>
-                  <div className="text-[10px] tracking-[0.18em] uppercase opacity-40 mt-1">{s.label}</div>
+                  <div className="text-xl md:text-2xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>{s.num}</div>
+                  <div className="text-[9px] md:text-[10px] tracking-[0.18em] uppercase opacity-40 mt-1">{s.label}</div>
                 </div>
               ))}
             </motion.div>
           </div>
 
-          {/* ── RIGHT — ORIGINAL GENNIE CAROUSEL (untouched logic) + mood chips ── */}
+          {/* ── RIGHT — GENNIE CAROUSEL (desktop only) ── */}
           <div className="relative h-[600px] hidden md:block">
 
             {/* Golden glow */}
@@ -294,7 +291,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Mood chips — NEW, overlaid on right side */}
+            {/* Mood chips */}
             <div className="absolute top-12 right-0 flex flex-col gap-2 z-40">
               {MOODS.map((mood, i) => (
                 <button
@@ -311,17 +308,13 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* ── ORIGINAL GENNIE IMAGES — UNTOUCHED ── */}
+            {/* Gennie images */}
             <motion.img
               key={gennies[index]}
               src={gennies[index]}
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, opacity: 1, y: [0, -10, 0] }}
-              transition={{
-                x: { duration: 0.8 },
-                opacity: { duration: 0.8 },
-                y: { repeat: Infinity, duration: 4 },
-              }}
+              transition={{ x: { duration: 0.8 }, opacity: { duration: 0.8 }, y: { repeat: Infinity, duration: 4 } }}
               className="absolute bottom-[-20px] right-[20px] w-[380px] z-20"
             />
             <motion.img
@@ -329,15 +322,11 @@ export default function HomePage() {
               src={gennies[(index + 1) % gennies.length]}
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, opacity: 0.9, y: [0, 10, 0] }}
-              transition={{
-                x: { duration: 0.8 },
-                opacity: { duration: 0.8 },
-                y: { repeat: Infinity, duration: 5 },
-              }}
+              transition={{ x: { duration: 0.8 }, opacity: { duration: 0.8 }, y: { repeat: Infinity, duration: 5 } }}
               className="absolute top-[40px] left-[0px] w-[280px] z-10 scale-90 opacity-90"
             />
 
-            {/* Mood label card — updates on chip click */}
+            {/* Mood label card */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeMood.tag}
@@ -360,10 +349,28 @@ export default function HomePage() {
             </AnimatePresence>
           </div>
 
+          {/* ── MOBILE MOOD CHIPS (below hero text on mobile) ── */}
+          <div className="md:hidden flex gap-2 flex-wrap mt-2">
+            {MOODS.map((mood, i) => (
+              <Link
+                key={mood.tag}
+                href={`/buy?mood=${mood.tag}`}
+                className={`rounded-full px-4 py-2 text-[11px] tracking-[0.1em] border transition-all ${
+                  activeMoodIdx === i
+                    ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
+                    : "bg-white text-[#2B0A0F] border-[#2B0A0F]/15"
+                }`}
+                onClick={() => setActiveMoodIdx(i)}
+              >
+                {mood.label}
+              </Link>
+            ))}
+          </div>
+
         </div>
 
-        {/* Scroll hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-25">
+        {/* Scroll hint — hidden on mobile to save space */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-2 opacity-25 hidden md:flex">
           <motion.div
             animate={{ y: [0, 8, 0] }}
             transition={{ repeat: Infinity, duration: 2 }}
@@ -378,7 +385,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════
-          TICKER — NEW
+          TICKER
       ═══════════════════════════ */}
       <div className="bg-[#1A060B] text-[#F6F3EF] py-3 overflow-hidden">
         <div className="flex whitespace-nowrap" style={{ animation: "ticker 24s linear infinite" }}>
@@ -392,39 +399,39 @@ export default function HomePage() {
       </div>
 
       {/* ═══════════════════════════
-          SHOP BY MOOD GRID — UPGRADED
+          SHOP BY MOOD GRID
       ═══════════════════════════ */}
-      <section className="bg-[#F6F3EF] text-[#2B0A0F] py-28">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex justify-between items-end mb-12">
+      <section className="bg-[#F6F3EF] text-[#2B0A0F] py-16 md:py-28">
+        <div className="max-w-7xl mx-auto px-5 md:px-6">
+          <div className="flex justify-between items-end mb-8 md:mb-12">
             <div>
-              <p className="uppercase tracking-[0.4em] text-[10px] opacity-40 mb-3">Browse by Mood</p>
-              <h2 className="text-5xl" style={{ fontFamily: "var(--font-playfair)" }}>
+              <p className="uppercase tracking-[0.4em] text-[10px] opacity-40 mb-2 md:mb-3">Browse by Mood</p>
+              <h2 className="text-3xl md:text-5xl" style={{ fontFamily: "var(--font-playfair)" }}>
                 Choose Your Aesthetic
               </h2>
             </div>
-            <Link href="/buy" className="text-[10px] tracking-[0.2em] uppercase opacity-40 hover:opacity-100 transition-opacity">
+            <Link href="/buy" className="text-[10px] tracking-[0.2em] uppercase opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap ml-4">
               View All →
             </Link>
           </div>
 
-          <div className="grid grid-cols-5 gap-4">
-            {MOOD_GRID.map((mood) => (
-              <Link key={mood.tag} href={`/buy?mood=${mood.tag}`} className="group">
+          {/* 2 cols on mobile, 5 on desktop */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+            {MOOD_GRID.map((mood, i) => (
+              <Link
+                key={mood.tag}
+                href={`/buy?mood=${mood.tag}`}
+                className={`group ${i === 4 ? "col-span-2 md:col-span-1" : ""}`}
+              >
                 <div className="rounded-[18px] overflow-hidden aspect-[3/4] relative cursor-pointer">
                   <div className={`w-full h-full bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-500`} />
-
-                  {/* Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-
-                  {/* Piece count badge */}
-                  <div className="absolute top-3 right-3 bg-white/15 backdrop-blur-md rounded-full px-3 py-1 text-[10px] text-white tracking-wide">
-                    {mood.count} pieces
+                  <div className="absolute top-3 right-3 bg-white/15 backdrop-blur-md rounded-full px-2 py-1 text-[9px] text-white tracking-wide">
+                    {mood.count}
                   </div>
-
-                  <div className="absolute bottom-5 left-5 right-5 text-white">
-                    <p className="text-[9px] tracking-[0.25em] uppercase opacity-65">{mood.sub}</p>
-                    <h3 className="text-[1.1rem] mt-1" style={{ fontFamily: "var(--font-playfair)" }}>
+                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                    <p className="text-[8px] tracking-[0.25em] uppercase opacity-65">{mood.sub}</p>
+                    <h3 className="text-sm md:text-[1.1rem] mt-1 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
                       {mood.title}
                     </h3>
                   </div>
@@ -438,25 +445,25 @@ export default function HomePage() {
       {/* ═══════════════════════════
           WEEKLY ARCHIVE DROP
       ═══════════════════════════ */}
-      <section className="bg-[#1A060B] text-[#F6F3EF] py-28">
-        <div className="max-w-7xl mx-auto px-6">
+      <section className="bg-[#1A060B] text-[#F6F3EF] py-16 md:py-28">
+        <div className="max-w-7xl mx-auto px-5 md:px-6">
 
-          <div className="flex justify-between items-end mb-6">
+          <div className="flex justify-between items-end mb-4 md:mb-6">
             <div>
               <p className="uppercase text-[10px] tracking-[0.35em] opacity-50">
                 Archive Drop · Week {week}
               </p>
-              <h2 className="text-5xl mt-3" style={{ fontFamily: "var(--font-playfair)" }}>
+              <h2 className="text-3xl md:text-5xl mt-2 md:mt-3" style={{ fontFamily: "var(--font-playfair)" }}>
                 This Week's Finds
               </h2>
             </div>
-            <Link href="/buy" className="text-[10px] tracking-[0.2em] uppercase opacity-40 hover:opacity-100 transition-opacity">
-              View Full Drop →
+            <Link href="/buy" className="text-[10px] tracking-[0.2em] uppercase opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap ml-4">
+              View All →
             </Link>
           </div>
 
-          {/* Countdown pill — NEW */}
-          <div className="inline-flex items-center gap-2 bg-[#A1123F]/15 border border-[#A1123F]/30 rounded-full px-4 py-2 mb-10">
+          {/* Countdown pill */}
+          <div className="inline-flex items-center gap-2 bg-[#A1123F]/15 border border-[#A1123F]/30 rounded-full px-4 py-2 mb-7 md:mb-10">
             <span className="relative flex h-[6px] w-[6px]">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A1123F] opacity-60" />
               <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-[#A1123F]" />
@@ -466,12 +473,12 @@ export default function HomePage() {
             </span>
           </div>
 
-          <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
+          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 md:mx-0 md:px-0">
             {products.length === 0 && (
               <p className="opacity-40 text-sm">Loading archive...</p>
             )}
             {products.map((item) => (
-              <Link key={item.id} href={`/product/${item.id}`} className="min-w-[260px] group flex-shrink-0">
+              <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] group flex-shrink-0">
                 <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden border border-[#F6F3EF]/08 hover:border-[#F6F3EF]/20 transition-all hover:-translate-y-1">
                   <div className="relative aspect-[3/4]">
                     <Image
@@ -484,7 +491,7 @@ export default function HomePage() {
                       Rare Find
                     </div>
                   </div>
-                  <div className="p-4">
+                  <div className="p-3 md:p-4">
                     <h3 className="text-sm font-medium mb-1">{item.title}</h3>
                     <p className="text-xs opacity-50 tracking-wide">
                       ₹{item.price} · {item.location}
@@ -499,15 +506,15 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════
-          SELL STRIP — NEW
+          SELL STRIP
       ═══════════════════════════ */}
-      <section className="bg-[#A1123F] text-[#F6F3EF] py-20 px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+      <section className="bg-[#A1123F] text-[#F6F3EF] py-14 md:py-20 px-5 md:px-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12 items-center">
 
           <div>
             <h2
               className="leading-[1.05]"
-              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(2rem,3.5vw,3rem)" }}
+              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.8rem,5vw,3rem)" }}
             >
               Your wardrobe<br />
               <em>is someone's</em><br />
@@ -518,13 +525,13 @@ export default function HomePage() {
               clothes you will. Listing takes 90 seconds.
             </p>
             <Link href="/sell">
-              <button className="mt-7 px-7 py-4 bg-[#F6F3EF] text-[#2B0A0F] rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-85 transition-all hover:scale-[1.02]">
+              <button className="mt-6 md:mt-7 px-7 py-4 bg-[#F6F3EF] text-[#2B0A0F] rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-85 transition-all hover:scale-[1.02]">
                 Submit a Piece →
               </button>
             </Link>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:gap-4">
             {[
               { n: "01", title: "Photograph It",  sub: "3 photos, natural light. The archive does the rest." },
               { n: "02", title: "Set Your Price", sub: "You control it. We suggest based on similar pieces." },
@@ -532,10 +539,10 @@ export default function HomePage() {
             ].map((step) => (
               <div
                 key={step.n}
-                className="flex items-center gap-5 bg-white/10 rounded-2xl px-6 py-5 border border-white/15"
+                className="flex items-center gap-4 md:gap-5 bg-white/10 rounded-2xl px-5 md:px-6 py-4 md:py-5 border border-white/15"
               >
                 <span
-                  className="text-3xl opacity-25 flex-shrink-0 w-8"
+                  className="text-2xl md:text-3xl opacity-25 flex-shrink-0 w-8"
                   style={{ fontFamily: "var(--font-playfair)" }}
                 >
                   {step.n}
@@ -554,8 +561,8 @@ export default function HomePage() {
       {/* ═══════════════════════════
           FOOTER
       ═══════════════════════════ */}
-      <footer className="bg-[#1A060B] text-[#F6F3EF]/40 px-8 py-8 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-[0.15em] uppercase">
-        <span className="text-[#F6F3EF] not-uppercase" style={{ fontFamily: "var(--font-playfair)", fontSize: "14px", letterSpacing: "0.25em", textTransform: "uppercase" }}>
+      <footer className="bg-[#1A060B] text-[#F6F3EF]/40 px-5 md:px-8 py-8 flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4 text-[10px] tracking-[0.15em] uppercase text-center">
+        <span className="text-[#F6F3EF]" style={{ fontFamily: "var(--font-playfair)", fontSize: "14px", letterSpacing: "0.25em", textTransform: "uppercase" }}>
           Thrift Gennie
         </span>
         <span>© 2026 · Archive No. 001 · Est. Pune</span>
