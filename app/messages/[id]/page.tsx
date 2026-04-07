@@ -45,7 +45,7 @@ export default function ChatDetailPage() {
         setProductId(conv.product_id);
         setSellerId(conv.seller_id);
         setBuyerId(conv.buyer_id);
-        setProductStatus(conv.products?.status || "available");
+        setProductStatus((conv.products as any)?.status || "available");
         setProduct(conv.products);
 
         // Fetch the OTHER person's profile

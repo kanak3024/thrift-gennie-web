@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
@@ -314,9 +314,9 @@ function SkeletonCard({ isLarge }: { isLarge: boolean }) {
 }
 
 /* ─────────────────────────────
-   MAIN PAGE
+   BUY CONTENT (uses useSearchParams)
 ───────────────────────────── */
-export default function BuyPage() {
+function BuyContent() {
   const searchParams = useSearchParams();
 
   const [products, setProducts]         = useState<any[]>([]);
@@ -733,5 +733,20 @@ export default function BuyPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+/* ─────────────────────────────
+   MAIN PAGE (with Suspense wrapper)
+───────────────────────────── */
+export default function BuyPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-[#EFE8E1] flex items-center justify-center">
+        <p className="text-[10px] uppercase tracking-[0.4em] opacity-40">Loading...</p>
+      </main>
+    }>
+      <BuyContent />
+    </Suspense>
   );
 }
