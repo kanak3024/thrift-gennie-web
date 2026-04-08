@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Playfair_Display, Inter } from "next/font/google";
 import Navbar from "./components/Navbar";
+import SupportChat from "./components/SupportChat"; // ✅ ADD THIS
 
 export const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -27,11 +28,14 @@ export default function RootLayout({
           text-[#2B0A0F]
         `}
       >
-        {/* USE THE REAL NAVBAR COMPONENT */}
+        {/* Navbar */}
         <Navbar />
 
+        {/* Main Pages */}
         {children}
 
+        {/* ✅ GLOBAL SUPPORT CHAT (FLOATING) */}
+        <SupportChat />
       </body>
     </html>
   );
