@@ -74,10 +74,10 @@ export async function POST(req: Request) {
   }
 
   // ── 4. Fetch authoritative amount from Razorpay — never trust the client ─
-  let rzpOrder: Awaited<ReturnType<typeof razorpay.orders.fetch>>;
-  try {
-    rzpOrder = await razorpay.orders.fetch(razorpay_order_id);
-  } catch (err: any) {
+  let rzpOrder: any;
+try {
+  rzpOrder = await razorpay.orders.fetch(razorpay_order_id);
+} catch (err: any) {
     await logPaymentEvent("razorpay_order_fetch_failed", {
       razorpay_order_id,
       razorpay_payment_id,
