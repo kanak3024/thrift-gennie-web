@@ -483,46 +483,53 @@ export default function AdminSupportPage() {
                   </span>
                 </div>
               </div>
-
               {/* ── MESSAGES ── */}
-              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-2" style={{ background: "#FDFCFB" }}>
-                {messages.map((msg, idx) => {
-                  const isAdmin = msg.is_admin;
-                  const prev = messages[idx - 1];
-                  const sameAsPrev = prev?.is_admin === msg.is_admin;
-
-                  return (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${isAdmin ? "justify-end" : "justify-start"} ${sameAsPrev ? "mt-1" : "mt-5"}`}
-                    >
-                      <div className={`max-w-[65%] flex flex-col ${isAdmin ? "items-end" : "items-start"}`}>
-                        {!sameAsPrev && (
-                          <span className={`text-[8px] uppercase tracking-[0.15em] opacity-30 mb-1.5 ${isAdmin ? "pr-1" : "pl-1"}`}>
-                            {isAdmin ? "You (Support)" : selectedTicket.profiles?.full_name || "User"}
-                          </span>
-                        )}
-                        <div className={`px-5 py-3.5 text-sm leading-relaxed ${
-                          isAdmin
-                            ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[18px] rounded-br-[4px]"
-                            : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px] shadow-sm"
-                        }`}>
-                          {msg.text}
-                        </div>
-                        {(idx === messages.length - 1 || messages[idx + 1]?.is_admin !== msg.is_admin) && (
-                          <span className={`text-[8px] opacity-25 mt-1.5 ${isAdmin ? "pr-1" : "pl-1"}`}>
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-                <div ref={scrollRef} />
-              </div>
-
+<div className="flex-1 overflow-y-auto px-8 py-6 space-y-2" style={{ background: "#FDFCFB" }}>
+  {messages.map((msg, idx) => {
+    const isAdmin = msg.is_admin;
+    const prev = messages[idx - 1];
+    const sameAsPrev = prev?.is_admin === msg.is_admin;
+    return (
+      <motion.div
+        key={msg.id}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`flex ${isAdmin ? "justify-end" : "justify-start"} ${sameAsPrev ? "mt-1" : "mt-5"}`}
+      >
+        <div className={`max-w-[65%] flex flex-col ${isAdmin ? "items-end" : "items-start"}`}>
+          {!sameAsPrev && (
+            <span className={`text-[8px] uppercase tracking-[0.15em] opacity-30 mb-1.5 ${isAdmin ? "pr-1" : "pl-1"}`}>
+              {isAdmin ? "You (Support)" : selectedTicket.profiles?.full_name || "User"}
+            </span>
+          )}
+          <div className={`px-5 py-3.5 text-sm leading-relaxed ${
+            isAdmin
+              ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[18px] rounded-br-[4px]"
+              : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px] shadow-sm"
+          }`}>
+            {msg.attachment_url && (
+              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block mb-2">
+                <img
+                  src={msg.attachment_url}
+                  alt="Attachment"
+                  className="rounded-lg max-w-full max-h-60 object-cover cursor-zoom-in"
+                  style={{ display: "block" }}
+                />
+              </a>
+            )}
+            {msg.text && <span>{msg.text}</span>}
+          </div>
+          {(idx === messages.length - 1 || messages[idx + 1]?.is_admin !== msg.is_admin) && (
+            <span className={`text-[8px] opacity-25 mt-1.5 ${isAdmin ? "pr-1" : "pl-1"}`}>
+              {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </div>
+      </motion.div>
+    );
+  })}
+  <div ref={scrollRef} />
+</div>
               {/* ── REPLY BOX ── */}
               <div className="px-8 py-5 border-t border-[#2B0A0F]/08 flex-shrink-0 bg-[#F6F3EF]">
                 {selectedTicket.status === "closed" ? (
