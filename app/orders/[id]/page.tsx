@@ -444,6 +444,12 @@ export default function OrderDetailPage() {
                 >
                   Confirm Delivered ✓
                 </button>
+                <Link href={`/orders/${id}/label`} target="_blank">
+      <button className="w-full py-3.5 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all mt-2">
+        Print Shipping Label →
+      </button>
+    </Link>
+  </>
               )}
             </div>
           </div>

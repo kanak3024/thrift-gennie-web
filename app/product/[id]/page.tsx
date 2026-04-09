@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
+import ShippingAddressModal, { ShippingAddress } from "../../../components/ShippingAddressModal";
 
 /* ─────────────────────────────
    CONDITION STYLING
@@ -63,7 +64,8 @@ export default function ProductPage() {
   const [similarItems, setSimilarItems]     = useState<any[]>([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [activeImage, setActiveImage]       = useState<string>("");
-
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [pendingAddress, setPendingAddress]     = useState<ShippingAddress | null>(null);
   // Chat
   const [chatOpen, setChatOpen]               = useState(false);
   const [conversationId, setConversationId]   = useState<string | null>(null);
@@ -298,64 +300,61 @@ export default function ProductPage() {
 
   /* ── RAZORPAY ── */
   const handleBuyNow = async () => {
-    if (!user) { router.push("/login"); return; }
-    if (user.id === product.seller_id) return;
-    if (product.status === "sold") return;
+  if (!user) { router.push("/login"); return; }
+  if (user.id === product.seller_id || product.status === "sold") return;
+  setAddressModalOpen(true); // open address modal first
+};
 
-    setPaymentLoading(true);
-    try {
-      const res = await fetch("/api/create-order", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    amount:     product.price,
-    productId:  product.id,
-    buyerId:    user.id,
-    buyerEmail: user.email,
-  }),
-});
-       
+const handleAddressConfirmed = async (address: ShippingAddress) => {
+  setPendingAddress(address);
+  setAddressModalOpen(false);
+  setPaymentLoading(true);
+  try {
+    const res = await fetch("/api/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: product.price, productId: product.id, buyerId: user.id, buyerEmail: user.email }),
+    });
+    const order = await res.json();
+    if (!order.id) throw new Error("Failed to create order");
 
-      const order = await res.json();
-      if (!order.id) throw new Error("Failed to create order");
-
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      document.body.appendChild(script);
-
-      script.onload = () => {
-        const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: order.amount, currency: "INR",
-          name: "Thrift Gennie", description: product.title,
-          order_id: order.id, image: product.image_url || "/final.png",
-          prefill: { email: user.email }, theme: { color: "#2B0A0F" },
-          handler: async (response: any) => {
-            const verifyRes = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                productId: product.id, buyerId: user.id,
-                sellerId: product.seller_id, amount: product.price,
-                buyerEmail: user.email,
-              }),
-            });
-            const result = await verifyRes.json();
-            if (result.success) router.push(`/orders/${result.orderId}`);
-          },
-          modal: { ondismiss: () => setPaymentLoading(false) },
-        };
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-        setPaymentLoading(false);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    document.body.appendChild(script);
+    script.onload = () => {
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount, currency: "INR",
+        name: "Thrift Gennie", description: product.title,
+        order_id: order.id, image: product.image_url || "/final.png",
+        prefill: { email: user.email, contact: address.phone, name: address.fullName },
+        theme: { color: "#2B0A0F" },
+        handler: async (response: any) => {
+          const verifyRes = await fetch("/api/verify-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              razorpay_order_id:  response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              productId:  product.id,
+              buyerId:    user.id,
+              buyerEmail: user.email,
+              shippingAddress: address, // ← passed here
+            }),
+          });
+          const result = await verifyRes.json();
+          if (result.success) router.push(`/orders/${result.orderId}`);
+        },
+        modal: { ondismiss: () => setPaymentLoading(false) },
       };
-    } catch {
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
       setPaymentLoading(false);
-    }
-  };
+    };
+  } catch { setPaymentLoading(false); }
+};
+   
 
   if (!product) return <ProductSkeleton />;
 
@@ -1083,6 +1082,12 @@ export default function ProductPage() {
           </>
         )}
       </AnimatePresence>
+      <ShippingAddressModal
+  open={addressModalOpen}
+  onClose={() => setAddressModalOpen(false)}
+  onConfirm={handleAddressConfirmed}
+  loading={paymentLoading}
+/>
     </motion.main>
   );
 }
