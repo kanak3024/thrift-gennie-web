@@ -305,10 +305,16 @@ export default function ProductPage() {
     setPaymentLoading(true);
     try {
       const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: product.price }),
-      });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    amount:     product.price,
+    productId:  product.id,
+    buyerId:    user.id,
+    buyerEmail: user.email,
+  }),
+});
+       
 
       const order = await res.json();
       if (!order.id) throw new Error("Failed to create order");
