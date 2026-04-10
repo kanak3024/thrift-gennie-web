@@ -283,62 +283,67 @@ export default function ProductPage() {
     }
     setReportLoading(false);
   };
-
   /* ── RAZORPAY ── */
-  const handleBuyNow = async () => {
-    if (!user) { router.push("/login"); return; }
-    if (user.id === product.seller_id || product.status === "sold") return;
-    setAddressModalOpen(true);
-  };
+const handleBuyNow = async () => {
+  if (!user) { router.push("/login"); return; }
+  if (user.id === product.seller_id || product.status === "sold") return;
+  setAddressModalOpen(true);
+};
 
-  const handleAddressConfirmed = async (address: ShippingAddress) => {
-    setPendingAddress(address);
-    setAddressModalOpen(false);
-    setPaymentLoading(true);
-    try {
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: product.price, productId: product.id, buyerId: user.id, buyerEmail: user.email }),
-      });
-      const order = await res.json();
-      if (!order.id) throw new Error("Failed to create order");
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      document.body.appendChild(script);
-      script.onload = () => {
-        const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: order.amount, currency: "INR",
-          name: "Thrift Gennie", description: product.title,
-          order_id: order.id, image: product.image_url || "/final.png",
-          prefill: { email: user.email, contact: address.phone, name: address.fullName },
-          theme: { color: "#2B0A0F" },
-          handler: async (response: any) => {
-            const verifyRes = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id:   response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature:  response.razorpay_signature,
-                productId:           product.id,
-                buyerId:             user.id,
-                buyerEmail:          user.email,
-                shippingAddress:     address,
-              }),
-            });
-            const result = await verifyRes.json();
-            if (result.success) router.push(`/orders/${result.orderId}`);
-          },
-          modal: { ondismiss: () => setPaymentLoading(false) },
-        };
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-        setPaymentLoading(false);
+const handleAddressConfirmed = async (address: ShippingAddress) => {
+  setPendingAddress(address);
+  setAddressModalOpen(false);
+  setPaymentLoading(true);
+  try {
+    const res = await fetch("/api/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount:     product.price,
+        productId:  product.id,
+        buyerId:    user.id,
+        buyerEmail: user.email,
+      }),
+    });
+    const order = await res.json();
+    if (!order.id) throw new Error("Failed to create order");
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    document.body.appendChild(script);
+    script.onload = () => {
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount, currency: "INR",
+        name: "Thrift Gennie", description: product.title,
+        order_id: order.id, image: product.image_url || "/final.png",
+        prefill: { email: user.email, contact: address.phone, name: address.fullName },
+        theme: { color: "#2B0A0F" },
+        handler: async (response: any) => {
+          const verifyRes = await fetch("/api/verify-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+              productId:           product.id,
+              buyerId:             user.id,
+              buyerEmail:          user.email,
+              shippingAddress:     address,
+            }),
+          });
+          const result = await verifyRes.json();
+          if (result.success) router.push(`/orders/${result.orderId}`);
+        },
+        modal: { ondismiss: () => setPaymentLoading(false) },
       };
-    } catch { setPaymentLoading(false); }
-  };
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+      setPaymentLoading(false);
+    };
+  } catch { setPaymentLoading(false); }
+};
 
   if (!product) return <ProductSkeleton />;
 
