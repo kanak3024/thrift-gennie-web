@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
-import ShippingAddressModal, { ShippingAddress } from "../../../components/ShippingAddressModal";
+import ShippingAddressModal, { ShippingAddress } from "../../components/ShippingAddressModal";
 
 /* ─────────────────────────────
    CONDITION STYLING
@@ -20,11 +20,11 @@ const CONDITION_STYLE: Record<string, { bg: string; text: string; dot: string }>
 };
 
 const REPORT_REASONS = [
-  { value: "fake_item",          label: "Fake or counterfeit item" },
-  { value: "wrong_description",  label: "Wrong or misleading description" },
-  { value: "inappropriate",      label: "Inappropriate content" },
-  { value: "scam",               label: "Suspected scam" },
-  { value: "other",              label: "Other" },
+  { value: "fake_item",         label: "Fake or counterfeit item" },
+  { value: "wrong_description", label: "Wrong or misleading description" },
+  { value: "inappropriate",     label: "Inappropriate content" },
+  { value: "scam",              label: "Suspected scam" },
+  { value: "other",             label: "Other" },
 ];
 
 /* ─────────────────────────────
@@ -32,8 +32,8 @@ const REPORT_REASONS = [
 ───────────────────────────── */
 function ProductSkeleton() {
   return (
-    <main className="min-h-screen bg-[#EFE9E1] px-6 py-28">
-      <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 animate-pulse">
+    <main className="min-h-screen bg-[#EFE9E1] px-4 sm:px-6 py-24 sm:py-28">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-8 md:gap-16 animate-pulse">
         <div className="aspect-[4/5] bg-[#EAE3DB] rounded-2xl" />
         <div className="flex flex-col gap-5 pt-4">
           <div className="h-3 w-24 bg-[#EAE3DB] rounded-full" />
@@ -58,40 +58,41 @@ export default function ProductPage() {
   const router = useRouter();
   const { toggleWishlist, isWishlisted } = useWishlist();
 
-  const [user, setUser]                     = useState<any>(null);
-  const [product, setProduct]               = useState<any>(null);
-  const [seller, setSeller]                 = useState<any>(null);
-  const [similarItems, setSimilarItems]     = useState<any[]>([]);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [activeImage, setActiveImage]       = useState<string>("");
+  const [user, setUser]                         = useState<any>(null);
+  const [product, setProduct]                   = useState<any>(null);
+  const [seller, setSeller]                     = useState<any>(null);
+  const [similarItems, setSimilarItems]         = useState<any[]>([]);
+  const [paymentLoading, setPaymentLoading]     = useState(false);
+  const [activeImage, setActiveImage]           = useState<string>("");
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [pendingAddress, setPendingAddress]     = useState<ShippingAddress | null>(null);
+
   // Chat
-  const [chatOpen, setChatOpen]               = useState(false);
-  const [conversationId, setConversationId]   = useState<string | null>(null);
-  const [messages, setMessages]               = useState<any[]>([]);
-  const [newMessage, setNewMessage]           = useState("");
-  const [loadingChat, setLoadingChat]         = useState(false);
-  const [sending, setSending]                 = useState(false);
+  const [chatOpen, setChatOpen]             = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages]             = useState<any[]>([]);
+  const [newMessage, setNewMessage]         = useState("");
+  const [loadingChat, setLoadingChat]       = useState(false);
+  const [sending, setSending]               = useState(false);
 
   // Make an Offer
-  const [offerOpen, setOfferOpen]             = useState(false);
-  const [offerAmount, setOfferAmount]         = useState("");
-  const [offerMessage, setOfferMessage]       = useState("");
-  const [offerLoading, setOfferLoading]       = useState(false);
-  const [offerSuccess, setOfferSuccess]       = useState(false);
-  const [existingOffer, setExistingOffer]     = useState<any>(null);
+  const [offerOpen, setOfferOpen]         = useState(false);
+  const [offerAmount, setOfferAmount]     = useState("");
+  const [offerMessage, setOfferMessage]   = useState("");
+  const [offerLoading, setOfferLoading]   = useState(false);
+  const [offerSuccess, setOfferSuccess]   = useState(false);
+  const [existingOffer, setExistingOffer] = useState<any>(null);
 
   // Share
-  const [shareOpen, setShareOpen]             = useState(false);
-  const [copied, setCopied]                   = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied]       = useState(false);
 
   // Report
-  const [reportOpen, setReportOpen]           = useState(false);
-  const [reportReason, setReportReason]       = useState("");
-  const [reportDetails, setReportDetails]     = useState("");
-  const [reportLoading, setReportLoading]     = useState(false);
-  const [reportSuccess, setReportSuccess]     = useState(false);
+  const [reportOpen, setReportOpen]       = useState(false);
+  const [reportReason, setReportReason]   = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef   = useRef<HTMLInputElement>(null);
@@ -106,11 +107,9 @@ export default function ProductPage() {
   /* ── FETCH PRODUCT + SELLER + SIMILAR + OFFER ── */
   useEffect(() => {
     if (!id) return;
-
     const fetchAll = async () => {
       const { data: productData } = await supabase
         .from("products").select("*").eq("id", id).single();
-
       if (!productData) return;
       setProduct(productData);
       setActiveImage(productData.image_url || "/final.png");
@@ -129,7 +128,6 @@ export default function ProductPage() {
         .limit(4);
       if (similar) setSimilarItems(similar);
     };
-
     fetchAll();
   }, [id]);
 
@@ -173,13 +171,11 @@ export default function ProductPage() {
   const initConversation = async () => {
     if (!id || !product || !user || loadingChat) return null;
     if (user.id === product.seller_id) return null;
-
     setLoadingChat(true);
     try {
       const { data: existing } = await supabase
         .from("conversations").select("id")
         .eq("product_id", id).eq("buyer_id", user.id).maybeSingle();
-
       let activeId = existing?.id;
       if (!activeId) {
         const { data: created, error } = await supabase
@@ -189,7 +185,6 @@ export default function ProductPage() {
         if (error) { setLoadingChat(false); return null; }
         activeId = created.id;
       }
-
       setConversationId(activeId);
       const { data } = await supabase.from("messages").select("*")
         .eq("conversation_id", activeId).order("created_at", { ascending: true });
@@ -208,7 +203,6 @@ export default function ProductPage() {
     let currentId = conversationId;
     if (!currentId) currentId = await initConversation();
     if (!currentId) return;
-
     const text = newMessage.trim();
     setNewMessage("");
     setSending(true);
@@ -228,13 +222,10 @@ export default function ProductPage() {
       alert("Your offer should be less than the listed price. Just buy it! 🛍️");
       return;
     }
-
     setOfferLoading(true);
     try {
-      // Create conversation first if needed
       let convId = conversationId;
       if (!convId) convId = await initConversation();
-
       const res = await fetch("/api/make-offer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,7 +237,6 @@ export default function ProductPage() {
           message: offerMessage,
         }),
       });
-
       const result = await res.json();
       if (result.error) {
         alert(result.error);
@@ -267,12 +257,10 @@ export default function ProductPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
   const handleWhatsAppShare = () => {
     const text = `Check out this listing on Thrift Gennie: ${product.title} — ₹${product.price}\n${window.location.href}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
-
   const handleTwitterShare = () => {
     const text = `Found this on @ThriftGennie: ${product.title} — ₹${product.price}`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, "_blank");
@@ -282,7 +270,6 @@ export default function ProductPage() {
   const handleReport = async () => {
     if (!user) { router.push("/login"); return; }
     if (!reportReason) { alert("Please select a reason"); return; }
-
     setReportLoading(true);
     const { error } = await supabase.from("reports").insert({
       product_id: product.id,
@@ -290,7 +277,6 @@ export default function ProductPage() {
       reason: reportReason,
       details: reportDetails,
     });
-
     if (!error) {
       setReportSuccess(true);
       setTimeout(() => { setReportOpen(false); setReportSuccess(false); setReportReason(""); setReportDetails(""); }, 2000);
@@ -300,66 +286,64 @@ export default function ProductPage() {
 
   /* ── RAZORPAY ── */
   const handleBuyNow = async () => {
-  if (!user) { router.push("/login"); return; }
-  if (user.id === product.seller_id || product.status === "sold") return;
-  setAddressModalOpen(true); // open address modal first
-};
+    if (!user) { router.push("/login"); return; }
+    if (user.id === product.seller_id || product.status === "sold") return;
+    setAddressModalOpen(true);
+  };
 
-const handleAddressConfirmed = async (address: ShippingAddress) => {
-  setPendingAddress(address);
-  setAddressModalOpen(false);
-  setPaymentLoading(true);
-  try {
-    const res = await fetch("/api/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: product.price, productId: product.id, buyerId: user.id, buyerEmail: user.email }),
-    });
-    const order = await res.json();
-    if (!order.id) throw new Error("Failed to create order");
-
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    document.body.appendChild(script);
-    script.onload = () => {
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount, currency: "INR",
-        name: "Thrift Gennie", description: product.title,
-        order_id: order.id, image: product.image_url || "/final.png",
-        prefill: { email: user.email, contact: address.phone, name: address.fullName },
-        theme: { color: "#2B0A0F" },
-        handler: async (response: any) => {
-          const verifyRes = await fetch("/api/verify-payment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              razorpay_order_id:  response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              productId:  product.id,
-              buyerId:    user.id,
-              buyerEmail: user.email,
-              shippingAddress: address, // ← passed here
-            }),
-          });
-          const result = await verifyRes.json();
-          if (result.success) router.push(`/orders/${result.orderId}`);
-        },
-        modal: { ondismiss: () => setPaymentLoading(false) },
+  const handleAddressConfirmed = async (address: ShippingAddress) => {
+    setPendingAddress(address);
+    setAddressModalOpen(false);
+    setPaymentLoading(true);
+    try {
+      const res = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: product.price, productId: product.id, buyerId: user.id, buyerEmail: user.email }),
+      });
+      const order = await res.json();
+      if (!order.id) throw new Error("Failed to create order");
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      document.body.appendChild(script);
+      script.onload = () => {
+        const options = {
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          amount: order.amount, currency: "INR",
+          name: "Thrift Gennie", description: product.title,
+          order_id: order.id, image: product.image_url || "/final.png",
+          prefill: { email: user.email, contact: address.phone, name: address.fullName },
+          theme: { color: "#2B0A0F" },
+          handler: async (response: any) => {
+            const verifyRes = await fetch("/api/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id:   response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature:  response.razorpay_signature,
+                productId:           product.id,
+                buyerId:             user.id,
+                buyerEmail:          user.email,
+                shippingAddress:     address,
+              }),
+            });
+            const result = await verifyRes.json();
+            if (result.success) router.push(`/orders/${result.orderId}`);
+          },
+          modal: { ondismiss: () => setPaymentLoading(false) },
+        };
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+        setPaymentLoading(false);
       };
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-      setPaymentLoading(false);
-    };
-  } catch { setPaymentLoading(false); }
-};
-   
+    } catch { setPaymentLoading(false); }
+  };
 
   if (!product) return <ProductSkeleton />;
 
-  const isSold   = product.status === "sold";
-  const isMine   = user?.id === product.seller_id;
+  const isSold    = product.status === "sold";
+  const isMine    = user?.id === product.seller_id;
   const allImages = [product.image_url, ...(product.extra_images || [])].filter(Boolean);
   const condStyle = CONDITION_STYLE[product.condition] || { bg: "#88810", text: "#888", dot: "#888" };
 
@@ -386,7 +370,10 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[#F6F3EF] rounded-2xl p-8 w-[380px] shadow-2xl"
+              /* full-width on mobile, fixed 380px on sm+ */
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+                         bg-[#F6F3EF] rounded-2xl p-6 sm:p-8
+                         w-[calc(100vw-2rem)] sm:w-[380px] shadow-2xl"
             >
               {offerSuccess ? (
                 <div className="text-center py-4">
@@ -431,7 +418,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                         />
                       </div>
 
-                      {/* Quick offer buttons */}
                       <div className="flex gap-2">
                         {[0.9, 0.8, 0.7].map((pct) => (
                           <button
@@ -483,7 +469,9 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[#F6F3EF] rounded-2xl p-8 w-[360px] shadow-2xl"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+                         bg-[#F6F3EF] rounded-2xl p-6 sm:p-8
+                         w-[calc(100vw-2rem)] sm:w-[360px] shadow-2xl"
             >
               <h3 className="text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Share this Piece</h3>
               <p className="text-[10px] uppercase tracking-widest opacity-40 mb-6">{product.title}</p>
@@ -498,7 +486,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                     {copied ? "Link Copied! ✓" : "Copy Link"}
                   </span>
                 </button>
-
                 <button
                   onClick={handleWhatsAppShare}
                   className="w-full flex items-center gap-4 p-4 rounded-xl border border-[#2B0A0F]/10 hover:bg-[#25D366] hover:text-white hover:border-[#25D366] transition-all"
@@ -506,7 +493,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                   <span className="text-xl">💬</span>
                   <span className="text-[10px] uppercase tracking-widest">Share on WhatsApp</span>
                 </button>
-
                 <button
                   onClick={handleTwitterShare}
                   className="w-full flex items-center gap-4 p-4 rounded-xl border border-[#2B0A0F]/10 hover:bg-black hover:text-white hover:border-black transition-all"
@@ -542,7 +528,9 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[#F6F3EF] rounded-2xl p-8 w-[380px] shadow-2xl"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+                         bg-[#F6F3EF] rounded-2xl p-6 sm:p-8
+                         w-[calc(100vw-2rem)] sm:w-[380px] shadow-2xl"
             >
               {reportSuccess ? (
                 <div className="text-center py-4">
@@ -607,8 +595,8 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
       {/* ══════════════════════════════
           BREADCRUMB
       ══════════════════════════════ */}
-      <div className="max-w-7xl mx-auto px-6 pt-28 pb-0">
-        <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.25em] opacity-40 mb-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 sm:pt-28 pb-0">
+        <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.25em] opacity-40 mb-6 sm:mb-10 flex-wrap">
           <Link href="/" className="hover:opacity-100 transition-opacity">Home</Link>
           <span>/</span>
           <Link href="/buy" className="hover:opacity-100 transition-opacity">Archive</Link>
@@ -621,15 +609,16 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
             </>
           )}
           <span>/</span>
-          <span className="opacity-70 truncate max-w-[160px]">{product.title}</span>
+          <span className="opacity-70 truncate max-w-[120px] sm:max-w-[160px]">{product.title}</span>
         </div>
       </div>
 
       {/* ══════════════════════════════
           MAIN GRID
+          — stacks to single column on mobile
       ══════════════════════════════ */}
-      <div className="max-w-7xl mx-auto px-6 pb-24">
-        <div className="grid md:grid-cols-[1fr_1fr] gap-12 lg:gap-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 sm:pb-24">
+        <div className="grid md:grid-cols-[1fr_1fr] gap-8 lg:gap-20">
 
           {/* ── LEFT: IMAGE GALLERY ── */}
           <div className="flex flex-col gap-3">
@@ -675,7 +664,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                 </button>
               )}
 
-              {/* Share + Report buttons on image */}
+              {/* Share + Report */}
               <div className="absolute bottom-4 left-4 flex gap-2">
                 <button
                   onClick={() => setShareOpen(true)}
@@ -699,13 +688,14 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               </div>
             </div>
 
+            {/* Thumbnail strip */}
             {allImages.length > 1 && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {allImages.map((img: string, i: number) => (
                   <button
                     key={i}
                     onClick={() => setActiveImage(img)}
-                    className={`relative w-16 h-20 flex-shrink-0 overflow-hidden rounded-lg transition-all ${
+                    className={`relative w-14 sm:w-16 h-[72px] sm:h-20 flex-shrink-0 overflow-hidden rounded-lg transition-all ${
                       activeImage === img
                         ? "ring-2 ring-[#2B0A0F] opacity-100"
                         : "opacity-40 hover:opacity-80"
@@ -720,22 +710,23 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
 
           {/* ── RIGHT: PRODUCT DETAILS ── */}
           <div className="flex flex-col">
-            <p className="text-[9px] uppercase tracking-[0.35em] opacity-40 mb-4">
+            <p className="text-[9px] uppercase tracking-[0.35em] opacity-40 mb-3 sm:mb-4">
               Pre-loved Archive{product.mood && ` · ${product.mood}`}
             </p>
 
             <h1
-              className="leading-[0.95] mb-5"
-              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(2rem,4vw,3rem)" }}
+              className="leading-[0.95] mb-4 sm:mb-5"
+              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.8rem,5vw,3rem)" }}
             >
               {product.title}
             </h1>
 
-            <p className="text-3xl mb-6 text-[#A1123F]" style={{ fontFamily: "var(--font-playfair)" }}>
+            <p className="text-2xl sm:text-3xl mb-5 sm:mb-6 text-[#A1123F]" style={{ fontFamily: "var(--font-playfair)" }}>
               ₹{product.price?.toLocaleString("en-IN")}
             </p>
 
-            <div className="flex flex-wrap gap-2 mb-7">
+            {/* Meta chips — scrollable on very small screens */}
+            <div className="flex flex-wrap gap-2 mb-6 sm:mb-7">
               {product.condition && (
                 <span
                   className="text-[9px] uppercase tracking-[0.18em] px-3 py-1.5 rounded-full border flex items-center gap-1.5"
@@ -766,17 +757,18 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
             </div>
 
             {product.description && (
-              <p className="text-sm leading-relaxed text-[#2B0A0F]/65 mb-8 max-w-md border-l-2 border-[#2B0A0F]/10 pl-4">
+              <p className="text-sm leading-relaxed text-[#2B0A0F]/65 mb-7 sm:mb-8 max-w-md border-l-2 border-[#2B0A0F]/10 pl-4">
                 {product.description}
               </p>
             )}
 
-            <div className="w-full h-px bg-[#2B0A0F]/08 mb-8" />
+            <div className="w-full h-px bg-[#2B0A0F]/08 mb-6 sm:mb-8" />
 
+            {/* Seller card */}
             {seller && (
               <Link
                 href={`/account/${seller.id}`}
-                className="flex items-center gap-4 mb-8 p-4 rounded-2xl border border-[#2B0A0F]/08 bg-white/50 hover:bg-white transition-all group"
+                className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8 p-3 sm:p-4 rounded-2xl border border-[#2B0A0F]/08 bg-white/50 hover:bg-white transition-all group"
               >
                 <div className="w-10 h-10 rounded-full bg-[#2B0A0F] flex items-center justify-center text-[#F6F3EF] text-sm overflow-hidden flex-shrink-0">
                   {seller.avatar_url ? (
@@ -794,7 +786,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               </Link>
             )}
 
-            {/* ── CTAs — 4 clean states ── */}
+            {/* ── CTAs ── */}
             {isSold ? (
               <div className="w-full py-4 rounded-full bg-[#2B0A0F]/08 text-center text-[9px] uppercase tracking-[0.35em] opacity-40">
                 This piece has found its home
@@ -837,7 +829,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                     `Buy Now — ₹${product.price?.toLocaleString("en-IN")}`
                   )}
                 </motion.button>
-            
+
                 {/* Make an Offer */}
                 <motion.button
                   whileTap={{ scale: 0.98 }}
@@ -853,7 +845,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                     : "Make an Offer"}
                 </motion.button>
 
-                {/* Inquire + Wishlist */}
+                {/* Inquire + Wishlist — side by side */}
                 <div className="flex gap-3">
                   <motion.button
                     whileTap={{ scale: 0.98 }}
@@ -870,7 +862,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     onClick={() => toggleWishlist(product)}
-                    className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${
+                    className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
                       isWishlisted(product.id)
                         ? "bg-[#A1123F] border-[#A1123F] text-white"
                         : "border-[#2B0A0F]/20 hover:border-[#A1123F]/50"
@@ -889,7 +881,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
             )}
 
             {/* Trust signals */}
-            <div className="mt-8 flex flex-col gap-2">
+            <div className="mt-6 sm:mt-8 flex flex-col gap-2">
               {[
                 { icon: "🔒", text: "Secure payment via Razorpay" },
                 { icon: "✦",  text: "Direct UPI payout to seller" },
@@ -908,21 +900,24 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
             SIMILAR ITEMS
         ══════════════════════════════ */}
         {similarItems.length > 0 && (
-          <div className="mt-24 pt-16 border-t border-[#2B0A0F]/08">
-            <div className="flex items-end justify-between mb-10">
+          <div className="mt-16 sm:mt-24 pt-12 sm:pt-16 border-t border-[#2B0A0F]/08">
+            <div className="flex items-end justify-between mb-7 sm:mb-10">
               <div>
                 <p className="text-[9px] uppercase tracking-[0.4em] opacity-40 mb-2">You May Also Like</p>
-                <h2 className="text-3xl" style={{ fontFamily: "var(--font-playfair)" }}>More from the Archive</h2>
+                <h2 className="text-2xl sm:text-3xl" style={{ fontFamily: "var(--font-playfair)" }}>
+                  More from the Archive
+                </h2>
               </div>
-              <Link href="/buy" className="text-[9px] uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity">
+              <Link href="/buy" className="text-[9px] uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap">
                 View All →
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* 2 cols on mobile, 4 on md+ */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {similarItems.map((item) => (
                 <Link key={item.id} href={`/product/${item.id}`} className="group">
-                  <div className="relative aspect-[3/4] bg-[#EAE3DB] overflow-hidden rounded-xl mb-3">
+                  <div className="relative aspect-[3/4] bg-[#EAE3DB] overflow-hidden rounded-xl mb-2 sm:mb-3">
                     <Image src={item.image_url || "/final.png"} alt={item.title} fill className="object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                     {item.condition && (
@@ -947,6 +942,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
 
       {/* ══════════════════════════════
           CHAT PANEL
+          — full width on mobile
       ══════════════════════════════ */}
       <AnimatePresence>
         {chatOpen && (
@@ -959,9 +955,10 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
             <motion.div
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-[420px] bg-[#1A060B] flex flex-col shadow-2xl"
+              className="fixed right-0 top-0 bottom-0 z-50 w-full sm:max-w-[420px] bg-[#1A060B] flex flex-col shadow-2xl"
             >
-              <div className="px-6 py-5 border-b border-white/08 flex items-center gap-4">
+              {/* Chat header */}
+              <div className="px-4 sm:px-6 py-5 border-b border-white/08 flex items-center gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-9 h-9 rounded-full bg-[#2B0A0F] border border-white/10 flex items-center justify-center text-[#F6F3EF] text-xs overflow-hidden flex-shrink-0">
                     {seller?.avatar_url ? (
@@ -985,7 +982,8 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                 </button>
               </div>
 
-              <div className="px-6 py-4 border-b border-white/05 flex items-center gap-3 bg-[#2B0A0F]/40">
+              {/* Product preview strip */}
+              <div className="px-4 sm:px-6 py-4 border-b border-white/05 flex items-center gap-3 bg-[#2B0A0F]/40">
                 <div className="relative w-10 h-12 rounded-md overflow-hidden flex-shrink-0 bg-[#2B0A0F]">
                   <Image src={product.image_url || "/final.png"} alt={product.title} fill className="object-cover" />
                 </div>
@@ -997,21 +995,22 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-3">
                 {messages.length === 0 && !loadingChat && (
                   <div className="flex flex-col items-center justify-center h-full gap-3 opacity-25">
                     <p className="text-[#F6F3EF] text-sm italic" style={{ fontFamily: "var(--font-playfair)" }}>
                       Start the conversation.
                     </p>
-                    <p className="text-[#F6F3EF] text-[9px] uppercase tracking-[0.25em]">
+                    <p className="text-[#F6F3EF] text-[9px] uppercase tracking-[0.25em] text-center">
                       Ask about size, condition, or make an offer.
                     </p>
                   </div>
                 )}
 
                 {messages.map((msg, idx) => {
-                  const isMe = msg.sender_id === user?.id;
-                  const prev = messages[idx - 1];
+                  const isMe      = msg.sender_id === user?.id;
+                  const prev      = messages[idx - 1];
                   const sameAsPrev = prev?.sender_id === msg.sender_id;
 
                   return (
@@ -1039,7 +1038,8 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                 <div ref={chatEndRef} />
               </div>
 
-              <div className="px-5 py-4 border-t border-white/08 bg-[#1A060B]">
+              {/* Input */}
+              <div className="px-4 sm:px-5 py-4 border-t border-white/08 bg-[#1A060B]">
                 <div className="flex items-center gap-3">
                   <input
                     ref={inputRef}
@@ -1048,7 +1048,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                     placeholder="Ask about size, condition, price..."
-                    className="flex-1 bg-[#2B0A0F]/60 border border-white/10 rounded-full px-5 py-3 text-sm text-[#F6F3EF] placeholder:text-[#F6F3EF]/25 outline-none focus:border-[#B48A5A]/50 transition-colors"
+                    className="flex-1 bg-[#2B0A0F]/60 border border-white/10 rounded-full px-4 sm:px-5 py-3 text-sm text-[#F6F3EF] placeholder:text-[#F6F3EF]/25 outline-none focus:border-[#B48A5A]/50 transition-colors"
                   />
                   <motion.button
                     whileTap={{ scale: 0.9 }}
@@ -1082,12 +1082,13 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
           </>
         )}
       </AnimatePresence>
+
       <ShippingAddressModal
-  open={addressModalOpen}
-  onClose={() => setAddressModalOpen(false)}
-  onConfirm={handleAddressConfirmed}
-  loading={paymentLoading}
-/>
+        open={addressModalOpen}
+        onClose={() => setAddressModalOpen(false)}
+        onConfirm={handleAddressConfirmed}
+        loading={paymentLoading}
+      />
     </motion.main>
   );
 }
