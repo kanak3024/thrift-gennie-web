@@ -105,7 +105,7 @@ export default function ShippingLabelPage() {
               </div>
               {/* Simple visual barcode placeholder using CSS stripes */}
               <div style={{ display: "flex", gap: "2px", alignItems: "flex-end", height: "40px" }}>
-                {shortId.split("").map((char, i) => (
+                {shortId.split("").map((_char: string, i: number) => (
                   <div
                     key={i}
                     style={{
