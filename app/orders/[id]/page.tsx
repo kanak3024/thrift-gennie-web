@@ -437,23 +437,19 @@ export default function OrderDetailPage() {
                 ) : order.status === "shipped" ? "Update Tracking" : "Mark as Shipped →"}
               </motion.button>
               {order.status === "shipped" && (
-  <>
-    <button
-      onClick={handleMarkDelivered}
-      className="w-full py-3.5 rounded-full border border-[#6B7E60]/30 text-[#6B7E60] text-[10px] uppercase tracking-[0.2em] hover:bg-[#6B7E60]/08 transition-all"
-    >
-      Confirm Delivered ✓
-    </button>
-    <Link href={`/orders/${id}/label`} target="_blank">
+  <button
+    onClick={handleMarkDelivered}
+    className="w-full py-3.5 rounded-full border border-[#6B7E60]/30 text-[#6B7E60] text-[10px] uppercase tracking-[0.2em] hover:bg-[#6B7E60]/08 transition-all"
+  >
+    Confirm Delivered ✓
+  </button>
+)}
+
+<Link href={`/orders/${id}/label`} target="_blank">
   <button className="w-full py-3.5 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all mt-2">
     Print Shipping Label →
   </button>
-</Link>
-    
-  </>
-)}
-
-               
+</Link>       
             </div>
           </div>
         )}
