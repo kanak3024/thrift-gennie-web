@@ -32,8 +32,39 @@ const EMPTY: ShippingAddress = {
   fullName: "", phone: "", addressLine: "", city: "", state: "", pincode: "",
 };
 
+// ── Field defined OUTSIDE the modal component so it's never recreated on re-render
+// ── This fixes the "one character at a time" bug caused by React remounting inputs
+function Field({
+  label, placeholder, type = "text", required = true,
+  value, onChange, error,
+}: {
+  label:        string;
+  placeholder?: string;
+  type?:        string;
+  required?:    boolean;
+  value:        string;
+  onChange:     (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?:       string;
+}) {
+  return (
+    <div className="border-b border-[#2B0A0F]/10 focus-within:border-[#2B0A0F]/50 transition-colors pb-1">
+      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-1.5">
+        {label}{required && " *"}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full bg-transparent pb-2 outline-none text-sm placeholder:opacity-20"
+      />
+      {error && <p className="text-[9px] text-[#A1123F] mt-1">{error}</p>}
+    </div>
+  );
+}
+
 export default function ShippingAddressModal({ open, onClose, onConfirm, loading }: Props) {
-  const [addr, setAddr] = useState<ShippingAddress>(EMPTY);
+  const [addr, setAddr]     = useState<ShippingAddress>(EMPTY);
   const [errors, setErrors] = useState<Partial<ShippingAddress>>({});
 
   const set = (field: keyof ShippingAddress) => (
@@ -45,12 +76,12 @@ export default function ShippingAddressModal({ open, onClose, onConfirm, loading
 
   const validate = (): boolean => {
     const errs: Partial<ShippingAddress> = {};
-    if (!addr.fullName.trim())    errs.fullName    = "Required";
-    if (!/^\d{10}$/.test(addr.phone)) errs.phone   = "Enter a valid 10-digit number";
-    if (!addr.addressLine.trim()) errs.addressLine = "Required";
-    if (!addr.city.trim())        errs.city        = "Required";
-    if (!addr.state)              errs.state       = "Required";
-    if (!/^\d{6}$/.test(addr.pincode)) errs.pincode = "Enter a valid 6-digit pincode";
+    if (!addr.fullName.trim())         errs.fullName    = "Required";
+    if (!/^\d{10}$/.test(addr.phone))  errs.phone       = "Enter a valid 10-digit number";
+    if (!addr.addressLine.trim())      errs.addressLine = "Required";
+    if (!addr.city.trim())             errs.city        = "Required";
+    if (!addr.state)                   errs.state       = "Required";
+    if (!/^\d{6}$/.test(addr.pincode)) errs.pincode     = "Enter a valid 6-digit pincode";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -58,29 +89,6 @@ export default function ShippingAddressModal({ open, onClose, onConfirm, loading
   const handleConfirm = () => {
     if (validate()) onConfirm(addr);
   };
-
-  const Field = ({
-    label, field, placeholder, type = "text", required = true,
-  }: {
-    label: string; field: keyof ShippingAddress;
-    placeholder?: string; type?: string; required?: boolean;
-  }) => (
-    <div className="border-b border-[#2B0A0F]/10 focus-within:border-[#2B0A0F]/50 transition-colors pb-1">
-      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-1.5">
-        {label}{required && " *"}
-      </label>
-      <input
-        type={type}
-        value={addr[field]}
-        onChange={set(field)}
-        placeholder={placeholder}
-        className="w-full bg-transparent pb-2 outline-none text-sm placeholder:opacity-20"
-      />
-      {errors[field] && (
-        <p className="text-[9px] text-[#A1123F] mt-1">{errors[field]}</p>
-      )}
-    </div>
-  );
 
   return (
     <AnimatePresence>
@@ -113,13 +121,39 @@ export default function ShippingAddressModal({ open, onClose, onConfirm, loading
             </div>
 
             <div className="space-y-5">
-              <Field label="Full Name"     field="fullName"    placeholder="As on ID" />
-              <Field label="Phone Number"  field="phone"       placeholder="10-digit mobile" type="tel" />
-              <Field label="Address Line"  field="addressLine" placeholder="House no., street, area, landmark" />
+              <Field
+                label="Full Name"
+                placeholder="As on ID"
+                value={addr.fullName}
+                onChange={set("fullName")}
+                error={errors.fullName}
+              />
+              <Field
+                label="Phone Number"
+                placeholder="10-digit mobile"
+                type="tel"
+                value={addr.phone}
+                onChange={set("phone")}
+                error={errors.phone}
+              />
+              <Field
+                label="Address Line"
+                placeholder="House no., street, area, landmark"
+                value={addr.addressLine}
+                onChange={set("addressLine")}
+                error={errors.addressLine}
+              />
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="City"    field="city"    placeholder="Mumbai" />
-                {/* State dropdown */}
+                <Field
+                  label="City"
+                  placeholder="Mumbai"
+                  value={addr.city}
+                  onChange={set("city")}
+                  error={errors.city}
+                />
+
+                {/* State dropdown — kept inline since it's a select not an input */}
                 <div className="border-b border-[#2B0A0F]/10 focus-within:border-[#2B0A0F]/50 transition-colors pb-1">
                   <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-1.5">
                     State *
@@ -138,7 +172,14 @@ export default function ShippingAddressModal({ open, onClose, onConfirm, loading
                 </div>
               </div>
 
-              <Field label="Pincode" field="pincode" placeholder="6-digit pincode" type="tel" />
+              <Field
+                label="Pincode"
+                placeholder="6-digit pincode"
+                type="tel"
+                value={addr.pincode}
+                onChange={set("pincode")}
+                error={errors.pincode}
+              />
             </div>
 
             {/* Trust note */}
