@@ -22,7 +22,7 @@ function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] || { label: status, text: "#888", dot: "#888" };
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[8px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full"
+      className="inline-flex items-center gap-1.5 text-[8px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full flex-shrink-0"
       style={{ color: cfg.text, background: `${cfg.dot}15`, border: `1px solid ${cfg.dot}25` }}
     >
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.dot }} />
@@ -34,9 +34,9 @@ function StatusBadge({ status }: { status: string }) {
 function OrderSkeleton() {
   return (
     <div className="space-y-3">
-      {[1,2,3].map(i => (
-        <div key={i} className="flex gap-5 p-5 bg-white rounded-2xl border border-[#2B0A0F]/05 animate-pulse">
-          <div className="w-16 h-20 bg-[#EAE3DB] rounded-lg flex-shrink-0" />
+      {[1, 2, 3].map(i => (
+        <div key={i} className="flex gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-[#2B0A0F]/05 animate-pulse">
+          <div className="w-14 sm:w-16 h-[72px] sm:h-20 bg-[#EAE3DB] rounded-lg flex-shrink-0" />
           <div className="flex-1 space-y-3 py-1">
             <div className="h-3 bg-[#EAE3DB] rounded-full w-1/2" />
             <div className="h-3 bg-[#EAE3DB] rounded-full w-1/3" />
@@ -81,57 +81,64 @@ export default function OrdersPage() {
   }, []);
 
   const orders = activeTab === "selling" ? sellingOrders : buyingOrders;
+  const awaitingShipment = sellingOrders.filter(o => o.status === "paid").length;
 
   return (
     <main className="min-h-screen bg-[#F6F3EF] text-[#2B0A0F]">
-      <div className="max-w-4xl mx-auto px-6 pt-28 pb-20">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-20 sm:pt-28 pb-20">
 
-        {/* Header */}
+        {/* ── HEADER ── */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          className="mb-8 sm:mb-10"
         >
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-[9px] uppercase tracking-[0.4em] opacity-35 mb-3">Your Activity</p>
-              <h1
-                className="leading-none"
-                style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(2.5rem,5vw,3.5rem)" }}
-              >
-                Orders
-              </h1>
-            </div>
-            {/* Summary pills */}
-            <div className="flex gap-2">
-              {sellingOrders.filter(o => o.status === "paid").length > 0 && (
-                <div className="flex items-center gap-2 bg-[#2B0A0F] text-[#F6F3EF] rounded-full px-4 py-2">
-                  <span className="relative flex h-[6px] w-[6px]">
+          <p className="text-[9px] uppercase tracking-[0.4em] opacity-35 mb-3">Your Activity</p>
+
+          {/* Title + alert — stack on mobile */}
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <h1
+              className="leading-none"
+              style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(2rem,5vw,3.5rem)" }}
+            >
+              Orders
+            </h1>
+
+            {/* Awaiting shipment pill */}
+            <AnimatePresence>
+              {awaitingShipment > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="self-start sm:self-auto flex items-center gap-2 bg-[#2B0A0F] text-[#F6F3EF] rounded-full px-4 py-2"
+                >
+                  <span className="relative flex h-[6px] w-[6px] flex-shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#B48A5A] opacity-70" />
                     <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-[#B48A5A]" />
                   </span>
-                  <span className="text-[10px] tracking-[0.15em] uppercase text-[#B48A5A]">
-                    {sellingOrders.filter(o => o.status === "paid").length} awaiting shipment
+                  <span className="text-[9px] sm:text-[10px] tracking-[0.15em] uppercase text-[#B48A5A] whitespace-nowrap">
+                    {awaitingShipment} awaiting shipment
                   </span>
-                </div>
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
           </div>
         </motion.div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-[#2B0A0F]/08 mb-8">
+        {/* ── TABS ── */}
+        <div className="flex gap-1 border-b border-[#2B0A0F]/08 mb-6 sm:mb-8">
           {(["selling", "buying"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`relative px-5 py-3 text-[10px] uppercase tracking-[0.25em] transition-colors ${
+              className={`relative px-4 sm:px-5 py-3 text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.25em] transition-colors ${
                 activeTab === tab ? "text-[#2B0A0F]" : "text-[#2B0A0F]/35 hover:text-[#2B0A0F]/65"
               }`}
             >
               {tab === "selling" ? "I'm Selling" : "I'm Buying"}
               <span className="ml-1.5 opacity-40">
-                {tab === "selling" ? sellingOrders.length : buyingOrders.length}
+                ({tab === "selling" ? sellingOrders.length : buyingOrders.length})
               </span>
               {activeTab === tab && (
                 <motion.div
@@ -143,22 +150,19 @@ export default function OrdersPage() {
           ))}
         </div>
 
-        {/* Content */}
+        {/* ── CONTENT ── */}
         {loading ? (
           <OrderSkeleton />
         ) : orders.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="py-24 text-center border border-dashed border-[#2B0A0F]/10 rounded-2xl"
+            className="py-20 sm:py-24 text-center border border-dashed border-[#2B0A0F]/10 rounded-2xl"
           >
-            <p
-              className="text-2xl opacity-15 mb-3"
-              style={{ fontFamily: "var(--font-playfair)" }}
-            >
+            <p className="text-2xl opacity-15 mb-3" style={{ fontFamily: "var(--font-playfair)" }}>
               {activeTab === "selling" ? "No orders yet." : "Nothing purchased yet."}
             </p>
-            <p className="text-[9px] uppercase tracking-[0.3em] opacity-25 mb-8">
+            <p className="text-[9px] uppercase tracking-[0.3em] opacity-25 mb-8 px-6">
               {activeTab === "selling"
                 ? "When someone buys your piece, it'll appear here."
                 : "Pieces you buy will appear here."}
@@ -180,10 +184,10 @@ export default function OrdersPage() {
                   transition={{ delay: i * 0.05 }}
                 >
                   <Link href={`/orders/${order.id}`}>
-                    <div className="flex items-stretch gap-0 bg-white rounded-2xl border border-[#2B0A0F]/06 hover:border-[#2B0A0F]/20 transition-all group overflow-hidden">
+                    <div className="flex items-stretch bg-white rounded-2xl border border-[#2B0A0F]/06 hover:border-[#2B0A0F]/20 transition-all group overflow-hidden">
 
                       {/* Image */}
-                      <div className="relative w-[72px] flex-shrink-0 bg-[#EAE3DB]">
+                      <div className="relative w-14 sm:w-[72px] flex-shrink-0 bg-[#EAE3DB]">
                         <Image
                           src={order.products?.image_url || "/final.png"}
                           alt={order.products?.title || "Product"}
@@ -193,45 +197,50 @@ export default function OrdersPage() {
                       </div>
 
                       {/* Details */}
-                      <div className="flex-1 px-5 py-4 min-w-0">
-                        <div className="flex items-start justify-between gap-3 mb-1.5">
-                          <p className="text-sm font-medium truncate">{order.products?.title}</p>
-                          <span className="text-[9px] uppercase tracking-widest opacity-30 flex-shrink-0 mt-0.5">
+                      <div className="flex-1 px-4 sm:px-5 py-3 sm:py-4 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <p className="text-sm font-medium truncate leading-snug">
+                            {order.products?.title}
+                          </p>
+                          <span className="text-[9px] uppercase tracking-widest opacity-30 flex-shrink-0 mt-0.5 hidden sm:block">
                             {new Date(order.created_at).toLocaleDateString("en-IN", {
-                              day: "numeric", month: "short"
+                              day: "numeric", month: "short",
                             })}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <span
-                            className="text-sm"
-                            style={{ fontFamily: "var(--font-playfair)" }}
-                          >
+                        {/* Date on mobile */}
+                        <p className="text-[8px] uppercase tracking-widest opacity-25 mb-1.5 sm:hidden">
+                          {new Date(order.created_at).toLocaleDateString("en-IN", {
+                            day: "numeric", month: "short", year: "numeric",
+                          })}
+                        </p>
+
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                          <span className="text-sm" style={{ fontFamily: "var(--font-playfair)" }}>
                             ₹{order.amount?.toLocaleString("en-IN")}
                           </span>
-                          <span className="w-px h-3 bg-[#2B0A0F]/12" />
+                          <span className="w-px h-3 bg-[#2B0A0F]/12 hidden sm:block" />
                           <StatusBadge status={order.status} />
-                          {order.tracking_number && (
-                            <>
-                              <span className="w-px h-3 bg-[#2B0A0F]/12" />
-                              <span className="text-[9px] uppercase tracking-[0.12em] opacity-40">
-                                {order.courier_name} · {order.tracking_number}
-                              </span>
-                            </>
-                          )}
                         </div>
+
+                        {/* Tracking — truncate on mobile */}
+                        {order.tracking_number && (
+                          <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.12em] opacity-35 mt-1.5 truncate">
+                            {order.courier_name} · {order.tracking_number}
+                          </p>
+                        )}
 
                         {/* Action hint for seller */}
                         {activeTab === "selling" && order.status === "paid" && (
-                          <p className="text-[9px] uppercase tracking-[0.15em] text-[#B48A5A] mt-2">
+                          <p className="text-[9px] uppercase tracking-[0.15em] text-[#B48A5A] mt-1.5">
                             ✦ Add tracking to ship →
                           </p>
                         )}
                       </div>
 
-                      {/* Arrow */}
-                      <div className="flex items-center pr-5 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                      {/* Arrow — desktop only */}
+                      <div className="hidden sm:flex items-center pr-5 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
                         <span className="text-base opacity-30">→</span>
                       </div>
                     </div>

@@ -49,35 +49,35 @@ export default function ShippingLabelPage() {
 
   if (!order) return null;
 
-  const addr = order.shipping_address;
+  const addr    = order.shipping_address;
   const shortId = order.id.slice(0, 8).toUpperCase();
 
   return (
     <>
-      {/* Print button — hidden when printing */}
-      <div className="print:hidden fixed top-4 right-4 z-50 flex gap-3">
-        <button
-          onClick={() => window.print()}
-          className="px-5 py-2.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity"
-        >
-          Print Label
-        </button>
+      {/* ── PRINT / BACK BUTTONS — hidden when printing ── */}
+      <div className="print:hidden fixed top-4 left-0 right-0 flex justify-center sm:justify-end sm:right-4 sm:left-auto gap-3 px-4 z-50">
         <button
           onClick={() => router.push(`/orders/${id}`)}
-          className="px-5 py-2.5 border border-[#2B0A0F]/20 rounded-full text-[10px] uppercase tracking-[0.2em] hover:opacity-60 transition-opacity"
+          className="px-4 sm:px-5 py-2.5 border border-[#2B0A0F]/20 rounded-full text-[10px] uppercase tracking-[0.2em] hover:opacity-60 transition-opacity bg-white shadow-sm"
         >
           ← Back
         </button>
+        <button
+          onClick={() => window.print()}
+          className="px-4 sm:px-5 py-2.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity shadow-sm"
+        >
+          Print Label
+        </button>
       </div>
 
-      {/* Label — this is what gets printed */}
-      <main className="min-h-screen bg-[#f5f5f5] print:bg-white flex items-center justify-center p-8 print:p-0">
+      {/* ── LABEL ── */}
+      <main className="min-h-screen bg-[#f5f5f5] print:bg-white flex items-start sm:items-center justify-center p-4 sm:p-8 print:p-0 pt-20 sm:pt-8">
         <div
-          className="bg-white w-[148mm] print:w-full print:shadow-none shadow-2xl"
+          className="bg-white w-full max-w-[360px] sm:w-[148mm] print:w-full print:max-w-full print:shadow-none shadow-2xl rounded-sm"
           style={{ fontFamily: "serif" }}
         >
           {/* Top bar */}
-          <div className="bg-[#2B0A0F] text-[#F6F3EF] px-6 py-3 flex items-center justify-between">
+          <div className="bg-[#2B0A0F] text-[#F6F3EF] px-5 sm:px-6 py-3 flex items-center justify-between">
             <span style={{ fontFamily: "serif", fontSize: "14px", letterSpacing: "0.15em" }}>
               THRIFT GENNIE
             </span>
@@ -86,24 +86,24 @@ export default function ShippingLabelPage() {
             </span>
           </div>
 
-          <div className="p-6 space-y-5">
+          <div className="p-5 sm:p-6 space-y-4 sm:space-y-5">
 
-            {/* Order ID + barcode row */}
+            {/* Order ID + barcode */}
             <div className="flex items-start justify-between border-b border-black/10 pb-4">
               <div>
                 <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.3em", opacity: 0.4 }}>
                   Order ID
                 </p>
-                <p style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "0.1em", marginTop: "2px" }}>
+                <p style={{ fontSize: "20px", fontWeight: 700, letterSpacing: "0.1em", marginTop: "2px" }}>
                   #{shortId}
                 </p>
                 <p style={{ fontSize: "9px", opacity: 0.4, marginTop: "4px" }}>
                   {new Date(order.created_at).toLocaleDateString("en-IN", {
-                    day: "numeric", month: "long", year: "numeric"
+                    day: "numeric", month: "long", year: "numeric",
                   })}
                 </p>
               </div>
-              {/* Simple visual barcode placeholder using CSS stripes */}
+              {/* CSS barcode */}
               <div style={{ display: "flex", gap: "2px", alignItems: "flex-end", height: "40px" }}>
                 {shortId.split("").map((_char: string, i: number) => (
                   <div
@@ -118,16 +118,17 @@ export default function ShippingLabelPage() {
               </div>
             </div>
 
-            {/* TO: Buyer address */}
-            <div className="border-2 border-black/80 p-4 rounded">
+            {/* TO: Buyer */}
+            <div className="border-2 border-black/80 p-3 sm:p-4 rounded">
               <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.3em", opacity: 0.5, marginBottom: "8px" }}>
                 Ship To
               </p>
-              <p style={{ fontSize: "16px", fontWeight: 700, marginBottom: "4px" }}>
+              <p style={{ fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>
                 {addr?.fullName || "—"}
               </p>
               <p style={{ fontSize: "12px", lineHeight: 1.6, color: "#333" }}>
-                {addr?.addressLine}
+                {addr?.addressLine1}
+                {addr?.addressLine2 ? `, ${addr.addressLine2}` : ""}
               </p>
               <p style={{ fontSize: "12px", lineHeight: 1.6, color: "#333" }}>
                 {addr?.city}, {addr?.state} — {addr?.pincode}
@@ -137,8 +138,8 @@ export default function ShippingLabelPage() {
               </p>
             </div>
 
-            {/* FROM: Seller address */}
-            <div className="border border-black/20 p-4 rounded">
+            {/* FROM: Seller */}
+            <div className="border border-black/20 p-3 sm:p-4 rounded">
               <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.3em", opacity: 0.5, marginBottom: "8px" }}>
                 Return Address (From)
               </p>
@@ -147,9 +148,7 @@ export default function ShippingLabelPage() {
               </p>
               {seller?.address_line ? (
                 <>
-                  <p style={{ fontSize: "11px", lineHeight: 1.6, color: "#555" }}>
-                    {seller.address_line}
-                  </p>
+                  <p style={{ fontSize: "11px", lineHeight: 1.6, color: "#555" }}>{seller.address_line}</p>
                   <p style={{ fontSize: "11px", color: "#555" }}>
                     {seller.city}, {seller.state} — {seller.pincode}
                   </p>
@@ -159,12 +158,12 @@ export default function ShippingLabelPage() {
                 </>
               ) : (
                 <p style={{ fontSize: "11px", color: "#999", fontStyle: "italic" }}>
-                  Add your address in profile settings to show return address
+                  Add your address in profile settings
                 </p>
               )}
             </div>
 
-            {/* Item */}
+            {/* Contents */}
             <div className="border-t border-black/10 pt-4">
               <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.3em", opacity: 0.4, marginBottom: "6px" }}>
                 Contents
