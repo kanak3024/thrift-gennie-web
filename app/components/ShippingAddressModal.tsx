@@ -10,6 +10,8 @@ export interface ShippingAddress {
   city:        string;
   state:       string;
   pincode:     string;
+  addressLine: string; // 👈 ONLY THIS
+  addressLine2?: string;
 }
 
 interface Props {
