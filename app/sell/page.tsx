@@ -18,15 +18,73 @@ const CONDITIONS = [
 const SIZES      = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "Custom"];
 const CATEGORIES = ["Tops", "Bottoms", "Dresses", "Outerwear", "Accessories", "Footwear", "Bags", "Jewellery", "Other"];
 const MOODS      = [
-  { tag: "y2k",       label: "Y2K",          color: "#C77DFF" },
-  { tag: "oldmoney",  label: "Old Money",    color: "#B48A5A" },
-  { tag: "indie",     label: "Indie",        color: "#6B7E60" },
-  { tag: "bollywood", label: "Bollywood",    color: "#C41E3A" },
-  { tag: "90s",       label: "90s Minimal",  color: "#457B9D" },
+  { tag: "y2k",       label: "Y2K",         color: "#C77DFF" },
+  { tag: "oldmoney",  label: "Old Money",   color: "#B48A5A" },
+  { tag: "indie",     label: "Indie",       color: "#6B7E60" },
+  { tag: "bollywood", label: "Bollywood",   color: "#C41E3A" },
+  { tag: "90s",       label: "90s Minimal", color: "#457B9D" },
 ];
-const CITIES = ["Mumbai", "Pune", "Delhi", "Bengaluru", "Jaipur", "Hyderabad", "Chennai", "Kolkata", "Other"];
+const CITIES   = ["Mumbai", "Pune", "Delhi", "Bengaluru", "Jaipur", "Hyderabad", "Chennai", "Kolkata", "Other"];
 const MAX_PHOTOS = 4;
 const MAX_DESC   = 500;
+const MAX_TITLE  = 80;
+
+/* ─────────────────────────────
+   PRICE BENCHMARKS
+   Rough ranges per category × condition multiplier
+───────────────────────────── */
+const PRICE_RANGES: Record<string, [number, number]> = {
+  Tops:        [200,  800],
+  Bottoms:     [300, 1200],
+  Dresses:     [400, 2000],
+  Outerwear:   [600, 3000],
+  Accessories: [150,  900],
+  Footwear:    [400, 2500],
+  Bags:        [500, 4000],
+  Jewellery:   [100,  800],
+  Other:       [200, 1500],
+};
+const CONDITION_MULTIPLIER: Record<string, number> = {
+  "Like New":   1.0,
+  "Good":       0.8,
+  "Fair":       0.6,
+  "Well Loved": 0.4,
+};
+
+function getPriceRange(category: string, condition: string): [number, number] | null {
+  if (!category || !condition) return null;
+  const base = PRICE_RANGES[category];
+  if (!base) return null;
+  const mult = CONDITION_MULTIPLIER[condition] ?? 0.8;
+  return [Math.round(base[0] * mult / 50) * 50, Math.round(base[1] * mult / 50) * 50];
+}
+
+/* ─────────────────────────────
+   LISTING QUALITY SCORE
+───────────────────────────── */
+function getQualityScore(fields: {
+  photos: number; title: string; price: string; location: string;
+  condition: string; category: string; size: string; mood: string; description: string;
+}): { score: number; label: string; color: string; tips: string[] } {
+  let score = 0;
+  const tips: string[] = [];
+
+  if (fields.photos >= 1)    score += 20; else tips.push("Add a photo");
+  if (fields.photos >= 3)    score += 10; else if (fields.photos >= 1) tips.push("Add more photos for faster sales");
+  if (fields.title.length >= 5) score += 15; else tips.push("Add a piece name");
+  if (fields.price)          score += 10; else tips.push("Set a price");
+  if (fields.location)       score += 5;
+  if (fields.condition)      score += 10; else tips.push("Select condition");
+  if (fields.category)       score += 10; else tips.push("Pick a category");
+  if (fields.size)           score += 5;
+  if (fields.mood)           score += 5;
+  if (fields.description.length >= 30)  score += 10; else tips.push("Write a short description");
+
+  const label = score >= 85 ? "Excellent" : score >= 60 ? "Good" : score >= 35 ? "Fair" : "Getting started";
+  const color = score >= 85 ? "#6B7E60"  : score >= 60 ? "#B48A5A" : score >= 35 ? "#C77DFF" : "#2B0A0F";
+
+  return { score, label, color, tips };
+}
 
 /* ─────────────────────────────
    TOAST
@@ -48,8 +106,6 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
 
 /* ─────────────────────────────
    PHOTO SLOT
-   FIX: each slot now triggers upload directly via its own hidden input
-        so mobile browsers don't get confused by multiple/capture conflicts
 ───────────────────────────── */
 function PhotoSlot({
   index, preview, onRemove, onFileSelected, isMain,
@@ -65,7 +121,6 @@ function PhotoSlot({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) onFileSelected(file);
-    // Reset so same file can be re-selected if needed
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -81,7 +136,6 @@ function PhotoSlot({
       }`}
       onClick={() => !preview && inputRef.current?.click()}
     >
-      {/* Hidden per-slot file input — no `multiple`, no `capture` so both gallery and camera work */}
       <input
         ref={inputRef}
         type="file"
@@ -93,11 +147,14 @@ function PhotoSlot({
       {preview ? (
         <>
           <Image src={preview} alt={`Photo ${index + 1}`} fill className="object-cover" />
-          {/* Remove button — larger tap target on mobile */}
+          {/* Always visible on mobile, hover on desktop */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="absolute top-2 right-2 w-8 h-8 bg-black/60 text-white text-[11px] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 sm:opacity-0 touch:opacity-100 transition-opacity hover:bg-black active:bg-black"
+            className="absolute top-2 right-2 w-8 h-8 bg-black/60 text-white text-[11px] rounded-full
+                       flex items-center justify-center
+                       opacity-100 sm:opacity-0 sm:group-hover:opacity-100
+                       transition-opacity hover:bg-black active:bg-black"
             aria-label="Remove photo"
           >
             ✕
@@ -128,27 +185,72 @@ function PhotoSlot({
 function ProgressBar({ step, total }: { step: number; total: number }) {
   const labels = ["Photos", "Details"];
   return (
-    <div className="flex items-center gap-3 mb-10">
+    <div className="flex items-center gap-2 sm:gap-3 mb-8 sm:mb-10">
       {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] transition-all ${
-            i < step
-              ? "bg-[#2B0A0F] text-[#F6F3EF]"
-              : i === step
-              ? "bg-[#2B0A0F]/10 text-[#2B0A0F] border border-[#2B0A0F]/20"
-              : "bg-[#2B0A0F]/05 text-[#2B0A0F]/25"
-          }`}>
-            {i < step ? "✓" : i + 1}
+        <div key={i} className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] transition-all flex-shrink-0 ${
+              i < step
+                ? "bg-[#2B0A0F] text-[#F6F3EF]"
+                : i === step
+                ? "bg-[#2B0A0F]/10 text-[#2B0A0F] border border-[#2B0A0F]/20"
+                : "bg-[#2B0A0F]/05 text-[#2B0A0F]/25"
+            }`}>
+              {i < step ? "✓" : i + 1}
+            </div>
+            <span className={`text-[9px] uppercase tracking-[0.15em] hidden sm:block ${i === step ? "opacity-60" : "opacity-20"}`}>
+              {labels[i]}
+            </span>
           </div>
           {i < total - 1 && (
-            <div className={`h-px w-8 transition-all ${i < step ? "bg-[#2B0A0F]" : "bg-[#2B0A0F]/10"}`} />
+            <div className={`h-px w-6 sm:w-10 transition-all ${i < step ? "bg-[#2B0A0F]" : "bg-[#2B0A0F]/10"}`} />
           )}
         </div>
       ))}
-      <span className="ml-2 text-[9px] uppercase tracking-[0.2em] opacity-40">
+      {/* Mobile step label */}
+      <span className="ml-1 text-[9px] uppercase tracking-[0.2em] opacity-40 sm:hidden">
         {labels[step] ?? ""}
       </span>
     </div>
+  );
+}
+
+/* ─────────────────────────────
+   QUALITY METER COMPONENT
+───────────────────────────── */
+function QualityMeter({ score, label, color, tips }: { score: number; label: string; color: string; tips: string[] }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-[#2B0A0F]/08 bg-white/60 p-4 mb-6"
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[9px] uppercase tracking-[0.25em] opacity-40">Listing Quality</span>
+        <span className="text-[10px] uppercase tracking-[0.15em] font-medium" style={{ color }}>
+          {label}
+        </span>
+      </div>
+      {/* Bar */}
+      <div className="h-1.5 w-full bg-[#2B0A0F]/08 rounded-full overflow-hidden mb-3">
+        <motion.div
+          animate={{ width: `${score}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="h-full rounded-full"
+          style={{ background: color }}
+        />
+      </div>
+      {/* Tips */}
+      {tips.length > 0 && score < 85 && (
+        <div className="flex flex-wrap gap-1.5">
+          {tips.slice(0, 2).map((tip) => (
+            <span key={tip} className="text-[8px] uppercase tracking-[0.1em] px-2 py-1 rounded-full bg-[#2B0A0F]/05 opacity-50">
+              + {tip}
+            </span>
+          ))}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -157,8 +259,6 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 ───────────────────────────── */
 export default function SellPage() {
   const router = useRouter();
-
-  // FIX: single camera input ref for the "Take Photo" button
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep]       = useState(0);
@@ -191,36 +291,27 @@ export default function SellPage() {
     });
   }, [router]);
 
-  /* ── Revoke object URLs on unmount to avoid memory leaks ── */
   useEffect(() => {
-    return () => {
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
-    };
+    return () => { previewUrls.forEach(url => URL.revokeObjectURL(url)); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── FILE HANDLING ── */
-
-  // Called by each PhotoSlot when a file is chosen for that slot
   const handleSlotFile = (slotIndex: number, newFile: File) => {
     setFiles(prev => {
       const updated = [...prev];
-      // If slot already has a file, replace it; otherwise push up to MAX_PHOTOS
       if (slotIndex < updated.length) {
         updated[slotIndex] = newFile;
       } else if (updated.length < MAX_PHOTOS) {
         updated.push(newFile);
       }
-      // Regenerate all preview URLs
       setPreviewUrls(updated.map(f => URL.createObjectURL(f)));
       return updated;
     });
   };
 
-  // Camera button adds to next empty slot
   const handleCameraFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (files.length >= MAX_PHOTOS) return;
+    if (!file || files.length >= MAX_PHOTOS) return;
     const updated = [...files, file];
     setFiles(updated);
     setPreviewUrls(updated.map(f => URL.createObjectURL(f)));
@@ -235,11 +326,10 @@ export default function SellPage() {
     setPreviewUrls(newPreviews);
   };
 
-  /* ── STEP VALIDATION ── */
+  /* ── VALIDATION ── */
   const canProceedStep0 = files.length >= 1;
   const canProceedStep1 = title.trim() && price && location && condition && category;
 
-  /* ── Missing fields label for disabled button ── */
   const missingFields = () => {
     const missing = [];
     if (!title.trim()) missing.push("piece name");
@@ -249,6 +339,10 @@ export default function SellPage() {
     if (!category)     missing.push("category");
     return missing;
   };
+
+  /* ── DERIVED ── */
+  const priceRange = getPriceRange(category, condition);
+  const quality    = getQualityScore({ photos: files.length, title, price, location, condition, category, size, mood, description });
 
   /* ── SUBMIT ── */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -261,7 +355,6 @@ export default function SellPage() {
     }
 
     setLoading(true);
-
     try {
       const uploadedUrls: string[] = [];
 
@@ -274,13 +367,11 @@ export default function SellPage() {
         const { error: uploadError } = await supabase.storage
           .from("product-images")
           .upload(filePath, file);
-
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
           .from("product-images")
           .getPublicUrl(filePath);
-
         uploadedUrls.push(publicUrl);
       }
 
@@ -320,19 +411,18 @@ export default function SellPage() {
         {toast && <Toast message={toast.message} type={toast.type} />}
       </AnimatePresence>
 
-      {/* FIX: pt-20 on mobile (smaller nav), pt-32 on desktop */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-20 sm:pt-32 pb-24">
 
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          className="mb-8 sm:mb-10"
         >
           <p className="text-[9px] uppercase tracking-[0.4em] opacity-40 mb-3">Seller Studio</p>
           <h1
             className="leading-none mb-2"
-            style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(2rem,5vw,3.5rem)" }}
+            style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.8rem,5vw,3.5rem)" }}
           >
             Submit to the Archive
           </h1>
@@ -341,7 +431,6 @@ export default function SellPage() {
           </p>
         </motion.div>
 
-        {/* Progress */}
         <ProgressBar step={step} total={2} />
 
         <form onSubmit={handleSubmit}>
@@ -357,13 +446,10 @@ export default function SellPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
-                className="space-y-8"
+                className="space-y-6 sm:space-y-8"
               >
                 <div>
-                  <h2
-                    className="text-2xl mb-1"
-                    style={{ fontFamily: "var(--font-playfair)" }}
-                  >
+                  <h2 className="text-2xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>
                     First, the visuals.
                   </h2>
                   <p className="text-sm opacity-50">
@@ -371,72 +457,34 @@ export default function SellPage() {
                   </p>
                 </div>
 
-                {/*
-                  FIX: Responsive photo grid
-                  Mobile: 2-col grid, all squares (simpler, touch-friendly)
-                  Desktop (sm+): original layout — main large left + 3 small right
-                */}
-
-                {/* Mobile grid (< sm) */}
-                <div className="grid grid-cols-2 gap-3 sm:hidden">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className={i === 0 ? "col-span-2" : ""}>
-                      <PhotoSlot
-                        index={i}
-                        preview={previewUrls[i]}
-                        onRemove={() => removeImage(i)}
-                        onFileSelected={(file) => handleSlotFile(i, file)}
-                        isMain={i === 0}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Desktop grid (sm+) */}
-                <div className="hidden sm:grid grid-cols-3 gap-3">
-                  {/* Main photo — spans 2 rows */}
-                  <div className="row-span-2">
-                    <PhotoSlot
-                      index={0}
-                      preview={previewUrls[0]}
-                      onRemove={() => removeImage(0)}
-                      onFileSelected={(file) => handleSlotFile(0, file)}
-                      isMain={true}
-                    />
+                {/* Mobile grid: full-width main + 3 squares */}
+                <div className="grid grid-cols-3 gap-2 sm:hidden">
+                  <div className="col-span-3">
+                    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)} isMain={true} />
                   </div>
-                  {/* Photos 2–4 */}
                   {[1, 2, 3].map((i) => (
-                    <PhotoSlot
-                      key={i}
-                      index={i}
-                      preview={previewUrls[i]}
-                      onRemove={() => removeImage(i)}
-                      onFileSelected={(file) => handleSlotFile(i, file)}
-                      isMain={false}
-                    />
+                    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)} isMain={false} />
                   ))}
                 </div>
 
-                {/*
-                  FIX: Upload buttons
-                  - "Upload Photos" uses a hidden input without `capture` → opens gallery on mobile
-                  - "Take Photo" uses capture="environment" → opens camera directly
-                  - Both are separate inputs to avoid browser conflicts
-                */}
+                {/* Desktop grid: large left + 3 small right */}
+                <div className="hidden sm:grid grid-cols-3 gap-3">
+                  <div className="row-span-2">
+                    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)} isMain={true} />
+                  </div>
+                  {[1, 2, 3].map((i) => (
+                    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)} isMain={false} />
+                  ))}
+                </div>
+
+                {/* Upload buttons */}
                 <div className="flex gap-3">
-                  {/* Gallery upload */}
-                  <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
+                  <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    Upload Photos
-                    {/* FIX: no `capture`, `multiple` allowed for gallery picker */}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      disabled={files.length >= MAX_PHOTOS}
+                    Upload
+                    <input type="file" accept="image/*" multiple className="hidden" disabled={files.length >= MAX_PHOTOS}
                       onChange={(e) => {
                         const selected = Array.from(e.target.files || []);
                         const combined = [...files, ...selected].slice(0, MAX_PHOTOS);
@@ -447,34 +495,21 @@ export default function SellPage() {
                     />
                   </label>
 
-                  {/* Camera capture */}
-                  <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
+                  <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
                     </svg>
                     Take Photo
-                    {/* FIX: `capture` here only, single file, no multiple */}
-                    <input
-                      ref={cameraInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      disabled={files.length >= MAX_PHOTOS}
-                      onChange={handleCameraFile}
+                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                      disabled={files.length >= MAX_PHOTOS} onChange={handleCameraFile}
                     />
                   </label>
                 </div>
 
-                {/* Photo count indicator */}
+                {/* Photo count bar */}
                 <div className="flex items-center gap-3">
                   {Array.from({ length: MAX_PHOTOS }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-1 flex-1 rounded-full transition-all ${
-                        i < files.length ? "bg-[#2B0A0F]" : "bg-[#2B0A0F]/10"
-                      }`}
-                    />
+                    <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-500 ${i < files.length ? "bg-[#2B0A0F]" : "bg-[#2B0A0F]/10"}`} />
                   ))}
                   <span className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex-shrink-0">
                     {files.length}/{MAX_PHOTOS}
@@ -482,10 +517,9 @@ export default function SellPage() {
                 </div>
 
                 <p className="text-[9px] uppercase tracking-[0.2em] opacity-35 leading-relaxed">
-                  Tip — Lay the piece flat or hang it. Photograph the label, any flaws, and the full garment. More photos = faster sale.
+                  Tip — Lay flat or hang. Photograph the label, any flaws, and the full garment. More photos = faster sale.
                 </p>
 
-                {/* Next button */}
                 <button
                   type="button"
                   onClick={() => setStep(1)}
@@ -508,25 +542,28 @@ export default function SellPage() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {/* FIX: on mobile the sidebar is hidden — show a compact photo strip at top instead */}
-                <div className="flex gap-2 sm:hidden mb-6 overflow-x-auto pb-1">
+                {/* Mobile: compact scrollable photo strip */}
+                <div className="flex gap-2 sm:hidden mb-5 overflow-x-auto pb-1">
                   {previewUrls.map((url, i) => (
-                    <div key={i} className="relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-[#EAE3DB]">
+                    <div key={i} className="relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-[#EAE3DB]">
                       <Image src={url} alt={`Photo ${i + 1}`} fill className="object-cover" />
                     </div>
                   ))}
                   <button
                     type="button"
                     onClick={() => setStep(0)}
-                    className="flex-shrink-0 w-16 h-16 rounded-lg border border-dashed border-[#2B0A0F]/20 flex items-center justify-center text-[8px] uppercase tracking-[0.15em] opacity-40 hover:opacity-70 text-center leading-tight px-1"
+                    className="flex-shrink-0 w-14 h-14 rounded-lg border border-dashed border-[#2B0A0F]/20 flex items-center justify-center text-[8px] uppercase tracking-[0.1em] opacity-40 hover:opacity-70 text-center leading-tight px-1"
                   >
                     Edit
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-10">
+                {/* Quality meter — shown on step 1 */}
+                <QualityMeter {...quality} />
 
-                  {/* Left — photo preview (desktop only) */}
+                <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 md:gap-10">
+
+                  {/* Left: photo preview — desktop only */}
                   <div className="hidden md:block">
                     <div className="sticky top-28 space-y-3">
                       <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[#EAE3DB]">
@@ -551,73 +588,77 @@ export default function SellPage() {
                     </div>
                   </div>
 
-                  {/* Right — form fields */}
-                  <div className="space-y-8">
+                  {/* Right: form */}
+                  <div className="space-y-7 sm:space-y-8">
 
                     {/* Title */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-                        Piece Name *
-                      </label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">Piece Name *</label>
+                        <span className={`text-[8px] opacity-30 ${title.length > MAX_TITLE * 0.8 ? "text-[#A1123F] opacity-70" : ""}`}>
+                          {title.length}/{MAX_TITLE}
+                        </span>
+                      </div>
                       <input
                         suppressHydrationWarning
                         required
                         type="text"
                         value={title}
+                        maxLength={MAX_TITLE}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="e.g. Silk Anarkali Set, Vintage Denim Jacket..."
-                        // FIX: font-size 16px minimum prevents iOS auto-zoom on focus
-                        className="w-full bg-transparent pb-3 outline-none text-base sm:text-sm placeholder:opacity-20"
+                        className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
                       />
                     </div>
 
                     {/* Price + Location */}
-                    {/* FIX: stack on very small screens, side-by-side from sm */}
-                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-2 gap-4 sm:gap-6">
                       <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-                        <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-                          Price (₹) *
-                        </label>
+                        <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Price (₹) *</label>
                         <input
                           suppressHydrationWarning
                           required
                           type="number"
                           min="50"
-                          inputMode="decimal"  // FIX: numeric keypad on mobile
+                          inputMode="decimal"
                           value={price}
                           onChange={(e) => setPrice(e.target.value)}
                           placeholder="500"
-                          className="w-full bg-transparent pb-3 outline-none text-base sm:text-sm placeholder:opacity-20"
+                          className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
                         />
+                        {/* Price benchmark hint */}
+                        <AnimatePresence>
+                          {priceRange && (
+                            <motion.p
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="text-[9px] text-[#B48A5A] mb-2 leading-snug"
+                            >
+                              ✦ Similar {category} ({condition}) sell for ₹{priceRange[0].toLocaleString("en-IN")}–₹{priceRange[1].toLocaleString("en-IN")}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
                         {price && parseFloat(price) < 200 && (
-                          <p className="text-[9px] text-[#A1123F] opacity-70 mt-1">
-                            Tip — Most pieces sell between ₹300–₹2,000
+                          <p className="text-[9px] text-[#A1123F] opacity-70 mt-0.5 mb-2">
+                            Most pieces sell between ₹300–₹2,000
                           </p>
                         )}
                       </div>
 
                       <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-                        <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-                          Your City *
-                        </label>
-                        {/*
-                          FIX: wrap select in relative div and add a custom chevron
-                          because appearance-none removes the native arrow with no replacement
-                        */}
+                        <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Your City *</label>
                         <div className="relative">
                           <select
                             required
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
-                            className="w-full bg-transparent pb-3 outline-none text-base sm:text-sm appearance-none cursor-pointer pr-6"
+                            className="w-full bg-transparent pb-3 outline-none text-base appearance-none cursor-pointer pr-6"
                           >
-                            <option value="">Select city...</option>
+                            <option value="">Select...</option>
                             {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
-                          <svg
-                            className="absolute right-0 bottom-4 pointer-events-none opacity-30"
-                            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                          >
+                          <svg className="absolute right-0 bottom-4 pointer-events-none opacity-30" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <polyline points="6 9 12 15 18 9"/>
                           </svg>
                         </div>
@@ -626,17 +667,14 @@ export default function SellPage() {
 
                     {/* Condition */}
                     <div>
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-3">
-                        Condition *
-                      </label>
-                      {/* FIX: 2-col grid works on all sizes */}
+                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-3">Condition *</label>
                       <div className="grid grid-cols-2 gap-2">
                         {CONDITIONS.map((c) => (
                           <button
                             key={c.value}
                             type="button"
                             onClick={() => setCondition(c.value)}
-                            className={`px-4 py-3 rounded-xl border text-left transition-all ${
+                            className={`px-4 py-3 rounded-xl border text-left transition-all active:scale-[0.98] ${
                               condition === c.value
                                 ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
                                 : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30 active:bg-[#EAE3DB]"
@@ -653,16 +691,14 @@ export default function SellPage() {
 
                     {/* Category */}
                     <div>
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-3">
-                        Category *
-                      </label>
+                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-3">Category *</label>
                       <div className="flex flex-wrap gap-2">
                         {CATEGORIES.map((cat) => (
                           <button
                             key={cat}
                             type="button"
                             onClick={() => setCategory(cat)}
-                            className={`px-4 py-2 rounded-full border text-[10px] uppercase tracking-[0.12em] transition-all ${
+                            className={`px-3 sm:px-4 py-2 rounded-full border text-[10px] uppercase tracking-[0.12em] transition-all active:scale-[0.97] ${
                               category === cat
                                 ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
                                 : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30 active:bg-[#EAE3DB]"
@@ -676,17 +712,14 @@ export default function SellPage() {
 
                     {/* Size */}
                     <div>
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-3">
-                        Size
-                      </label>
+                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-3">Size</label>
                       <div className="flex flex-wrap gap-2">
                         {SIZES.map((s) => (
                           <button
                             key={s}
                             type="button"
                             onClick={() => setSize(size === s ? "" : s)}
-                            // FIX: min tap target 44px (Apple HIG / WCAG)
-                            className={`min-w-[44px] h-[44px] px-3 rounded-full border text-[10px] uppercase tracking-[0.1em] transition-all ${
+                            className={`min-w-[44px] h-[44px] px-3 rounded-full border text-[10px] uppercase tracking-[0.1em] transition-all active:scale-[0.97] ${
                               size === s
                                 ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
                                 : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30 active:bg-[#EAE3DB]"
@@ -700,29 +733,22 @@ export default function SellPage() {
 
                     {/* Mood */}
                     <div>
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-1">
-                        Mood / Aesthetic
-                      </label>
-                      <p className="text-[9px] opacity-30 mb-3">
-                        This helps buyers find your piece through mood filters
-                      </p>
+                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-1">Mood / Aesthetic</label>
+                      <p className="text-[9px] opacity-30 mb-3">Helps buyers find your piece through mood filters</p>
                       <div className="flex flex-wrap gap-2">
                         {MOODS.map((m) => (
                           <button
                             key={m.tag}
                             type="button"
                             onClick={() => setMood(mood === m.tag ? "" : m.tag)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] uppercase tracking-[0.12em] transition-all ${
+                            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-full border text-[10px] uppercase tracking-[0.12em] transition-all active:scale-[0.97] ${
                               mood === m.tag
                                 ? "border-transparent text-[#F6F3EF]"
                                 : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/20 active:bg-[#EAE3DB]"
                             }`}
                             style={mood === m.tag ? { background: m.color } : {}}
                           >
-                            <span
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ background: m.color }}
-                            />
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: m.color }} />
                             {m.label}
                           </button>
                         ))}
@@ -731,16 +757,13 @@ export default function SellPage() {
 
                     {/* Description */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-                        The Story
-                      </label>
+                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">The Story</label>
                       <textarea
                         value={description}
-                        onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))} // FIX: enforce max client-side
+                        onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
                         placeholder="Tell us about this piece — where you got it, how you styled it, why it deserves a new home..."
                         rows={4}
-                        // FIX: 16px min font prevents iOS zoom; resize-none already present
-                        className="w-full bg-transparent pb-3 outline-none text-base sm:text-sm placeholder:opacity-20 resize-none leading-relaxed"
+                        className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
                       />
                       <p className={`text-[9px] mb-2 ${description.length >= MAX_DESC ? "text-[#A1123F] opacity-80" : "opacity-25"}`}>
                         {description.length}/{MAX_DESC} · A good story sells faster
@@ -748,8 +771,7 @@ export default function SellPage() {
                     </div>
 
                     {/* Submit */}
-                    <div className="pt-4 space-y-3">
-                      {/* FIX: show which fields are missing when button is disabled */}
+                    <div className="pt-2 space-y-3">
                       {!canProceedStep1 && missingFields().length > 0 && (
                         <p className="text-[9px] text-[#A1123F] opacity-70 text-center">
                           Still needed: {missingFields().join(" · ")}
