@@ -1,16 +1,42 @@
 import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID!,
   key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
 
+// Rate limit: 5 order creation attempts per user per minute
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(5, "1 m"),
+  prefix: "rl:create-order",
+});
+
 const BUYER_PROTECTION_FEE = 10;
-const MAX_AMOUNT = 500_000;
+const MAX_AMOUNT = 1_000_000; // ₹10,00,000
 
 export async function POST(req: Request) {
   try {
+    // ── Rate limit by IP ──────────────────────────────────────────────────
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+    const { success, limit, remaining } = await ratelimit.limit(ip);
+
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment before trying again." },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit":     limit.toString(),
+            "X-RateLimit-Remaining": remaining.toString(),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const { amount: rawAmount, productId, buyerId, buyerEmail, shippingAddress } = body;
 
@@ -42,8 +68,6 @@ export async function POST(req: Request) {
         product_id:           productId,
         buyer_id:             buyerId,
         buyer_email:          buyerEmail ?? "",
-        // ← store shipping address as JSON string in notes
-        // so the webhook can recover it if the browser crashes
         shipping_address:     shippingAddress ? JSON.stringify(shippingAddress) : "",
       },
     });
