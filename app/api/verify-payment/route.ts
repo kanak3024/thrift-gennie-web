@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { createClient } from "@supabase/supabase-js";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +15,14 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
 
+// Rate limit: 10 verify attempts per user per minute
+// Higher than create-order since retries are more common here
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(10, "1 m"),
+  prefix: "rl:verify-payment",
+});
+
 async function logPaymentEvent(event: string, payload: Record<string, unknown>) {
   try {
     await supabase.from("payment_logs").insert({ event, payload, created_at: new Date().toISOString() });
@@ -22,6 +32,23 @@ async function logPaymentEvent(event: string, payload: Record<string, unknown>) 
 }
 
 export async function POST(req: Request) {
+  // ── Rate limit by IP ────────────────────────────────────────────────────
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+  const { success, limit, remaining } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a moment before trying again." },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit":     limit.toString(),
+          "X-RateLimit-Remaining": remaining.toString(),
+        },
+      }
+    );
+  }
+
   const {
     razorpay_order_id,
     razorpay_payment_id,
@@ -29,10 +56,10 @@ export async function POST(req: Request) {
     productId,
     buyerId,
     buyerEmail,
-    shippingAddress, // ← new
+    shippingAddress,
   } = await req.json();
 
-  // ── 1. Presence check ────────────────────────────────────────────────────
+  // ── 1. Presence check ──────────────────────────────────────────────────
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !productId || !buyerId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
@@ -42,7 +69,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Incomplete shipping address" }, { status: 400 });
   }
 
-  // ── 2. Verify Razorpay signature ─────────────────────────────────────────
+  // ── 2. Verify Razorpay signature ───────────────────────────────────────
   const expectedSignature = crypto
     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -53,7 +80,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
   }
 
-  // ── 3. Idempotency check ──────────────────────────────────────────────────
+  // ── 3. Idempotency check ───────────────────────────────────────────────
   const { data: existingOrder } = await supabase
     .from("orders")
     .select("id")
@@ -64,7 +91,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, orderId: existingOrder.id, duplicate: true });
   }
 
-  // ── 4. Fetch authoritative amount from Razorpay ───────────────────────────
+  // ── 4. Fetch authoritative amount from Razorpay ────────────────────────
   let rzpOrder: any;
   try {
     rzpOrder = await razorpay.orders.fetch(razorpay_order_id);
@@ -75,7 +102,7 @@ export async function POST(req: Request) {
 
   const authorativeAmount = (rzpOrder.amount as number) / 100;
 
-  // ── 5. Fetch product + seller from DB ─────────────────────────────────────
+  // ── 5. Fetch product + seller from DB ──────────────────────────────────
   const { data: product, error: productError } = await supabase
     .from("products")
     .select("id, title, seller_id, status")
@@ -87,27 +114,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
 
-  // ── 6. Race condition guard ───────────────────────────────────────────────
+  // ── 6. Race condition guard ────────────────────────────────────────────
   if (product.status === "sold") {
-    await logPaymentEvent("product_already_sold", { productId, razorpay_payment_id, buyerId, needs_reconciliation: true });
+    await logPaymentEvent("product_already_sold", {
+      productId, razorpay_payment_id, buyerId, needs_reconciliation: true,
+    });
     return NextResponse.json(
       { error: "This item has already been sold. Our team will process a refund." },
       { status: 409 }
     );
   }
 
-  // ── 7. Fetch seller profile for email ─────────────────────────────────────
+  // ── 7. Fetch seller email ──────────────────────────────────────────────
   const { data: sellerProfile } = await supabase
     .from("profiles")
-    .select("full_name, email:id")
+    .select("full_name")
     .eq("id", product.seller_id)
     .single();
 
-  // Get seller's auth email
   const { data: sellerAuth } = await supabase.auth.admin.getUserById(product.seller_id);
   const sellerEmail = sellerAuth?.user?.email;
 
-  // ── 8. Insert order with shipping address ─────────────────────────────────
+  // ── 8. Insert order ────────────────────────────────────────────────────
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -118,7 +146,7 @@ export async function POST(req: Request) {
       status:           "paid",
       payment_id:       razorpay_payment_id,
       buyer_email:      buyerEmail ?? null,
-      shipping_address: shippingAddress,     // ← stored here
+      shipping_address: shippingAddress,
     })
     .select()
     .single();
@@ -131,7 +159,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order recording failed. Support has been notified." }, { status: 500 });
   }
 
-  // ── 9. Mark product as sold ───────────────────────────────────────────────
+  // ── 9. Mark product as sold ────────────────────────────────────────────
   const { error: updateError } = await supabase
     .from("products")
     .update({ status: "sold" })
@@ -139,10 +167,12 @@ export async function POST(req: Request) {
     .eq("status", "available");
 
   if (updateError) {
-    await logPaymentEvent("product_status_update_failed", { productId, orderId: order.id, error: updateError.message });
+    await logPaymentEvent("product_status_update_failed", {
+      productId, orderId: order.id, error: updateError.message,
+    });
   }
 
-  // ── 10. Email buyer confirmation (with address) ───────────────────────────
+  // ── 10. Email buyer ────────────────────────────────────────────────────
   if (buyerEmail) {
     try {
       const emailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
@@ -161,11 +191,13 @@ export async function POST(req: Request) {
       });
       if (!emailRes.ok) throw new Error(`Email API responded with ${emailRes.status}`);
     } catch (emailErr: any) {
-      await logPaymentEvent("confirmation_email_failed", { orderId: order.id, buyerEmail, error: emailErr?.message });
+      await logPaymentEvent("confirmation_email_failed", {
+        orderId: order.id, buyerEmail, error: emailErr?.message,
+      });
     }
   }
 
-  // ── 11. Email seller — their item sold + buyer's shipping address ──────────
+  // ── 11. Email seller ───────────────────────────────────────────────────
   if (sellerEmail) {
     try {
       const sellerEmailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
@@ -185,7 +217,9 @@ export async function POST(req: Request) {
       });
       if (!sellerEmailRes.ok) throw new Error(`Email API responded with ${sellerEmailRes.status}`);
     } catch (emailErr: any) {
-      await logPaymentEvent("seller_email_failed", { orderId: order.id, sellerEmail, error: emailErr?.message });
+      await logPaymentEvent("seller_email_failed", {
+        orderId: order.id, sellerEmail, error: emailErr?.message,
+      });
     }
   }
 
