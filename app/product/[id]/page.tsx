@@ -299,10 +299,11 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        amount:     product.price,
-        productId:  product.id,
-        buyerId:    user.id,
-        buyerEmail: user.email,
+        amount:          product.price,
+        productId:       product.id,
+        buyerId:         user.id,
+        buyerEmail:      user.email,
+        shippingAddress: address,
       }),
     });
     const order = await res.json();
@@ -314,9 +315,12 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
     script.onload = () => {
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount, currency: "INR",
-        name: "Thrift Gennie", description: product.title,
-        order_id: order.id, image: product.image_url || "/final.png",
+        amount: order.amount,
+        currency: "INR",
+        name: "Thrift Gennie",
+        description: product.title,
+        order_id: order.id,
+        image: product.image_url || "/final.png",
         prefill: { email: user.email, contact: address.phone, name: address.fullName },
         theme: { color: "#2B0A0F" },
         handler: async (response: any) => {
@@ -335,6 +339,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
           });
           const result = await verifyRes.json();
           if (result.success) router.push(`/orders/${result.orderId}`);
+          else router.push("/orders");
         },
         modal: { ondismiss: () => setPaymentLoading(false) },
       };
@@ -342,9 +347,11 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
       rzp.open();
       setPaymentLoading(false);
     };
-  } catch { setPaymentLoading(false); }
+  } catch {
+    setPaymentLoading(false);
+  }
 };
-
+  
   if (!product) return <ProductSkeleton />;
 
   const isSold    = product.status === "sold";
