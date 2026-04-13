@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import ShippingAddressModal, { ShippingAddress } from "../../../components/ShippingAddressModal";
+import ShippingAddressModal, { ShippingAddress } from "../../components/ShippingAddressModal";
 
 /* ─────────────────────────────
    CONSTANTS
