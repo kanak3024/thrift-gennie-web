@@ -94,6 +94,13 @@ function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
   );
 }
 
+const INDIAN_STATES = [
+  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana",
+  "Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur",
+  "Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
+  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir","Ladakh","Puducherry","Chandigarh",
+];
+
 /* ─────────────────────────────
    MAIN PAGE
 ───────────────────────────── */
@@ -117,21 +124,20 @@ export default function AccountPage() {
   const [openMenuId, setOpenMenuId]           = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId]   = useState<string | null>(null);
   const [toast, setToast]                     = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [sellerRatings, setSellerRatings] = useState<any[]>([]);
-  const [earnings, setEarnings] = useState(0);
+  const [sellerRatings, setSellerRatings]     = useState<any[]>([]);
+  const [earnings, setEarnings]               = useState(0);
   const [pendingEarnings, setPendingEarnings] = useState(0);
   const [releasedEarnings, setReleasedEarnings] = useState(0);
-  const [animatedTotal, setAnimatedTotal] = useState(0);
+  const [animatedTotal, setAnimatedTotal]     = useState(0);
   const [animatedPending, setAnimatedPending] = useState(0);
   const [animatedReleased, setAnimatedReleased] = useState(0);
-  const [miniChartData, setMiniChartData] = useState<any[]>([]);
-  
-const [averageRating, setAverageRating] = useState(0);
+  const [miniChartData, setMiniChartData]     = useState<any[]>([]);
+  const [averageRating, setAverageRating]     = useState(0);
 
   // Profile edit
-  const [editName, setEditName]   = useState("");
-  const [editBio, setEditBio]     = useState("");
-  const [editRole, setEditRole]   = useState("");
+  const [editName, setEditName] = useState("");
+  const [editBio, setEditBio]   = useState("");
+  const [editRole, setEditRole] = useState("");
 
   // Bank details
   const [showBankForm, setShowBankForm] = useState(false);
@@ -141,29 +147,33 @@ const [averageRating, setAverageRating] = useState(0);
   const [bankUpi, setBankUpi]           = useState("");
   const [savingBank, setSavingBank]     = useState(false);
 
-  const formatCurrency = (num: number) => {
-  return new Intl.NumberFormat("en-IN").format(num || 0);
-};
-  const animateValue = (value: number, setter: any) => {
-  let start = 0;
-  const duration = 800;
-  const stepTime = 20;
-  const increment = value / (duration / stepTime);
+  // Return address
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addrLine, setAddrLine]               = useState("");
+  const [addrCity, setAddrCity]               = useState("");
+  const [addrState, setAddrState]             = useState("");
+  const [addrPincode, setAddrPincode]         = useState("");
+  const [addrPhone, setAddrPhone]             = useState("");
+  const [savingAddress, setSavingAddress]     = useState(false);
 
-  const timer = setInterval(() => {
-    start += increment;
-    if (start >= value) {
-      setter(value);
-      clearInterval(timer);
-    } else {
-      setter(Math.floor(start));
-    }
-  }, stepTime);
-};
+  const formatCurrency = (num: number) => {
+    return new Intl.NumberFormat("en-IN").format(num || 0);
+  };
+
+  const animateValue = (value: number, setter: any) => {
+    let start = 0;
+    const duration = 800;
+    const stepTime = 20;
+    const increment = value / (duration / stepTime);
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= value) { setter(value); clearInterval(timer); }
+      else setter(Math.floor(start));
+    }, stepTime);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /* ── TOAST HELPER ── */
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -191,6 +201,11 @@ const [averageRating, setAverageRating] = useState(0);
           setBankAccount(profileData.bank_account_number || "");
           setBankIfsc(profileData.bank_ifsc || "");
           setBankUpi(profileData.bank_upi || "");
+          setAddrLine(profileData.address_line || "");
+          setAddrCity(profileData.city || "");
+          setAddrState(profileData.state || "");
+          setAddrPincode(profileData.pincode || "");
+          setAddrPhone(profileData.phone || "");
         }
 
         const { data: productData } = await supabase
@@ -222,18 +237,17 @@ const [averageRating, setAverageRating] = useState(0);
           .eq("buyer_id", id).eq("status", "paid");
         setPurchasedItems(purchased || []);
 
-          // Fetch seller ratings
         const { data: ratingsData } = await supabase
           .from("ratings")
           .select("rating, review, created_at, reviewer_id")
-            .eq("seller_id", id)
-            .order("created_at", { ascending: false });
+          .eq("seller_id", id)
+          .order("created_at", { ascending: false });
         const ratings = ratingsData || [];
-const avgRating = ratings.length > 0
-  ? ratings.reduce((sum: number, r: any) => sum + r.rating, 0) / ratings.length
-  : 0;
-setSellerRatings(ratings);
-setAverageRating(avgRating);
+        const avgRating = ratings.length > 0
+          ? ratings.reduce((sum: number, r: any) => sum + r.rating, 0) / ratings.length
+          : 0;
+        setSellerRatings(ratings);
+        setAverageRating(avgRating);
 
       } catch (err: any) {
         console.error("Error loading account:", err.message);
@@ -241,65 +255,42 @@ setAverageRating(avgRating);
         setLoading(false);
       }
 
-      // 💰 FETCH EARNINGS
-const { data: ordersData } = await supabase
-  .from("orders")
-  .select("*")
-  .eq("seller_id", id);
+      const { data: ordersData } = await supabase
+        .from("orders").select("*").eq("seller_id", id);
 
-if (ordersData) {
-  let total = 0;
-  let pendingAmt = 0;
-  let releasedAmt = 0;
+      if (ordersData) {
+        let total = 0;
+        let pendingAmt = 0;
+        let releasedAmt = 0;
 
-  ordersData.forEach((order: any) => {
-    const payout = order.payout_amount || 0;
+        ordersData.forEach((order: any) => {
+          const payout = order.payout_amount || 0;
+          total += payout;
+          if (order.payout_status === "pending")  pendingAmt  += payout;
+          if (order.payout_status === "released") releasedAmt += payout;
+        });
 
-    total += payout;
+        const grouped: any = {};
+        ordersData.forEach((order: any) => {
+          if (order.status === "delivered") {
+            const date = new Date(order.created_at).toLocaleDateString();
+            if (!grouped[date]) grouped[date] = 0;
+            grouped[date] += order.payout_amount || 0;
+          }
+        });
 
-    if (order.payout_status === "pending") {
-      pendingAmt += payout;
-    }
-
-    if (order.payout_status === "released") {
-      releasedAmt += payout;
-    }
-  });
-
-  const grouped: any = {};
-
-ordersData.forEach((order: any) => {
-  if (order.status === "delivered") {
-    const date = new Date(order.created_at).toLocaleDateString();
-
-    if (!grouped[date]) grouped[date] = 0;
-    grouped[date] += order.payout_amount || 0;
-  }
-});
-
-const formatted = Object.keys(grouped).map((date) => ({
-  date,
-  earnings: grouped[date],
-}));
-
-setMiniChartData(formatted);
-
-
-
-  setEarnings(total);
-  setPendingEarnings(pendingAmt);
-  setReleasedEarnings(releasedAmt);
-  animateValue(total, setAnimatedTotal);
-  animateValue(pendingAmt, setAnimatedPending);
-  animateValue(releasedAmt, setAnimatedReleased);
-}
+        const formatted = Object.keys(grouped).map((date) => ({ date, earnings: grouped[date] }));
+        setMiniChartData(formatted);
+        setEarnings(total);
+        setPendingEarnings(pendingAmt);
+        setReleasedEarnings(releasedAmt);
+        animateValue(total,       setAnimatedTotal);
+        animateValue(pendingAmt,  setAnimatedPending);
+        animateValue(releasedAmt, setAnimatedReleased);
+      }
     };
     loadPageData();
   }, [id]);
-
- 
-
- 
 
   /* ── FOLLOW ── */
   const handleFollow = async () => {
@@ -364,10 +355,10 @@ setMiniChartData(formatted);
     if (!currentUser) return;
     setSavingBank(true);
     const { error } = await supabase.from("profiles").update({
-      bank_account_name: bankName,
+      bank_account_name:   bankName,
       bank_account_number: bankAccount,
-      bank_ifsc: bankIfsc,
-      bank_upi: bankUpi,
+      bank_ifsc:           bankIfsc,
+      bank_upi:            bankUpi,
     }).eq("id", currentUser.id);
     if (!error) {
       setUser({ ...user, bank_account_name: bankName, bank_account_number: bankAccount, bank_ifsc: bankIfsc, bank_upi: bankUpi });
@@ -377,6 +368,27 @@ setMiniChartData(formatted);
       showToast("Save failed", "error");
     }
     setSavingBank(false);
+  };
+
+  /* ── RETURN ADDRESS ── */
+  const handleSaveAddress = async () => {
+    if (!currentUser) return;
+    if (!addrLine.trim() || !addrCity.trim() || !addrState || !addrPincode.trim() || !addrPhone.trim()) {
+      showToast("Please fill in all address fields", "error"); return;
+    }
+    if (!/^\d{6}$/.test(addrPincode)) { showToast("Enter a valid 6-digit pincode", "error"); return; }
+    if (!/^\d{10}$/.test(addrPhone))  { showToast("Enter a valid 10-digit phone number", "error"); return; }
+    setSavingAddress(true);
+    const { error } = await supabase.from("profiles").update({
+      address_line: addrLine, city: addrCity, state: addrState,
+      pincode: addrPincode,   phone: addrPhone,
+    }).eq("id", currentUser.id);
+    if (!error) {
+      setUser({ ...user, address_line: addrLine, city: addrCity, state: addrState, pincode: addrPincode, phone: addrPhone });
+      setShowAddressForm(false);
+      showToast("Return address saved ✦");
+    } else showToast("Save failed", "error");
+    setSavingAddress(false);
   };
 
   /* ── PRODUCT ACTIONS ── */
@@ -422,7 +434,6 @@ setMiniChartData(formatted);
     setDeleteTargetId(null);
   };
 
-  /* ── STATES ── */
   if (loading) return <AccountSkeleton />;
 
   if (!user) return (
@@ -444,16 +455,15 @@ setMiniChartData(formatted);
   const isOwner = currentUser?.id === id;
   const displayName = user.full_name || "Curator";
   const availableProducts = products.filter(p => p.status === "available");
+  const hasReturnAddress = user.address_line && user.city && user.state && user.pincode;
 
   return (
     <main className="min-h-screen bg-[#F6F3EF] text-[#2B0A0F]">
 
-      {/* ── TOAST ── */}
       <AnimatePresence>
         {toast && <Toast message={toast.message} type={toast.type} />}
       </AnimatePresence>
 
-      {/* ── DELETE MODAL ── */}
       <AnimatePresence>
         {deleteTargetId && (
           <DeleteModal
@@ -463,9 +473,6 @@ setMiniChartData(formatted);
         )}
       </AnimatePresence>
 
-      {/* ══════════════════════════════
-          PROFILE HEADER
-      ══════════════════════════════ */}
       <div className="pt-32 pb-0 px-6 max-w-4xl mx-auto">
 
         <div className="flex flex-col md:flex-row items-center md:items-start gap-10 md:gap-16 mb-12">
@@ -497,7 +504,6 @@ setMiniChartData(formatted);
           {/* Info */}
           <div className="flex-1 text-center md:text-left w-full">
 
-            {/* Name + actions */}
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-5">
               {isEditing ? (
                 <input
@@ -515,7 +521,6 @@ setMiniChartData(formatted);
                 </h1>
               )}
 
-              {/* Action buttons — rounded pills */}
               <div className="flex items-center gap-2 md:ml-2 justify-center md:justify-start flex-wrap">
                 {isOwner ? (
                   <>
@@ -562,7 +567,6 @@ setMiniChartData(formatted);
               </div>
             </div>
 
-            {/* Stats row */}
             <div className="flex justify-center md:justify-start gap-8 py-4 border-y border-[#2B0A0F]/08 mb-5">
               {[
                 { value: availableProducts.length, label: "Items" },
@@ -579,18 +583,17 @@ setMiniChartData(formatted);
             </div>
 
             {averageRating > 0 && (
-  <div className="text-center md:text-left">
-    <div className="text-xl font-semibold flex items-center gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
-      {averageRating.toFixed(1)}
-      <span className="text-[#B48A5A] text-base">★</span>
-    </div>
-    <div className="text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
-      {sellerRatings.length} Reviews
-    </div>
-  </div>
-)}
+              <div className="text-center md:text-left">
+                <div className="text-xl font-semibold flex items-center gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
+                  {averageRating.toFixed(1)}
+                  <span className="text-[#B48A5A] text-base">★</span>
+                </div>
+                <div className="text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
+                  {sellerRatings.length} Reviews
+                </div>
+              </div>
+            )}
 
-            {/* Role + Bio */}
             <div className="max-w-sm mx-auto md:mx-0 space-y-2">
               {isEditing ? (
                 <>
@@ -626,7 +629,7 @@ setMiniChartData(formatted);
             PAYOUT DETAILS (owner only)
         ══════════════════════════════ */}
         {isOwner && (
-          <div className="mb-10 p-6 bg-white rounded-2xl border border-[#2B0A0F]/06">
+          <div className="mb-6 p-6 bg-white rounded-2xl border border-[#2B0A0F]/06">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.25em] font-semibold mb-1">Payout Details</p>
@@ -656,13 +659,12 @@ setMiniChartData(formatted);
                     <p className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
                       <span>🔒</span> Your bank details are private and only visible to you.
                     </p>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {[
-                        { label: "Account Holder Name", value: bankName, setter: setBankName, placeholder: "As per bank records", type: "text" },
-                        { label: "Account Number", value: bankAccount, setter: setBankAccount, placeholder: "XXXXXXXXXXXX", type: "text" },
-                        { label: "IFSC Code", value: bankIfsc, setter: (v: string) => setBankIfsc(v.toUpperCase()), placeholder: "SBIN0001234", type: "text" },
-                        { label: "UPI ID (optional)", value: bankUpi, setter: setBankUpi, placeholder: "name@upi", type: "text" },
+                        { label: "Account Holder Name", value: bankName,    setter: setBankName,    placeholder: "As per bank records", type: "text" },
+                        { label: "Account Number",      value: bankAccount, setter: setBankAccount, placeholder: "XXXXXXXXXXXX",       type: "text" },
+                        { label: "IFSC Code",           value: bankIfsc,    setter: (v: string) => setBankIfsc(v.toUpperCase()), placeholder: "SBIN0001234", type: "text" },
+                        { label: "UPI ID (optional)",   value: bankUpi,     setter: setBankUpi,    placeholder: "name@upi",            type: "text" },
                       ].map((field) => (
                         <div key={field.label} className="border-b border-[#2B0A0F]/08 pb-2">
                           <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">
@@ -678,7 +680,6 @@ setMiniChartData(formatted);
                         </div>
                       ))}
                     </div>
-
                     <button
                       onClick={handleSaveBankDetails}
                       disabled={savingBank}
@@ -693,59 +694,129 @@ setMiniChartData(formatted);
           </div>
         )}
 
+        {/* ══════════════════════════════
+            RETURN ADDRESS (owner only)
+        ══════════════════════════════ */}
         {isOwner && (
-  <div
-    onClick={() => router.push("/seller/earnings")}
-    className="mb-10 p-6 rounded-2xl cursor-pointer 
-    bg-gradient-to-br from-[#2B0A0F] to-[#4a1a22] 
-    text-white hover:scale-[1.02] transition-all duration-300 shadow-md"
-  >
-    <p className="text-[10px] uppercase tracking-[0.25em] opacity-70">
-      Earnings
-    </p>
+          <div className="mb-6 p-6 bg-white rounded-2xl border border-[#2B0A0F]/06">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.25em] font-semibold mb-1">Return Address</p>
+                <p className="text-[9px] opacity-40 uppercase tracking-widest">
+                  {hasReturnAddress
+                    ? `${user.address_line}, ${user.city}, ${user.state} — ${user.pincode}`
+                    : "Add your address — it appears on shipping labels"}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddressForm(!showAddressForm)}
+                className="px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[9px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
+              >
+                {showAddressForm ? "Cancel" : hasReturnAddress ? "Edit" : "Add Address"}
+              </button>
+            </div>
 
-    {/* 💰 NUMBERS */}
-    <div className="flex justify-between items-end mt-4">
-      
-      <div>
-        <p className="text-2xl font-semibold">
-          ₹{formatCurrency(animatedTotal)}
-        </p>
+            <AnimatePresence>
+              {showAddressForm && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-6 mt-5 border-t border-[#2B0A0F]/06 space-y-5">
+                    <p className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
+                      <span>📦</span> This shows as the return address on your printed shipping labels.
+                    </p>
+                    <div className="border-b border-[#2B0A0F]/08 pb-2">
+                      <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Address Line *</label>
+                      <input
+                        type="text" value={addrLine} onChange={(e) => setAddrLine(e.target.value)}
+                        placeholder="House no., street, area, landmark"
+                        className="w-full bg-transparent text-sm outline-none placeholder:opacity-20"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="border-b border-[#2B0A0F]/08 pb-2">
+                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">City *</label>
+                        <input
+                          type="text" value={addrCity} onChange={(e) => setAddrCity(e.target.value)}
+                          placeholder="Mumbai"
+                          className="w-full bg-transparent text-sm outline-none placeholder:opacity-20"
+                        />
+                      </div>
+                      <div className="border-b border-[#2B0A0F]/08 pb-2">
+                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">State *</label>
+                        <select
+                          value={addrState} onChange={(e) => setAddrState(e.target.value)}
+                          className="w-full bg-transparent text-sm outline-none appearance-none cursor-pointer pb-1"
+                        >
+                          <option value="">Select...</option>
+                          {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="border-b border-[#2B0A0F]/08 pb-2">
+                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Pincode *</label>
+                        <input
+                          type="tel" value={addrPincode} onChange={(e) => setAddrPincode(e.target.value)}
+                          placeholder="411048" maxLength={6}
+                          className="w-full bg-transparent text-sm outline-none placeholder:opacity-20"
+                        />
+                      </div>
+                      <div className="border-b border-[#2B0A0F]/08 pb-2">
+                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Phone *</label>
+                        <input
+                          type="tel" value={addrPhone} onChange={(e) => setAddrPhone(e.target.value)}
+                          placeholder="10-digit mobile" maxLength={10}
+                          className="w-full bg-transparent text-sm outline-none placeholder:opacity-20"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSaveAddress} disabled={savingAddress}
+                      className="w-full py-3.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.25em] hover:opacity-80 transition-opacity disabled:opacity-40"
+                    >
+                      {savingAddress ? "Saving..." : "Save Return Address"}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
-        <p className="text-xs opacity-70 mt-1">
-          ₹{formatCurrency(animatedPending)} pending
-        </p>
-      </div>
+        {/* ══════════════════════════════
+            EARNINGS
+        ══════════════════════════════ */}
+        {isOwner && (
+          <div
+            onClick={() => router.push("/seller/earnings")}
+            className="mb-10 p-6 rounded-2xl cursor-pointer bg-gradient-to-br from-[#2B0A0F] to-[#4a1a22] text-white hover:scale-[1.02] transition-all duration-300 shadow-md"
+          >
+            <p className="text-[10px] uppercase tracking-[0.25em] opacity-70">Earnings</p>
+            <div className="flex justify-between items-end mt-4">
+              <div>
+                <p className="text-2xl font-semibold">₹{formatCurrency(animatedTotal)}</p>
+                <p className="text-xs opacity-70 mt-1">₹{formatCurrency(animatedPending)} pending</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs opacity-70">Received</p>
+                <p className="text-sm font-medium">₹{formatCurrency(animatedReleased)}</p>
+              </div>
+            </div>
+            <div className="h-16 mt-4 opacity-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={miniChartData}>
+                  <Line type="monotone" dataKey="earnings" stroke="#B48A5A" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs opacity-60 mt-3">Tap to view detailed analytics →</p>
+          </div>
+        )}
 
-      <div className="text-right">
-        <p className="text-xs opacity-70">Received</p>
-        <p className="text-sm font-medium">
-          ₹{formatCurrency(animatedReleased)}
-        </p>
-      </div>
-
-    </div>
-
-    {/* 📈 MINI GRAPH */}
-    <div className="h-16 mt-4 opacity-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={miniChartData}>
-          <Line
-            type="monotone"
-            dataKey="earnings"
-            stroke="#B48A5A"
-            strokeWidth={2}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-
-    <p className="text-xs opacity-60 mt-3">
-      Tap to view detailed analytics →
-    </p>
-  </div>
-)}
         {/* ══════════════════════════════
             TABS
         ══════════════════════════════ */}
@@ -761,20 +832,13 @@ setMiniChartData(formatted);
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`relative px-5 py-3.5 text-[10px] uppercase tracking-[0.25em] transition-colors ${
-                activeTab === tab.key
-                  ? "text-[#2B0A0F]"
-                  : "text-[#2B0A0F]/35 hover:text-[#2B0A0F]/65"
+                activeTab === tab.key ? "text-[#2B0A0F]" : "text-[#2B0A0F]/35 hover:text-[#2B0A0F]/65"
               }`}
             >
               {tab.label}
-              {tab.count > 0 && (
-                <span className="ml-1.5 opacity-50">{tab.count}</span>
-              )}
+              {tab.count > 0 && <span className="ml-1.5 opacity-50">{tab.count}</span>}
               {activeTab === tab.key && (
-                <motion.div
-                  layoutId="account-tab-line"
-                  className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#2B0A0F]"
-                />
+                <motion.div layoutId="account-tab-line" className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#2B0A0F]" />
               )}
             </button>
           ))}
@@ -785,21 +849,14 @@ setMiniChartData(formatted);
           TAB CONTENT
       ══════════════════════════════ */}
       <div className="max-w-4xl mx-auto px-6 py-8 pb-20">
-
-        {/* COLLECTIONS */}
         <AnimatePresence mode="wait">
+
+          {/* COLLECTIONS */}
           {activeTab === "collections" && (
-            <motion.div
-              key="collections"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
+            <motion.div key="collections" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               {products.length === 0 ? (
                 <div className="py-24 text-center">
-                  <p className="text-2xl opacity-15 mb-3" style={{ fontFamily: "var(--font-playfair)" }}>
-                    Nothing listed yet.
-                  </p>
+                  <p className="text-2xl opacity-15 mb-3" style={{ fontFamily: "var(--font-playfair)" }}>Nothing listed yet.</p>
                   <p className="text-[9px] uppercase tracking-[0.3em] opacity-25 mb-8">
                     {isOwner ? "Start building your archive." : "This curator hasn't listed anything yet."}
                   </p>
@@ -814,25 +871,11 @@ setMiniChartData(formatted);
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
                   {products.map((product) => (
-                    <motion.div
-                      key={product.id}
-                      layout
-                      className="group relative"
-                    >
+                    <motion.div key={product.id} layout className="group relative">
                       <Link href={`/product/${product.id}`}>
-                        {/* No hover zoom — plain image */}
-                        <div className={`relative aspect-square bg-[#EAE3DB] overflow-hidden rounded-xl ${
-                          product.status !== "available" ? "opacity-50" : ""
-                        }`}>
-                          <Image
-                            src={product.image_url || "/final.png"}
-                            alt={product.title}
-                            fill
-                            className="object-cover"
-                          />
+                        <div className={`relative aspect-square bg-[#EAE3DB] overflow-hidden rounded-xl ${product.status !== "available" ? "opacity-50" : ""}`}>
+                          <Image src={product.image_url || "/final.png"} alt={product.title} fill className="object-cover" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-
-                          {/* Status badge */}
                           {product.status !== "available" && (
                             <div className={`absolute top-3 left-3 text-white text-[8px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full ${
                               product.status === "sold" ? "bg-[#A1123F]/80" : "bg-[#2B0A0F]/70"
@@ -840,8 +883,6 @@ setMiniChartData(formatted);
                               {product.status}
                             </div>
                           )}
-
-                          {/* Price bottom */}
                           <div className="absolute bottom-3 left-3 right-3">
                             <p className="text-white text-xs truncate opacity-80">{product.title}</p>
                             <p className="text-white text-sm font-medium mt-0.5" style={{ fontFamily: "var(--font-playfair)" }}>
@@ -851,7 +892,6 @@ setMiniChartData(formatted);
                         </div>
                       </Link>
 
-                      {/* Owner menu */}
                       {isOwner && (
                         <div className="absolute top-3 right-3 z-20">
                           <button
@@ -860,7 +900,6 @@ setMiniChartData(formatted);
                           >
                             ⋮
                           </button>
-
                           <AnimatePresence>
                             {openMenuId === product.id && (
                               <motion.div
@@ -986,6 +1025,7 @@ setMiniChartData(formatted);
               )}
             </motion.div>
           )}
+
         </AnimatePresence>
       </div>
     </main>
