@@ -358,8 +358,7 @@ export default function CheckoutPage() {
                       <p className="text-sm font-medium">{savedAddress.fullName}</p>
                       <p className="text-xs opacity-60">{savedAddress.phone}</p>
                       <p className="text-xs opacity-60 leading-relaxed">
-                        {savedAddress.addressLine1}
-                        {savedAddress.addressLine2 && `, ${savedAddress.addressLine2}`}
+                        {savedAddress.addressLine}
                       </p>
                       <p className="text-xs opacity-60">
                         {savedAddress.city}, {savedAddress.state} – {savedAddress.pincode}
