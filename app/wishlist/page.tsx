@@ -432,7 +432,7 @@ export default function WishlistPage() {
                 <WishlistCard
                   key={product.id}
                   product={product}
-                  onRemove={(id) => toggleWishlist({ id })}
+                  onRemove={(id) => toggleWishlist(product)}
                   onQuickBuy={handleQuickBuy}
                 />
               ))}
