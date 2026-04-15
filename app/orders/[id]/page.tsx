@@ -162,6 +162,12 @@ export default function OrderDetailPage() {
   const [courierName, setCourierName]       = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingUrl, setTrackingUrl]       = useState("");
+  // Dispute
+  const [disputeOpen, setDisputeOpen]     = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeDetails, setDisputeDetails] = useState("");
+  const [disputeLoading, setDisputeLoading] = useState(false);
+  const [disputeSuccess, setDisputeSuccess] = useState(false);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -262,6 +268,43 @@ export default function OrderDetailPage() {
       showToast("Failed to update status", "error");
     }
   };
+  /* ── RAISE DISPUTE ── */
+const handleDispute = async () => {
+  if (!disputeReason) { showToast("Please select a reason", "error"); return; }
+  setDisputeLoading(true);
+  const { error } = await supabase.from("support_tickets").insert({
+    order_id:   id,
+    user_id:    user.id,
+    reason:     disputeReason,
+    details:    disputeDetails,
+    status:     "open",
+    created_at: new Date().toISOString(),
+  });
+  if (!error) {
+    // Notify admin
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "admin_alert",
+        to: process.env.NEXT_PUBLIC_ADMIN_EMAIL || "",
+        data: {
+          subject:  `Dispute raised — Order #${String(id).slice(0,8).toUpperCase()}`,
+          orderId:  id,
+          reason:   disputeReason,
+          details:  disputeDetails,
+          buyerId:  order.buyer_id,
+        },
+      }),
+    });
+    setDisputeSuccess(true);
+    setTimeout(() => { setDisputeOpen(false); setDisputeSuccess(false); }, 2500);
+  } else {
+    showToast("Failed to submit. Please try again.", "error");
+  }
+  setDisputeLoading(false);
+};
+
 
   /* ── LOADING / NOT FOUND ── */
   if (loading) return (
@@ -524,20 +567,130 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* ── BUYER: MESSAGE SELLER ── */}
-        {isBuyer && order.status !== "delivered" && (
-          <div className="bg-white rounded-2xl border border-[#2B0A0F]/06 p-5 sm:p-6">
-            <p className="text-[9px] uppercase tracking-[0.3em] opacity-35 mb-3">Need Help?</p>
-            <p className="text-sm opacity-50 mb-4 leading-relaxed">
-              Have a question about your order? Message the seller directly.
+        {/* ── BUYER: DISPUTE / HELP ── */}
+{isBuyer && order.status !== "delivered" && order.status !== "cancelled" && (
+  <div className="bg-white rounded-2xl border border-[#2B0A0F]/06 p-5 sm:p-6">
+    <p className="text-[9px] uppercase tracking-[0.3em] opacity-35 mb-3">Need Help?</p>
+    <p className="text-sm opacity-50 mb-4 leading-relaxed">
+      Have a question or issue with your order?
+    </p>
+    <div className="flex flex-col gap-3">
+      <Link href="/messages">
+        <button className="w-full py-3.5 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
+          Message Seller →
+        </button>
+      </Link>
+      <button
+        onClick={() => setDisputeOpen(true)}
+        className="w-full py-3.5 rounded-full border border-[#A1123F]/30 text-[#A1123F] text-[10px] uppercase tracking-[0.2em] hover:bg-[#A1123F] hover:text-white transition-all"
+      >
+        Raise a Dispute
+      </button>
+    </div>
+  </div>
+)}
+
+{/* ── DISPUTE MODAL ── */}
+<AnimatePresence>
+  {disputeOpen && (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
+        onClick={() => !disputeLoading && setDisputeOpen(false)}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[#F6F3EF] rounded-2xl p-6 sm:p-8 w-[calc(100vw-2rem)] sm:w-[400px] shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {disputeSuccess ? (
+          <div className="text-center py-6">
+            <p className="text-3xl mb-3">✦</p>
+            <p className="text-lg mb-2" style={{ fontFamily: "var(--font-playfair)" }}>Dispute Raised</p>
+            <p className="text-[10px] uppercase tracking-widest opacity-40">
+              We'll review your case and get back to you within 24 hours.
             </p>
-            <Link href="/messages">
-              <button className="w-full py-3.5 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
-                Open Messages →
-              </button>
-            </Link>
           </div>
+        ) : (
+          <>
+            <h3 className="text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Raise a Dispute</h3>
+            <p className="text-[9px] uppercase tracking-[0.25em] opacity-40 mb-6">
+              Order #{String(id).slice(0, 8).toUpperCase()}
+            </p>
+
+            <div className="space-y-3 mb-5">
+              {[
+                { value: "not_received",    label: "Item not received" },
+                { value: "not_as_described", label: "Item not as described" },
+                { value: "damaged",         label: "Item arrived damaged" },
+                { value: "wrong_item",      label: "Wrong item sent" },
+                { value: "other",           label: "Other issue" },
+              ].map((reason) => (
+                <button
+                  key={reason.value}
+                  onClick={() => setDisputeReason(reason.value)}
+                  className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all ${
+                    disputeReason === reason.value
+                      ? "bg-[#A1123F] text-white"
+                      : "border border-[#2B0A0F]/10 hover:border-[#2B0A0F]/30"
+                  }`}
+                >
+                  {reason.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="border-b border-[#2B0A0F]/10 pb-2 mb-5">
+              <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-2">
+                Additional Details (optional)
+              </label>
+              <textarea
+                value={disputeDetails}
+                onChange={(e) => setDisputeDetails(e.target.value)}
+                placeholder="Describe the issue in detail..."
+                rows={3}
+                className="w-full bg-transparent text-sm outline-none placeholder:opacity-20 resize-none"
+              />
+            </div>
+
+            <p className="text-[9px] opacity-30 mb-5 leading-relaxed">
+              🔒 Our team will review this within 24 hours and reach out via email.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDisputeOpen(false)}
+                disabled={disputeLoading}
+                className="flex-1 py-3.5 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.2em] hover:opacity-60 transition-opacity disabled:opacity-30"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDispute}
+                disabled={disputeLoading || !disputeReason}
+                className="flex-1 py-3.5 rounded-full bg-[#A1123F] text-white text-[10px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {disputeLoading ? (
+                  <>
+                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : "Submit Dispute"}
+              </button>
+            </div>
+          </>
         )}
+      </motion.div>
+    </>
+  )}
+</AnimatePresence>
+
+         
 
         {/* ── DELIVERED STATE ── */}
         {order.status === "delivered" && (
