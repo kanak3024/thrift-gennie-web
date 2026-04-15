@@ -21,8 +21,8 @@ type RecentOrder = {
   status: string;
   payout_status: string;
   created_at: string;
-  products?: { title: string };
-  profiles?: { full_name: string };
+  products?: { title: string }[];
+  profiles?: { full_name: string }[];
 };
 
 type Seller = {
@@ -411,9 +411,9 @@ export default function AdminDashboardPage() {
                   const color = colors[i % colors.length];
                   return (
                     <div key={order.id} className="flex items-center gap-3 py-3 border-b border-[#2B0A0F]/05 last:border-0">
-                      <Avatar name={order.profiles?.full_name || "?"} color={color} />
+                      <Avatar name={order.profiles?.[0]?.full_name || "?"} color={color} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs truncate">{order.products?.title || "—"}</p>
+                        <p className="text-xs truncate">{order.products?.[0]?.title || "—"}</p>
                         <p className="text-[9px] opacity-35 mt-0.5">#{order.id.slice(0, 8).toUpperCase()}</p>
                       </div>
                       <p className="text-sm font-light" style={{ fontFamily: "var(--font-playfair)" }}>
