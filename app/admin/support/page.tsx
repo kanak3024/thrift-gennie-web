@@ -65,7 +65,7 @@ export default function AdminSupportPage() {
   /* ── AUTH CHECK ── */
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { window.location.href = "/login"; return; }
+      if (!user) { window.location.href = "admin/login"; return; }
 
       const { data: profile } = await supabase
         .from("profiles")
