@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
 
 type Step = "phone" | "otp" | "success";
 
@@ -69,33 +70,39 @@ export default function VerifyPage() {
       inputRefs.current[index - 1]?.focus();
     }
   };
-
   const handleVerifyOTP = async () => {
-    const otpString = otp.join("");
-    if (otpString.length !== 6) {
-      setError("Please enter the complete 6-digit OTP");
-      return;
+  const otpString = otp.join("");
+  if (otpString.length !== 6) {
+    setError("Please enter the complete 6-digit OTP");
+    return;
+  }
+  setError("");
+  setLoading(true);
+  try {
+    // get current user session first
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const res = await fetch("/api/auth/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        mobile, 
+        otp: otpString,
+        userId: session?.user?.id
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setStep("success");
+      setTimeout(() => router.push("/seller/dashboard"), 1500);
+    } else {
+      setError("Incorrect OTP. Please try again.");
     }
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile, otp: otpString }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStep("success");
-        setTimeout(() => router.push("/seller/dashboard"), 1500);
-      } else {
-        setError("Incorrect OTP. Please try again.");
-      }
-    } catch {
-      setError("Something went wrong. Try again.");
-    }
-    setLoading(false);
-  };
+  } catch {
+    setError("Something went wrong. Try again.");
+  }
+  setLoading(false);
+};
 
   return (
     <main className="min-h-screen bg-[#F6F3EF] flex items-center justify-center px-6">
