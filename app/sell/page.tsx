@@ -264,6 +264,7 @@ export default function SellPage() {
   const [step, setStep]       = useState(0);
   const [userId, setUserId]   = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [toast, setToast]     = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Form fields
@@ -282,19 +283,35 @@ export default function SellPage() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+  /* ── AUTH + KYC CHECK ── */
+useEffect(() => {
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
 
-  /* ── AUTH ── */
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setUserId(session.user.id);
-      else router.push("/login");
-    });
-  }, [router]);
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
 
-  useEffect(() => {
-    return () => { previewUrls.forEach(url => URL.revokeObjectURL(url)); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    setUserId(user.id);
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("kyc_status")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.kyc_status !== "verified") {
+      router.replace("/verify");
+      return;
+    }
+
+    setCheckingAuth(false);
+  };
+
+  checkUser();
+}, [router]);
+   
   /* ── FILE HANDLING ── */
   const handleSlotFile = (slotIndex: number, newFile: File) => {
     setFiles(prev => {
@@ -402,6 +419,13 @@ export default function SellPage() {
       setLoading(false);
     }
   };
+  if (checkingAuth) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-sm opacity-40">Checking access...</p>
+    </div>
+  );
+}
 
   /* ── RENDER ── */
   return (

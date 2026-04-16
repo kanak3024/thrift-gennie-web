@@ -16,7 +16,6 @@ function AccountSkeleton() {
   return (
     <main className="min-h-screen bg-[#F6F3EF] pt-20 sm:pt-32 pb-20 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto animate-pulse">
-        {/* Avatar + info */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-10 mb-10 sm:mb-14">
           <div className="w-24 h-24 sm:w-36 sm:h-36 rounded-full bg-[#EAE3DB] flex-shrink-0" />
           <div className="flex-1 space-y-4 pt-2 sm:pt-4 w-full">
@@ -92,6 +91,46 @@ function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
         </div>
       </motion.div>
     </>
+  );
+}
+
+/* ─────────────────────────────
+   VERIFICATION BANNER
+───────────────────────────── */
+function VerificationBanner({ kycStatus }: { kycStatus: string }) {
+  if (kycStatus === "verified") return (
+    <div className="flex items-center gap-3 px-5 py-3.5 bg-[#6B7E60]/08 border border-[#6B7E60]/20 rounded-xl mb-4 sm:mb-6">
+      <div className="w-5 h-5 rounded-full bg-[#6B7E60]/15 flex items-center justify-center flex-shrink-0">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+          <path d="M5 13l4 4L19 7" stroke="#6B7E60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      <div className="flex-1">
+        <p className="text-[10px] uppercase tracking-[0.25em] text-[#6B7E60] font-medium">Verified seller</p>
+        <p className="text-[9px] text-[#2B0A0F]/35 mt-0.5">Your number is confirmed. You can list items.</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex items-center gap-3 px-5 py-3.5 bg-[#B48A5A]/08 border border-[#B48A5A]/20 rounded-xl mb-4 sm:mb-6">
+      <div className="w-5 h-5 rounded-full bg-[#B48A5A]/15 flex items-center justify-center flex-shrink-0">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+          <path d="M12 9v4M12 17h.01" stroke="#B48A5A" strokeWidth="2.5" strokeLinecap="round"/>
+          <circle cx="12" cy="12" r="9" stroke="#B48A5A" strokeWidth="2"/>
+        </svg>
+      </div>
+      <div className="flex-1">
+        <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48A5A] font-medium">Verify to start selling</p>
+        <p className="text-[9px] text-[#2B0A0F]/35 mt-0.5">Confirm your number to list items and receive payouts.</p>
+      </div>
+      <a
+        href="/verify"
+        className="text-[9px] uppercase tracking-[0.2em] bg-[#2B0A0F] text-[#F6F3EF] px-3 py-2 rounded-lg hover:opacity-80 transition-all flex-shrink-0"
+      >
+        Verify →
+      </a>
+    </div>
   );
 }
 
@@ -184,8 +223,9 @@ export default function AccountPage() {
         const loggedInUser = session?.user ?? null;
         if (loggedInUser) setCurrentUser(loggedInUser);
 
+        // Added kyc_status to the select
         const { data: profileData } = await supabase
-          .from("profiles").select("*").eq("id", id).maybeSingle();
+          .from("profiles").select("*, kyc_status").eq("id", id).maybeSingle();
 
         if (profileData) {
           setUser(profileData);
@@ -487,7 +527,7 @@ export default function AccountPage() {
                 </h1>
               )}
 
-              {/* Action buttons — centered on mobile */}
+              {/* Action buttons */}
               <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap sm:ml-2">
                 {isOwner ? (
                   <>
@@ -596,6 +636,13 @@ export default function AccountPage() {
         </div>
 
         {/* ══════════════════════════════
+            VERIFICATION BANNER (owner only)
+        ══════════════════════════════ */}
+        {isOwner && (
+          <VerificationBanner kycStatus={user.kyc_status || ""} />
+        )}
+
+        {/* ══════════════════════════════
             PAYOUT DETAILS (owner only)
         ══════════════════════════════ */}
         {isOwner && (
@@ -629,7 +676,6 @@ export default function AccountPage() {
                     <p className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
                       <span>🔒</span> Your bank details are private and only visible to you.
                     </p>
-                    {/* Stack on mobile, 2-col on md+ */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                       {[
                         { label: "Account Holder Name", value: bankName,    setter: setBankName,    placeholder: "As per bank records" },
@@ -707,7 +753,6 @@ export default function AccountPage() {
                         className="w-full bg-transparent text-base sm:text-sm outline-none placeholder:opacity-20"
                       />
                     </div>
-                    {/* City + State */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="border-b border-[#2B0A0F]/08 pb-2">
                         <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">City *</label>
@@ -733,7 +778,6 @@ export default function AccountPage() {
                         </div>
                       </div>
                     </div>
-                    {/* Pincode + Phone */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="border-b border-[#2B0A0F]/08 pb-2">
                         <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Pincode *</label>
@@ -786,7 +830,6 @@ export default function AccountPage() {
                 <p className="text-sm font-medium">₹{formatCurrency(animatedReleased)}</p>
               </div>
             </div>
-            {/* Chart — only show if there's data, hide on very small screens to save space */}
             {miniChartData.length > 0 && (
               <div className="h-12 sm:h-16 mt-3 sm:mt-4 opacity-80">
                 <ResponsiveContainer width="100%" height="100%">
