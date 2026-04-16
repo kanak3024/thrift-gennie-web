@@ -81,7 +81,7 @@ export default function CheckoutPage() {
   const [seller, setSeller]     = useState<any>(null);
   const [loading, setLoading]   = useState(true);
   const [paying, setPaying]     = useState(false);
-
+  const [error, setError] = useState<string | null>(null);
   const [addressModalOpen, setAddressModalOpen]   = useState(false);
   const [savedAddress, setSavedAddress]           = useState<ShippingAddress | null>(null);
   const [useSaved, setUseSaved]                   = useState(true);
@@ -89,40 +89,43 @@ export default function CheckoutPage() {
   /* ── AUTH + DATA ── */
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/login"); return; }
-      setUser(user);
+       try {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error("Authentication failed. Please log in again.");
+  if (!user) { router.push("/login"); return; }
+  setUser(user);
 
-      // Fetch product
-      const { data: p } = await supabase
-        .from("products").select("*").eq("id", id).single();
-      if (!p || p.status === "sold") { router.push("/buy"); return; }
-      setProduct(p);
+  const { data: p, error: productError } = await supabase
+    .from("products").select("*").eq("id", id).single();
+  if (productError) throw new Error("Could not load this product. It may have been removed.");
+  if (!p || p.status === "sold") { router.push("/buy"); return; }
+  setProduct(p);
 
-      // Fetch seller
-      if (p.seller_id) {
-        const { data: s } = await supabase
-          .from("profiles")
-          .select("full_name, avatar_url, bio")
-          .eq("id", p.seller_id).single();
-        if (s) setSeller(s);
-      }
+  if (p.seller_id) {
+    const { data: s, error: sellerError } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url, bio")
+      .eq("id", p.seller_id).single();
+    if (!sellerError && s) setSeller(s);
+  }
 
-      // Check for saved address from last order
-      const { data: lastOrder } = await supabase
-        .from("orders")
-        .select("shipping_address")
-        .eq("buyer_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const { data: lastOrder } = await supabase
+    .from("orders")
+    .select("shipping_address")
+    .eq("buyer_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-      if (lastOrder?.shipping_address) {
-        setSavedAddress(lastOrder.shipping_address as ShippingAddress);
-        setUseSaved(true);
-      }
-
-      setLoading(false);
+  if (lastOrder?.shipping_address) {
+    setSavedAddress(lastOrder.shipping_address as ShippingAddress);
+    setUseSaved(true);
+  }
+} catch (err: any) {
+  setError(err.message);
+} finally {
+  setLoading(false);
+}
     };
     init();
   }, [id, router]);
@@ -175,7 +178,7 @@ export default function CheckoutPage() {
             });
             const result = await verifyRes.json();
             if (result.success) router.push(`/orders/${result.orderId}`);
-            else { alert("Payment verification failed. Contact support."); setPaying(false); }
+            else { setError("Payment verification failed. Please contact support."); setPaying(false); }
           },
           modal: { ondismiss: () => setPaying(false) },
         });
@@ -183,7 +186,7 @@ export default function CheckoutPage() {
         setPaying(false);
       };
     } catch (err: any) {
-      alert("Something went wrong: " + err.message);
+      setError("Something went wrong: " + err.message);
       setPaying(false);
     }
   };
@@ -198,6 +201,17 @@ export default function CheckoutPage() {
 
   if (loading) return <CheckoutSkeleton />;
   if (!product) return null;
+  if (error) return (
+  <main className="min-h-screen bg-[#EFE9E1] flex items-center justify-center px-4">
+    <div className="text-center max-w-sm">
+      <div className="text-4xl mb-4">⚠️</div>
+      <p className="text-[#2B0A0F] text-sm mb-6 opacity-70">{error}</p>
+      <Link href="/buy" className="text-[10px] uppercase tracking-[0.25em] border border-[#2B0A0F]/30 px-6 py-3 rounded-full hover:bg-[#2B0A0F] hover:text-white transition-all">
+        Back to Archive
+      </Link>
+    </div>
+  </main>
+);
 
   const platformFee = 0;
   const total       = product.price + platformFee;
