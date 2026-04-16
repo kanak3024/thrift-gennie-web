@@ -50,7 +50,7 @@ export default function Navbar() {
   const [activeSize, setActiveSize] = useState<string | null>(null);
   const [activeBudget, setActiveBudget] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchDebounceRef = useRef<NodeJS.Timeout>();
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
   const fetchProfile = async (userId: string) => {
@@ -137,7 +137,9 @@ export default function Navbar() {
 
   const handleQueryChange = (val: string) => {
     setQuery(val);
-    clearTimeout(searchDebounceRef.current);
+    if (searchDebounceRef.current) {
+  clearTimeout(searchDebounceRef.current);
+}
     searchDebounceRef.current = setTimeout(() => runSearch(val), 280);
   };
 
@@ -326,7 +328,6 @@ export default function Navbar() {
             </button>
           </div>
 
-        </div>
       </motion.header>
 
       {/* ── SEARCH OVERLAY ── */}
@@ -434,9 +435,10 @@ export default function Navbar() {
 
                       {(activeVibes.length > 0 || activeSize || activeBudget) && (
                         <button
-                          onClick={() => router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`)}
-                          className="mb-6 bg-[#2d1a0e] text-[#e8d5b0] text-[11px] tracking-[2px] uppercase px-5 py-2.5 rounded-full hover:bg-[#B48A5A] transition-all"
-                          onClick={() => setSearchOpen(false)}
+                        onClick={() => {
+  router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`);
+  setSearchOpen(false);
+}}      
                         >
                           Browse filtered archive →
                         </button>
