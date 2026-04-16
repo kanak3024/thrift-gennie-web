@@ -101,6 +101,19 @@ export default function Navbar() {
     }
   }, [searchOpen]);
 
+  // ⌘K / Ctrl+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+      if (e.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const runSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
       setResults({ pieces: [], sellers: [] });
@@ -127,7 +140,6 @@ export default function Navbar() {
       sellers: sellersRes.data ?? [],
     });
 
-    // if sellers found, switch right panel to show them
     if ((sellersRes.data ?? []).length > 0) {
       setSuggestedSellers(sellersRes.data ?? []);
     }
@@ -137,9 +149,7 @@ export default function Navbar() {
 
   const handleQueryChange = (val: string) => {
     setQuery(val);
-    if (searchDebounceRef.current) {
-  clearTimeout(searchDebounceRef.current);
-}
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => runSearch(val), 280);
   };
 
@@ -183,7 +193,6 @@ export default function Navbar() {
     ...(!user ? [{ href: "/login", label: "Login" }] : []),
   ];
 
-  const hasResults = query.trim() && (results.pieces.length > 0 || results.sellers.length > 0);
   const noResults = query.trim() && !loading && results.pieces.length === 0 && results.sellers.length === 0;
 
   return (
@@ -193,113 +202,112 @@ export default function Navbar() {
         animate={{ y: 0, opacity: 1 }}
         className="fixed top-0 left-0 w-full z-50 bg-[#1A060B]/95 backdrop-blur-md border-b border-white/10 text-[#F6F3EF]"
       >
-        <div className="max-w-7xl mx-auto px-5 md:px-8 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-5 md:px-8 py-4 flex items-center gap-5">
 
           {/* BRAND */}
           <Link
             href="/"
             onClick={() => setMenuOpen(false)}
-            className="uppercase tracking-[0.35em] text-xs font-semibold text-[#B48A5A] drop-shadow-[0_0_6px_rgba(180,138,90,0.6)] hover:text-[#d6a96c] transition"
+            className="flex-shrink-0 uppercase tracking-[0.35em] text-xs font-semibold
+                       text-[#B48A5A] drop-shadow-[0_0_6px_rgba(180,138,90,0.6)]
+                       hover:text-[#d6a96c] transition"
           >
             THRIFT GENNIE
           </Link>
-            {/* DESKTOP NAV */}
-<div className="hidden md:flex items-center w-full">
 
-  {/* LEFT LINKS */}
-  <div className="flex items-center gap-8 text-xs uppercase tracking-[0.25em] text-white/70">
-    <Link href="/buy" className="hover:text-white transition">Archive</Link>
-  </div>
+          {/* ── SEARCH PILL — right after logo, desktop only ── */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="hidden md:flex items-center gap-2.5 pl-3.5 pr-3 py-[7px] rounded-full
+                       bg-white/[0.06] border border-white/[0.12] text-white/40
+                       hover:bg-white/[0.10] hover:border-white/20 hover:text-white/60
+                       transition-all duration-200 flex-shrink-0"
+            aria-label="Open search"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="16.5" y1="16.5" x2="22" y2="22" />
+            </svg>
+            <span className="text-[11px] tracking-wide whitespace-nowrap">
+              Search pieces, vibes, sellers...
+            </span>
+            <span className="ml-2 text-[9px] opacity-50 border border-white/20 rounded px-1 py-0.5 tracking-wide">
+              ⌘K
+            </span>
+          </button>
 
-  {/* CENTER SEARCH */}
-  <div className="flex-1 flex justify-center px-6">
-    <div
-      onClick={() => setSearchOpen(true)}
-      className="w-full max-w-md flex items-center gap-3 px-4 py-2 rounded-full 
-                 bg-white/5 border border-white/10 
-                 text-white/50 hover:text-white 
-                 cursor-pointer transition backdrop-blur-md"
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="11" cy="11" r="7" />
-        <line x1="16.5" y1="16.5" x2="22" y2="22" />
-      </svg>
-      <span className="text-xs tracking-wide">
-        Search pieces, vibes, sellers...
-      </span>
+          {/* Spacer — pushes nav links to the right */}
+          <div className="hidden md:block flex-1" />
 
-      {/* Keyboard hint */}
-      <span className="ml-auto text-[10px] opacity-40">⌘ K</span>
-    </div>
-  </div>
+          {/* DESKTOP NAV LINKS */}
+          <nav className="hidden md:flex items-center gap-8 text-xs uppercase tracking-[0.25em]">
 
-  {/* RIGHT SIDE */}
-  <div className="flex items-center gap-6 text-xs uppercase tracking-[0.25em]">
+            {[
+              { href: "/buy", label: "Archive" },
+              { href: "/sell", label: "Submit" },
+              { href: "/messages", label: "Messages" },
+            ].map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className="relative group text-white/70 hover:text-white transition transform hover:-translate-y-[1px]"
+              >
+                <span className="after:content-[''] after:absolute after:left-0 after:bottom-[-4px] after:w-0 after:h-[1px] after:bg-[#B48A5A] after:transition-all group-hover:after:w-full">
+                  {label}
+                </span>
+              </Link>
+            ))}
 
-    {/* CTA SUBMIT BUTTON */}
-    <Link
-      href="/sell"
-      className="px-5 py-2 rounded-full bg-[#B48A5A] text-black font-semibold 
-                 hover:bg-[#d6a96c] transition shadow-md shadow-[#B48A5A]/30"
-    >
-      Submit
-    </Link>
+            <div className="relative group text-white/70 hover:text-white transition transform hover:-translate-y-[1px]">
+              <Link href="/wishlist">
+                <span className="after:content-[''] after:absolute after:left-0 after:bottom-[-4px] after:w-0 after:h-[1px] after:bg-[#B48A5A] after:transition-all group-hover:after:w-full">
+                  Reserved
+                </span>
+              </Link>
+              {wishlist.length > 0 && (
+                <span className="absolute -top-2 -right-4 text-[10px] bg-[#B48A5A] text-black px-2 rounded-full font-bold shadow-md shadow-[#B48A5A]/30">
+                  {wishlist.length}
+                </span>
+              )}
+            </div>
 
-    <Link href="/messages" className="text-white/70 hover:text-white transition">
-      Messages
-    </Link>
+            {user && (
+              <Link
+                href={`/account/${user.id}`}
+                className="relative group text-white/70 hover:text-white transition transform hover:-translate-y-[1px]"
+              >
+                <span className="after:content-[''] after:absolute after:left-0 after:bottom-[-4px] after:w-0 after:h-[1px] after:bg-[#B48A5A] after:transition-all group-hover:after:w-full">
+                  Account
+                </span>
+              </Link>
+            )}
 
-    <div className="relative">
-      <Link href="/wishlist" className="text-white/70 hover:text-white transition">
-        Reserved
-      </Link>
-      {wishlist.length > 0 && (
-        <span className="absolute -top-2 -right-4 text-[10px] bg-[#B48A5A] text-black px-2 rounded-full font-bold">
-          {wishlist.length}
-        </span>
-      )}
-    </div>
+            {!user ? (
+              <Link
+                href="/login"
+                className="relative group text-white/70 hover:text-white transition transform hover:-translate-y-[1px]"
+              >
+                <span className="after:content-[''] after:absolute after:left-0 after:bottom-[-4px] after:w-0 after:h-[1px] after:bg-[#B48A5A] after:transition-all group-hover:after:w-full">
+                  Login
+                </span>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-5 ml-1 border-l border-white/10 pl-6">
+                <span className="text-[10px] opacity-50 tracking-normal normal-case">
+                  {userName ?? user.email}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="border border-white/30 px-4 py-1 rounded-full hover:bg-white hover:text-black transition-all duration-300"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </nav>
 
-    {user && (
-      <Link href={`/account/${user.id}`} className="text-white/70 hover:text-white transition">
-        Account
-      </Link>
-    )}
-
-    {!user ? (
-      <Link href="/login" className="text-white/70 hover:text-white transition">
-        Login
-      </Link>
-    ) : (
-      <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
-        <span className="text-[10px] opacity-50 normal-case">
-          {userName ?? user.email}
-        </span>
-        <button
-          onClick={handleLogout}
-          className="border border-white/30 px-4 py-1 rounded-full hover:bg-white hover:text-black transition-all"
-        >
-          Logout
-        </button>
-      </div>
-    )}
-  </div>
-</div>
-            {/* SEARCH ICON */}
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="ml-2 text-white/60 hover:text-[#B48A5A] transition transform hover:-translate-y-[1px]"
-              aria-label="Search"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="16.5" y1="16.5" x2="22" y2="22" />
-              </svg>
-            </button>
-          </div>
-
-          {/* MOBILE RIGHT */}
-          <div className="flex md:hidden items-center gap-4">
+          {/* MOBILE RIGHT — search icon + hamburger */}
+          <div className="flex md:hidden items-center gap-4 ml-auto">
             {wishlist.length > 0 && (
               <Link href="/wishlist">
                 <span className="text-[10px] bg-[#B48A5A] text-black px-2 py-0.5 rounded-full font-bold">
@@ -312,7 +320,7 @@ export default function Navbar() {
               className="text-white/60 hover:text-[#B48A5A] transition"
               aria-label="Search"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="11" cy="11" r="7" />
                 <line x1="16.5" y1="16.5" x2="22" y2="22" />
               </svg>
@@ -328,6 +336,7 @@ export default function Navbar() {
             </button>
           </div>
 
+        </div>
       </motion.header>
 
       {/* ── SEARCH OVERLAY ── */}
@@ -339,7 +348,6 @@ export default function Navbar() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[60] flex flex-col"
-            style={{ top: 0 }}
           >
             {/* Backdrop */}
             <div
@@ -348,9 +356,9 @@ export default function Navbar() {
             />
 
             {/* Panel */}
-            <div className="relative z-10 mt-[56px] bg-[#F5F0E8] w-full shadow-2xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="relative z-10 mt-[57px] bg-[#F5F0E8] w-full shadow-2xl max-h-[85vh] overflow-hidden flex flex-col">
 
-              {/* Search bar */}
+              {/* Search input row */}
               <div className="flex items-center gap-3 px-6 md:px-10 py-4 border-b border-[#D4C9B0]">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9a8a7a" strokeWidth="1.8" className="flex-shrink-0">
                   <circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="22" y2="22" />
@@ -363,23 +371,33 @@ export default function Navbar() {
                   className="flex-1 bg-transparent text-[#2d1a0e] text-base md:text-lg placeholder:text-[#b0a090] outline-none font-light tracking-wide"
                 />
                 {loading && (
-                  <svg className="animate-spin text-[#B48A5A]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="animate-spin text-[#B48A5A] flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                   </svg>
                 )}
                 {query && (
-                  <button onClick={() => { setQuery(""); setResults({ pieces: [], sellers: [] }); }} className="text-[#9a8a7a] hover:text-[#2d1a0e] text-lg transition">✕</button>
+                  <button
+                    onClick={() => { setQuery(""); setResults({ pieces: [], sellers: [] }); searchInputRef.current?.focus(); }}
+                    className="text-[#9a8a7a] hover:text-[#2d1a0e] text-lg leading-none transition flex-shrink-0"
+                  >
+                    ✕
+                  </button>
                 )}
-                <button onClick={() => setSearchOpen(false)} className="ml-2 text-[#9a8a7a] hover:text-[#2d1a0e] text-sm uppercase tracking-widest transition">close</button>
+                <button
+                  onClick={() => setSearchOpen(false)}
+                  className="ml-1 text-[#9a8a7a] hover:text-[#2d1a0e] text-[10px] uppercase tracking-widest transition flex-shrink-0"
+                >
+                  close
+                </button>
               </div>
 
               {/* Body */}
               <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
-                {/* LEFT — filters + results */}
+                {/* LEFT */}
                 <div className="flex-1 overflow-y-auto px-6 md:px-10 py-5">
 
-                  {/* DEFAULT STATE — show filters + trending */}
+                  {/* IDLE — filters + trending */}
                   {!query && (
                     <>
                       <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">Filter by vibe</p>
@@ -435,10 +453,11 @@ export default function Navbar() {
 
                       {(activeVibes.length > 0 || activeSize || activeBudget) && (
                         <button
-                        onClick={() => {
-  router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`);
-  setSearchOpen(false);
-}}      
+                          onClick={() => {
+                            router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`);
+                            setSearchOpen(false);
+                          }}
+                          className="mb-6 bg-[#2d1a0e] text-[#e8d5b0] text-[11px] tracking-[2px] uppercase px-5 py-2.5 rounded-full hover:bg-[#B48A5A] hover:text-black transition-all"
                         >
                           Browse filtered archive →
                         </button>
@@ -458,10 +477,9 @@ export default function Navbar() {
                     </>
                   )}
 
-                  {/* RESULTS STATE */}
+                  {/* RESULTS */}
                   {query && (
                     <>
-                      {/* Tabs */}
                       <div className="flex gap-0 mb-4 border-b border-[#e0d8c8]">
                         {(["pieces", "sellers"] as const).map((tab) => (
                           <button
@@ -473,12 +491,11 @@ export default function Navbar() {
                                 : "border-transparent text-[#9a8a7a] hover:text-[#2d1a0e]"
                             }`}
                           >
-                            {tab} {tab === "pieces" ? `(${results.pieces.length})` : `(${results.sellers.length})`}
+                            {tab} ({tab === "pieces" ? results.pieces.length : results.sellers.length})
                           </button>
                         ))}
                       </div>
 
-                      {/* Pieces */}
                       {activeTab === "pieces" && (
                         <div>
                           {results.pieces.length === 0 && !loading && (
@@ -529,7 +546,6 @@ export default function Navbar() {
                         </div>
                       )}
 
-                      {/* Sellers */}
                       {activeTab === "sellers" && (
                         <div>
                           {results.sellers.length === 0 && !loading && (
@@ -579,7 +595,7 @@ export default function Navbar() {
                   )}
                 </div>
 
-                {/* RIGHT — sellers panel (desktop only) */}
+                {/* RIGHT — suggested sellers, desktop only */}
                 <div className="hidden md:block w-72 border-l border-[#e0d8c8] px-5 py-5 overflow-y-auto flex-shrink-0">
                   <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">
                     {query && results.sellers.length > 0 ? "Matching sellers" : "People you might know"}
@@ -589,7 +605,7 @@ export default function Navbar() {
                       key={s.id}
                       href={`/account/${s.id}`}
                       onClick={() => setSearchOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f0e8d8] transition group"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f0e8d8] transition"
                     >
                       <div
                         className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-[12px] font-medium overflow-hidden"
