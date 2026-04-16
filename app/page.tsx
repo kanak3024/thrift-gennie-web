@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -37,22 +37,90 @@ function useCountdown(targetDate: Date) {
 }
 
 /* =========================
+   ANIMATED COUNTER
+========================= */
+function useCountUp(target: number, duration = 1400) {
+  const [val, setVal] = useState(0);
+  const startedRef = useRef(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !startedRef.current) {
+          startedRef.current = true;
+          const start = performance.now();
+          const step = (now: number) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setVal(Math.round(eased * target));
+            if (progress < 1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [target, duration]);
+
+  return { val, ref };
+}
+
+/* =========================
    MOOD CONFIG
+   — each mood maps to a Gennie image, gradient, and tag
 ========================= */
 const MOODS = [
-  { label: "Y2K", title: "Y2K It Girl",      tag: "y2k",       bg: "linear-gradient(160deg,#EAE3DB 0%,#D4C5B0 100%)" },
-  { label: "Old Money", title: "Old Money",  tag: "oldmoney",  bg: "linear-gradient(160deg,#D4C09A 0%,#A8854A 100%)" },
-  { label: "Indie",  title: "Indie Archive", tag: "indie",     bg: "linear-gradient(160deg,#B5C4A8 0%,#6B7E60 100%)" },
-  { label: "Bollywood", title: "Bollywood Glam", tag: "bollywood", bg: "linear-gradient(160deg,#E8A08A 0%,#B84028 100%)" },
-  { label: "90s",    title: "90s Minimal",   tag: "90s",       bg: "linear-gradient(160deg,#AECDCE 0%,#5A8D90 100%)" },
+  {
+    label: "Y2K",
+    title: "Y2K It Girl",
+    tag: "y2k",
+    gennie: "/y2k.png",
+    bg: "linear-gradient(160deg,#EAE3DB 0%,#D4C5B0 100%)",
+  },
+  {
+    label: "Old Money",
+    title: "Old Money",
+    tag: "oldmoney",
+    gennie: "/oldmoney.png",
+    bg: "linear-gradient(160deg,#D4C09A 0%,#A8854A 100%)",
+  },
+  {
+    label: "Indie",
+    title: "Indie Archive",
+    tag: "indie",
+    gennie: "/streetstyle.png",
+    bg: "linear-gradient(160deg,#B5C4A8 0%,#6B7E60 100%)",
+  },
+  {
+    label: "Bollywood",
+    title: "Bollywood Glam",
+    tag: "bollywood",
+    gennie: "/night.png",
+    bg: "linear-gradient(160deg,#E8A08A 0%,#B84028 100%)",
+  },
+  {
+    label: "90s",
+    title: "90s Minimal",
+    tag: "90s",
+    gennie: "/y2k.png",
+    bg: "linear-gradient(160deg,#AECDCE 0%,#5A8D90 100%)",
+  },
 ];
 
+/* =========================
+   MOOD GRID (used in Browse section)
+========================= */
 const MOOD_GRID = [
-  { title: "Y2K It Girl",     tag: "y2k",       sub: "Trend",     count: 128, cls: "from-[#FFB3C6] to-[#C77DFF]" },
-  { title: "Old Money",       tag: "oldmoney",  sub: "Aesthetic", count: 94,  cls: "from-[#C9A96E] to-[#8B6914]" },
-  { title: "Indie Archive",   tag: "indie",     sub: "Vibe",      count: 67,  cls: "from-[#7B8B6F] to-[#3D4A35]" },
-  { title: "Bollywood Glam",  tag: "bollywood", sub: "Statement", count: 112, cls: "from-[#FF6B35] to-[#C41E3A]" },
-  { title: "90s Minimal",     tag: "90s",       sub: "Classic",   count: 79,  cls: "from-[#A8DADC] to-[#457B9D]" },
+  { title: "Y2K It Girl",    tag: "y2k",       sub: "Trend",     cls: "from-[#FFB3C6] to-[#C77DFF]" },
+  { title: "Old Money",      tag: "oldmoney",  sub: "Aesthetic", cls: "from-[#C9A96E] to-[#8B6914]" },
+  { title: "Indie Archive",  tag: "indie",     sub: "Vibe",      cls: "from-[#7B8B6F] to-[#3D4A35]" },
+  { title: "Bollywood Glam", tag: "bollywood", sub: "Statement", cls: "from-[#FF6B35] to-[#C41E3A]" },
+  { title: "90s Minimal",    tag: "90s",       sub: "Classic",   cls: "from-[#A8DADC] to-[#457B9D]" },
 ];
 
 const TICKER_ITEMS = [
@@ -64,14 +132,29 @@ const TICKER_ITEMS = [
 ];
 
 /* =========================
+   BADGE LOGIC — selective scarcity
+========================= */
+function getProductBadge(item: any): { label: string; cls: string } | null {
+  const createdAt = new Date(item.created_at);
+  const ageHours = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
+  if (ageHours < 24) return { label: "Just In", cls: "bg-white text-black" };
+  if (item.quantity === 1 || item.stock === 1) return { label: "Almost Gone", cls: "bg-[#A1123F] text-white" };
+  if (item.is_rare) return { label: "Rare Find", cls: "bg-[#1A060B] text-white" };
+  return null;
+}
+
+/* =========================
    SEARCH OVERLAY
 ========================= */
-const SEARCH_HINTS = [
-  "Y2K tops", "lehenga under ₹2000", "old money blazer",
-  "vintage saree", "size S Mumbai", "Bollywood glam",
-];
-
-function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SearchOverlay({
+  open,
+  onClose,
+  trendingSearches,
+}: {
+  open: boolean;
+  onClose: () => void;
+  trendingSearches: string[];
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
   useEffect(() => {
@@ -79,6 +162,12 @@ function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Fallback hints if DB hasn't loaded yet
+  const hints =
+    trendingSearches.length > 0
+      ? trendingSearches
+      : ["Y2K tops", "lehenga under ₹2000", "old money blazer", "vintage saree", "size S Mumbai"];
 
   return (
     <AnimatePresence>
@@ -94,8 +183,8 @@ function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }
           <div className="w-full max-w-[560px]">
             <div className="flex items-center gap-4 border-b border-[#2B0A0F]/20 pb-3">
               <svg width="20" height="20" viewBox="0 0 16 16" fill="none" className="opacity-40 flex-shrink-0">
-                <circle cx="6.5" cy="6.5" r="5" stroke="#2B0A0F" strokeWidth="1.5"/>
-                <path d="M10.5 10.5L14 14" stroke="#2B0A0F" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="6.5" cy="6.5" r="5" stroke="#2B0A0F" strokeWidth="1.5" />
+                <path d="M10.5 10.5L14 14" stroke="#2B0A0F" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
               <input
                 ref={inputRef}
@@ -104,13 +193,16 @@ function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }
                 className="flex-1 bg-transparent border-none outline-none text-[#2B0A0F] placeholder:text-[#2B0A0F]/30"
                 style={{ fontFamily: "var(--font-playfair)", fontSize: "clamp(1.2rem,4vw,2rem)", fontStyle: "italic" }}
               />
-              <button
-                onClick={onClose}
-                className="text-[#2B0A0F]/40 hover:text-[#2B0A0F] transition-colors text-xl leading-none"
-              >✕</button>
+              <button onClick={onClose} className="text-[#2B0A0F]/40 hover:text-[#2B0A0F] transition-colors text-xl leading-none">
+                ✕
+              </button>
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {SEARCH_HINTS.map((hint) => (
+
+            <p className="mt-5 text-[9px] tracking-[0.25em] uppercase opacity-35 mb-3">
+              Trending this week
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {hints.map((hint) => (
                 <button
                   key={hint}
                   className="bg-[#2B0A0F]/07 hover:bg-[#2B0A0F] hover:text-[#F6F3EF] text-[#2B0A0F] transition-all rounded-full px-4 py-2 text-xs tracking-wide border border-[#2B0A0F]/10"
@@ -128,27 +220,153 @@ function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }
 }
 
 /* =========================
+   LIVE STATS — pulled from Supabase
+========================= */
+function useLiveStats() {
+  const [stats, setStats] = useState({ pieces: 0, avgPrice: 0, cities: 0 });
+
+  useEffect(() => {
+    async function fetchStats() {
+      const [{ count: pieces }, { data: priceData }] = await Promise.all([
+        supabase.from("products").select("*", { count: "exact", head: true }),
+        supabase.from("products").select("price"),
+      ]);
+
+      const prices = (priceData ?? []).map((p: any) => p.price).filter(Boolean);
+      const avgPrice = prices.length
+        ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length)
+        : 0;
+
+      // Count distinct cities
+      const { data: locationData } = await supabase
+        .from("products")
+        .select("location");
+      const cities = new Set((locationData ?? []).map((p: any) => p.location).filter(Boolean)).size;
+
+      setStats({ pieces: pieces ?? 0, avgPrice, cities });
+    }
+    fetchStats();
+  }, []);
+
+  return stats;
+}
+
+/* =========================
+   MOOD PIECE PREVIEWS — live pieces per mood
+========================= */
+function useMoodPreviews(tag: string) {
+  const [pieces, setPieces] = useState<any[]>([]);
+  const [count, setCount] = useState(0);
+  const cache = useRef<Record<string, { pieces: any[]; count: number }>>({});
+
+  useEffect(() => {
+    if (cache.current[tag]) {
+      setPieces(cache.current[tag].pieces);
+      setCount(cache.current[tag].count);
+      return;
+    }
+    async function fetch() {
+      const [{ data }, { count: total }] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, image_url, title, price")
+          .eq("mood_tag", tag)
+          .order("created_at", { ascending: false })
+          .limit(3),
+        supabase
+          .from("products")
+          .select("*", { count: "exact", head: true })
+          .eq("mood_tag", tag),
+      ]);
+      const result = { pieces: data ?? [], count: total ?? 0 };
+      cache.current[tag] = result;
+      setPieces(result.pieces);
+      setCount(result.count);
+    }
+    fetch();
+  }, [tag]);
+
+  return { pieces, count };
+}
+
+/* =========================
+   MOOD GRID ITEM — shows live count + piece previews
+========================= */
+function MoodGridItem({ mood, index }: { mood: typeof MOOD_GRID[0]; index: number }) {
+  const { pieces, count } = useMoodPreviews(mood.tag);
+
+  return (
+    <Link href={`/buy?mood=${mood.tag}`} className={`group ${index === 4 ? "col-span-2 md:col-span-1" : ""}`}>
+      <div className="rounded-[18px] overflow-hidden aspect-[3/4] relative cursor-pointer">
+        {/* Background gradient */}
+        <div className={`w-full h-full bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-500`} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+
+        {/* Live piece count badge */}
+        <div className="absolute top-3 right-3 bg-white/15 backdrop-blur-md rounded-full px-2 py-1 text-[9px] text-white tracking-wide">
+          {count > 0 ? count : "—"}
+        </div>
+
+        {/* Piece preview thumbnails — peek from bottom */}
+        {pieces.length > 0 && (
+          <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1 px-3">
+            {pieces.slice(0, 2).map((p, i) => (
+              <div
+                key={p.id}
+                className="w-10 h-12 rounded-lg overflow-hidden border border-white/20 shadow-sm"
+                style={{ transform: `rotate(${i === 0 ? "-4deg" : "3deg"}) translateY(${i * 4}px)` }}
+              >
+                <Image src={p.image_url} alt={p.title} width={40} height={48} className="object-cover w-full h-full" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Label */}
+        <div className="absolute bottom-4 left-4 right-4 text-white">
+          <p className="text-[8px] tracking-[0.25em] uppercase opacity-65">{mood.sub}</p>
+          <h3 className="text-sm md:text-[1.1rem] mt-1 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
+            {mood.title}
+          </h3>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/* =========================
+   STAT CARD — animated counter
+========================= */
+function StatCard({ num, label, prefix = "", suffix = "" }: { num: number; label: string; prefix?: string; suffix?: string }) {
+  const { val, ref } = useCountUp(num);
+  return (
+    <div ref={ref}>
+      <div className="text-xl md:text-2xl font-medium" style={{ fontFamily: "var(--font-playfair)" }}>
+        {prefix}{val.toLocaleString("en-IN")}{suffix}
+      </div>
+      <div className="text-[9px] md:text-[10px] tracking-[0.18em] uppercase opacity-40 mt-1">{label}</div>
+    </div>
+  );
+}
+
+/* =========================
    MAIN PAGE
 ========================= */
 export default function HomePage() {
   const week = getWeekNumber();
   const nextSunday = new Date();
-  nextSunday.setDate(nextSunday.getDate() + ((7 - nextSunday.getDay()) % 7));
+  nextSunday.setDate(nextSunday.getDate() + ((7 - nextSunday.getDay()) % 7 || 7));
   const countdown = useCountdown(nextSunday);
 
   const [products, setProducts] = useState<any[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeMoodIdx, setActiveMoodIdx] = useState(0);
+  const [trendingSearches, setTrendingSearches] = useState<string[]>([]);
 
-  const gennies = ["/night.png", "/y2k.png", "/oldmoney.png", "/streetstyle.png"];
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIndex((prev) => (prev + 1) % gennies.length);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, []);
+  const liveStats = useLiveStats();
+  const activeMood = MOODS[activeMoodIdx];
 
+  /* ── Fetch products ── */
   useEffect(() => {
     const fetchProducts = async () => {
       const { data, error } = await supabase
@@ -156,23 +374,44 @@ export default function HomePage() {
         .select("*")
         .order("created_at", { ascending: false })
         .limit(8);
-      if (!error) setProducts(data);
+      if (!error && data) setProducts(data);
     };
     fetchProducts();
   }, []);
 
+  /* ── Fetch trending searches from DB ── */
+  useEffect(() => {
+    async function fetchTrending() {
+      const { data } = await supabase
+        .from("trending_searches")
+        .select("query")
+        .order("count", { ascending: false })
+        .limit(8);
+      if (data && data.length > 0) {
+        setTrendingSearches(data.map((d: any) => d.query));
+      }
+    }
+    fetchTrending();
+  }, []);
+
+  /* ── Lock scroll when search open ── */
   useEffect(() => {
     document.body.style.overflow = searchOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [searchOpen]);
 
-  const activeMood = MOODS[activeMoodIdx];
+  /* ── Secondary gennie: previous mood for exit animation ── */
+  const secondaryIdx = (activeMoodIdx + MOODS.length - 1) % MOODS.length;
 
   return (
     <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F]">
 
       {/* ── SEARCH OVERLAY ── */}
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        trendingSearches={trendingSearches}
+      />
 
       {/* ── NAV ── */}
       <Navbar />
@@ -204,7 +443,7 @@ export default function HomePage() {
                 <span className="relative inline-flex rounded-full h-[7px] w-[7px] bg-[#A1123F]" />
               </span>
               <span className="text-[10px] tracking-[0.3em] uppercase opacity-50">
-                Live archive · 247 pieces this week
+                Live archive · {liveStats.pieces > 0 ? `${liveStats.pieces} pieces` : "247 pieces this week"}
               </span>
             </motion.div>
 
@@ -239,50 +478,62 @@ export default function HomePage() {
               </p>
             </motion.div>
 
-            {/* CTAs */}
+            {/* ── CTAs — one star, one ghost ── */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.52 }}
-              className="mt-7 md:mt-10 flex flex-wrap gap-3"
+              className="mt-7 md:mt-10 flex flex-wrap items-center gap-4"
             >
               <Link href="/buy">
                 <button className="px-6 py-3.5 md:px-7 md:py-4 bg-[#2B0A0F] text-white rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-80 transition-all hover:scale-[1.02] active:scale-[0.98]">
                   Enter the Archive →
                 </button>
               </Link>
+              {/* Ghost CTA — demoted to text link */}
               <Link href="/sell">
-                <button className="px-6 py-3.5 md:px-7 md:py-4 border border-[#2B0A0F]/25 rounded-full text-xs tracking-[0.18em] uppercase hover:bg-[#2B0A0F] hover:text-white transition-all">
-                  Submit a Piece
-                </button>
+                <span className="text-xs tracking-[0.15em] uppercase opacity-45 hover:opacity-100 transition-opacity underline underline-offset-4 decoration-[#2B0A0F]/20">
+                  Submit a piece →
+                </span>
               </Link>
             </motion.div>
 
-            {/* Social proof stats */}
+            {/* ── Live stats — animated counters ── */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.7 }}
               className="mt-8 md:mt-12 flex gap-6 md:gap-8 border-t border-[#2B0A0F]/08 pt-6 md:pt-8"
             >
-              {[
-                { num: "2.4k",  label: "Pieces Listed" },
-                { num: "₹340",  label: "Avg Price" },
-                { num: "5 Cities", label: "Mum · Pune · Del" },
-              ].map((s) => (
-                <div key={s.label}>
-                  <div className="text-xl md:text-2xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>{s.num}</div>
-                  <div className="text-[9px] md:text-[10px] tracking-[0.18em] uppercase opacity-40 mt-1">{s.label}</div>
-                </div>
-              ))}
+              <StatCard
+                num={liveStats.pieces || 2400}
+                label="Pieces Listed"
+                suffix="+"
+              />
+              <StatCard
+                num={liveStats.avgPrice || 340}
+                label="Avg Price"
+                prefix="₹"
+              />
+              <StatCard
+                num={liveStats.cities || 5}
+                label="Cities"
+                suffix=" Cities"
+              />
             </motion.div>
           </div>
 
-          {/* ── RIGHT — GENNIE CAROUSEL (desktop only) ── */}
+          {/* ── RIGHT — MOOD-DRIVEN GENNIE (desktop only) ── */}
           <div className="relative h-[600px] hidden md:block">
 
-            {/* Golden glow */}
-            <div className="absolute w-[420px] h-[420px] bg-[#B48A5A]/20 blur-3xl rounded-full top-[20%] left-[20%]" />
+            {/* Ambient glow — color shifts with mood */}
+            <motion.div
+              key={activeMood.tag}
+              className="absolute w-[420px] h-[420px] rounded-full top-[20%] left-[20%]"
+              style={{ background: activeMood.bg, filter: "blur(60px)", opacity: 0.25 }}
+              animate={{ opacity: [0.15, 0.25, 0.15] }}
+              transition={{ duration: 4, repeat: Infinity }}
+            />
 
             {/* Shop by mood label */}
             <div className="absolute top-[20px] left-[40px] z-30">
@@ -291,7 +542,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Mood chips */}
+            {/* Mood chips — drive both Gennie + mood card */}
             <div className="absolute top-12 right-0 flex flex-col gap-2 z-40">
               {MOODS.map((mood, i) => (
                 <button
@@ -308,68 +559,89 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Gennie images */}
-            <motion.img
-              key={gennies[index]}
-              src={gennies[index]}
-              initial={{ x: 80, opacity: 0 }}
-              animate={{ x: 0, opacity: 1, y: [0, -10, 0] }}
-              transition={{ x: { duration: 0.8 }, opacity: { duration: 0.8 }, y: { repeat: Infinity, duration: 4 } }}
-              className="absolute bottom-[-20px] right-[20px] w-[380px] z-20"
-            />
-            <motion.img
-              key={gennies[(index + 1) % gennies.length]}
-              src={gennies[(index + 1) % gennies.length]}
-              initial={{ x: 80, opacity: 0 }}
-              animate={{ x: 0, opacity: 0.9, y: [0, 10, 0] }}
-              transition={{ x: { duration: 0.8 }, opacity: { duration: 0.8 }, y: { repeat: Infinity, duration: 5 } }}
-              className="absolute top-[40px] left-[0px] w-[280px] z-10 scale-90 opacity-90"
-            />
-
-            {/* Mood label card */}
+            {/*
+              PRIMARY GENNIE — switches immediately when mood changes.
+              Floating animation on inner wrapper only (no double-animation jitter).
+            */}
             <AnimatePresence mode="wait">
               <motion.div
-                key={activeMood.tag}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.3 }}
-                className="absolute bottom-8 left-8 z-30 bg-white/70 backdrop-blur-md rounded-2xl px-5 py-4 border border-[#2B0A0F]/08"
+                key={`primary-${activeMood.tag}`}
+                initial={{ x: 40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -40, opacity: 0 }}
+                transition={{ duration: 0.45, ease: "easeOut" }}
+                className="absolute bottom-[-20px] right-[20px] w-[380px] z-20"
               >
-                <p className="text-[9px] tracking-[0.3em] uppercase opacity-50">Current Mood</p>
-                <p className="text-lg mt-0.5" style={{ fontFamily: "var(--font-playfair)" }}>
-                  {activeMood.title}
-                </p>
-                <Link href={`/buy?mood=${activeMood.tag}`}>
-                  <span className="text-[10px] tracking-[0.15em] uppercase text-[#A1123F] hover:opacity-70 transition-opacity">
-                    Shop this mood →
-                  </span>
-                </Link>
+                <motion.img
+                  src={activeMood.gennie}
+                  alt={activeMood.title}
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                  className="w-full"
+                />
               </motion.div>
             </AnimatePresence>
+
+            {/* SECONDARY GENNIE — previous mood, smaller, floats opposite direction */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`secondary-${MOODS[secondaryIdx].tag}`}
+                initial={{ x: -40, opacity: 0 }}
+                animate={{ x: 0, opacity: 0.7 }}
+                exit={{ x: 40, opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="absolute top-[40px] left-[0px] w-[280px] z-10"
+              >
+                <motion.img
+                  src={MOODS[secondaryIdx].gennie}
+                  alt={MOODS[secondaryIdx].title}
+                  animate={{ y: [0, 10, 0] }}
+                  transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+                  className="w-full scale-90"
+                />
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Mood label card — live piece count inside */}
+            <MoodHeroCard mood={activeMood} />
           </div>
 
-          {/* ── MOBILE MOOD CHIPS (below hero text on mobile) ── */}
-          <div className="md:hidden flex gap-2 flex-wrap mt-2">
-            {MOODS.map((mood, i) => (
-              <Link
-                key={mood.tag}
-                href={`/buy?mood=${mood.tag}`}
-                className={`rounded-full px-4 py-2 text-[11px] tracking-[0.1em] border transition-all ${
-                  activeMoodIdx === i
-                    ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
-                    : "bg-white text-[#2B0A0F] border-[#2B0A0F]/15"
-                }`}
-                onClick={() => setActiveMoodIdx(i)}
-              >
-                {mood.label}
-              </Link>
-            ))}
+          {/* ── MOBILE: Show active Gennie above mood chips ── */}
+          <div className="md:hidden flex flex-col gap-4">
+            <div className="relative h-56 flex justify-center">
+              <AnimatePresence mode="wait">
+                <motion.img
+                  key={activeMood.tag}
+                  src={activeMood.gennie}
+                  alt={activeMood.title}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.35 }}
+                  className="h-full object-contain"
+                />
+              </AnimatePresence>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {MOODS.map((mood, i) => (
+                <button
+                  key={mood.tag}
+                  onClick={() => setActiveMoodIdx(i)}
+                  className={`rounded-full px-4 py-2 text-[11px] tracking-[0.1em] border transition-all ${
+                    activeMoodIdx === i
+                      ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
+                      : "bg-white text-[#2B0A0F] border-[#2B0A0F]/15"
+                  }`}
+                >
+                  {mood.label}
+                </button>
+              ))}
+            </div>
           </div>
 
         </div>
 
-        {/* Scroll hint — hidden on mobile to save space */}
+        {/* Scroll hint — single motion, no double-wrap */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-2 opacity-25 hidden md:flex">
           <motion.div
             animate={{ y: [0, 8, 0] }}
@@ -399,7 +671,7 @@ export default function HomePage() {
       </div>
 
       {/* ═══════════════════════════
-          SHOP BY MOOD GRID
+          SHOP BY MOOD GRID — live counts + real piece previews
       ═══════════════════════════ */}
       <section className="bg-[#F6F3EF] text-[#2B0A0F] py-16 md:py-28">
         <div className="max-w-7xl mx-auto px-5 md:px-6">
@@ -415,35 +687,16 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* 2 cols on mobile, 5 on desktop */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
             {MOOD_GRID.map((mood, i) => (
-              <Link
-                key={mood.tag}
-                href={`/buy?mood=${mood.tag}`}
-                className={`group ${i === 4 ? "col-span-2 md:col-span-1" : ""}`}
-              >
-                <div className="rounded-[18px] overflow-hidden aspect-[3/4] relative cursor-pointer">
-                  <div className={`w-full h-full bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-500`} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-                  <div className="absolute top-3 right-3 bg-white/15 backdrop-blur-md rounded-full px-2 py-1 text-[9px] text-white tracking-wide">
-                    {mood.count}
-                  </div>
-                  <div className="absolute bottom-4 left-4 right-4 text-white">
-                    <p className="text-[8px] tracking-[0.25em] uppercase opacity-65">{mood.sub}</p>
-                    <h3 className="text-sm md:text-[1.1rem] mt-1 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
-                      {mood.title}
-                    </h3>
-                  </div>
-                </div>
-              </Link>
+              <MoodGridItem key={mood.tag} mood={mood} index={i} />
             ))}
           </div>
         </div>
       </section>
 
       {/* ═══════════════════════════
-          WEEKLY ARCHIVE DROP
+          WEEKLY ARCHIVE DROP — selective scarcity badges
       ═══════════════════════════ */}
       <section className="bg-[#1A060B] text-[#F6F3EF] py-16 md:py-28">
         <div className="max-w-7xl mx-auto px-5 md:px-6">
@@ -477,29 +730,35 @@ export default function HomePage() {
             {products.length === 0 && (
               <p className="opacity-40 text-sm">Loading archive...</p>
             )}
-            {products.map((item) => (
-              <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] group flex-shrink-0">
-                <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden border border-[#F6F3EF]/08 hover:border-[#F6F3EF]/20 transition-all hover:-translate-y-1">
-                  <div className="relative aspect-[3/4]">
-                    <Image
-                      src={item.image_url}
-                      alt={item.title}
-                      fill
-                      className="object-cover group-hover:scale-105 transition duration-700"
-                    />
-                    <div className="absolute top-3 left-3 bg-white text-black text-[9px] px-3 py-1 rounded-full uppercase tracking-wide">
-                      Rare Find
+            {products.map((item) => {
+              const badge = getProductBadge(item);
+              return (
+                <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] group flex-shrink-0">
+                  <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden border border-[#F6F3EF]/08 hover:border-[#F6F3EF]/20 transition-all hover:-translate-y-1">
+                    <div className="relative aspect-[3/4]">
+                      <Image
+                        src={item.image_url}
+                        alt={item.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition duration-700"
+                      />
+                      {/* Selective badge — only shown when warranted */}
+                      {badge && (
+                        <div className={`absolute top-3 left-3 text-[9px] px-3 py-1 rounded-full uppercase tracking-wide font-medium ${badge.cls}`}>
+                          {badge.label}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 md:p-4">
+                      <h3 className="text-sm font-medium mb-1">{item.title}</h3>
+                      <p className="text-xs opacity-50 tracking-wide">
+                        ₹{item.price} · {item.location}
+                      </p>
                     </div>
                   </div>
-                  <div className="p-3 md:p-4">
-                    <h3 className="text-sm font-medium mb-1">{item.title}</h3>
-                    <p className="text-xs opacity-50 tracking-wide">
-                      ₹{item.price} · {item.location}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
 
         </div>
@@ -559,14 +818,33 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════
-          FOOTER
+          FOOTER — with email capture for retention
       ═══════════════════════════ */}
-      <footer className="bg-[#1A060B] text-[#F6F3EF]/40 px-5 md:px-8 py-8 flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4 text-[10px] tracking-[0.15em] uppercase text-center">
-        <span className="text-[#F6F3EF]" style={{ fontFamily: "var(--font-playfair)", fontSize: "14px", letterSpacing: "0.25em", textTransform: "uppercase" }}>
-          Thrift Gennie
-        </span>
-        <span>© 2026 · Archive No. 001 · Est. Pune</span>
-        <span>Sourced across India · Made with love</span>
+      <footer className="bg-[#1A060B] text-[#F6F3EF]">
+
+        {/* Email capture strip */}
+        <div className="border-b border-[#F6F3EF]/08 py-10 px-5 md:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <p className="text-sm font-medium" style={{ fontFamily: "var(--font-playfair)" }}>
+                Get the Sunday drop in your inbox.
+              </p>
+              <p className="text-[11px] opacity-40 mt-1 tracking-wide">
+                New pieces every week. No spam, ever.
+              </p>
+            </div>
+            <EmailCapture />
+          </div>
+        </div>
+
+        {/* Footer bottom row */}
+        <div className="px-5 md:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-3 text-[10px] tracking-[0.15em] uppercase text-[#F6F3EF]/40 text-center">
+          <span className="text-[#F6F3EF]" style={{ fontFamily: "var(--font-playfair)", fontSize: "14px", letterSpacing: "0.25em", textTransform: "uppercase" }}>
+            Thrift Gennie
+          </span>
+          <span>© 2026 · Archive No. 001 · Est. Pune</span>
+          <span>Sourced across India · Made with love</span>
+        </div>
       </footer>
 
       {/* ── GLOBAL STYLES ── */}
@@ -580,5 +858,94 @@ export default function HomePage() {
       `}</style>
 
     </main>
+  );
+}
+
+/* =========================
+   MOOD HERO CARD — shows live piece count for active mood
+========================= */
+function MoodHeroCard({ mood }: { mood: typeof MOODS[0] }) {
+  const { pieces, count } = useMoodPreviews(mood.tag);
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={mood.tag}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.3 }}
+        className="absolute bottom-8 left-8 z-30 bg-white/70 backdrop-blur-md rounded-2xl px-5 py-4 border border-[#2B0A0F]/08"
+      >
+        <p className="text-[9px] tracking-[0.3em] uppercase opacity-50">Current Mood</p>
+        <p className="text-lg mt-0.5" style={{ fontFamily: "var(--font-playfair)" }}>
+          {mood.title}
+        </p>
+        {count > 0 && (
+          <p className="text-[10px] opacity-40 mt-0.5">{count} pieces available</p>
+        )}
+        {/* Live piece previews */}
+        {pieces.length > 0 && (
+          <div className="flex gap-1.5 mt-2">
+            {pieces.slice(0, 3).map((p) => (
+              <div key={p.id} className="w-8 h-10 rounded-md overflow-hidden border border-[#2B0A0F]/10">
+                <Image src={p.image_url} alt={p.title} width={32} height={40} className="object-cover w-full h-full" />
+              </div>
+            ))}
+          </div>
+        )}
+        <Link href={`/buy?mood=${mood.tag}`}>
+          <span className="text-[10px] tracking-[0.15em] uppercase text-[#A1123F] hover:opacity-70 transition-opacity mt-2 inline-block">
+            Shop this mood →
+          </span>
+        </Link>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+/* =========================
+   EMAIL CAPTURE
+========================= */
+function EmailCapture() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  async function handleSubmit() {
+    if (!email || !email.includes("@")) return;
+    setStatus("loading");
+    const { error } = await supabase.from("email_subscribers").insert({ email });
+    setStatus(error ? "error" : "done");
+  }
+
+  if (status === "done") {
+    return (
+      <p className="text-xs tracking-wide opacity-60">
+        ✦ You're on the list. See you Sunday.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex gap-2 items-center">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="your@email.com"
+        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+        className="bg-white/08 border border-[#F6F3EF]/15 rounded-full px-4 py-2.5 text-xs text-[#F6F3EF] placeholder:text-[#F6F3EF]/30 outline-none focus:border-[#F6F3EF]/30 transition-colors w-52"
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={status === "loading"}
+        className="px-5 py-2.5 bg-[#F6F3EF] text-[#1A060B] rounded-full text-xs tracking-[0.15em] uppercase hover:opacity-85 transition-all disabled:opacity-50"
+      >
+        {status === "loading" ? "..." : "Join"}
+      </button>
+      {status === "error" && (
+        <span className="text-[10px] text-[#E8859C]">Try again</span>
+      )}
+    </div>
   );
 }
