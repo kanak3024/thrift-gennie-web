@@ -161,19 +161,22 @@ export default function Navbar() {
   const toggleVibe = (v: string) =>
     setActiveVibes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
 
-  const highlight = (text: string, q: string) => {
+  const highlight = (text: string | null, q: string) => {
+    if (!text) return "";
     if (!q.trim()) return text;
-    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"); // ✅ add this line
     const parts = text.split(re);
     return parts.map((part, i) =>
       re.test(part)
         ? <mark key={i} className="bg-[#B48A5A]/30 text-[#F6F3EF] rounded px-[2px]">{part}</mark>
         : part
     );
-  };
+};
+  const getInitials = (name: string | null) => {
+    if (!name) return "?";
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+};
 
-  const getInitials = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const avatarColors = ["#3d1a2e", "#1a2e3d", "#1a3d2e", "#2e1a3d", "#3d2e1a"];
   const getAvatarColor = (id: string) => avatarColors[id.charCodeAt(0) % avatarColors.length];
