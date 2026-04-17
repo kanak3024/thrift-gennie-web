@@ -622,8 +622,8 @@ export default function HomePage() {
                 className="absolute w-[440px] h-[440px] rounded-full top-[15%] left-[10%]"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: [0.18, 0.28, 0.18] }}
-                exit={{ opacity: 0 }}
-                transition={{ opacity: { duration: 4, repeat: Infinity }, exit: { duration: 0.4 } }}
+                exit={{ opacity: 0, transition: { duration: 0.4 }  }}
+                transition={{ opacity: { duration: 4, repeat: Infinity } }}
                 style={{ background: activeMood.bg, filter: "blur(70px)" }}
               />
             </AnimatePresence>
