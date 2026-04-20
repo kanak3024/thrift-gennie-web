@@ -934,6 +934,12 @@ export default function AccountPage() {
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 className="absolute right-0 mt-2 w-40 sm:w-44 bg-white rounded-xl border border-[#2B0A0F]/08 shadow-xl overflow-hidden text-[10px] uppercase tracking-[0.15em] z-30"
                               >
+                                <button
+  onClick={() => { router.push(`/sell/edit/${product.id}`); setOpenMenuId(null); }}
+  className="block w-full text-left px-4 py-3 hover:bg-[#F6F3EF] transition-colors border-b border-[#2B0A0F]/05"
+>
+  Edit Listing
+</button>
                                 {product.status !== "sold" && (
                                   <button onClick={() => handleMarkSold(product.id)}
                                     className="block w-full text-left px-4 py-3 hover:bg-[#F6F3EF] transition-colors border-b border-[#2B0A0F]/05">
