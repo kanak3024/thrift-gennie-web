@@ -13,22 +13,42 @@ type Stats = {
   openDisputes: number;
   pendingPayouts: number;
   pendingKyc: number;
+  totalOrders: number;
+  totalSellers: number;
+  verifiedSellers: number;
+  disputedOrders: number;
+  deliveredOrders: number;
 };
 
-// Tracks week-over-week deltas computed from real data
 type StatDeltas = {
-  listingsDelta: number;       // new listings in last 7 days
-  usersDeltaPct: number;       // % change in users vs prior week
-  revenueLabel: string;        // always "All time" — revenue is cumulative
-  pendingPayoutsLabel: string; // "Awaiting transfer" or "All clear"
+  listingsDelta: number;
+  usersDeltaPct: number;
+  revenueLabel: string;
+  pendingPayoutsLabel: string;
 };
 
-// Sparkline data: last 7 days of counts/amounts, oldest → newest
 type Sparklines = {
   listings: number[];
   users: number[];
   revenue: number[];
   payouts: number[];
+};
+
+// Platform Health
+type PlatformHealth = {
+  orderSuccessRate: number;   // delivered / total orders
+  kycPassRate: number;        // verified / total sellers
+  disputeRate: number;        // disputed / total orders
+  payoutSlaAvgDays: number;   // avg days paid → payout done
+};
+
+// Live Activity
+type ActivityEvent = {
+  id: string;
+  type: "order" | "ticket" | "signup";
+  label: string;
+  detail: string;
+  ts: string;
 };
 
 type RecentOrder = {
@@ -37,19 +57,21 @@ type RecentOrder = {
   status: string;
   payout_status: string;
   created_at: string;
-  products?: { title: string }[];
-  profiles?: { full_name: string }[];
+  buyer_id: string;
+  product_id?: string;
+  productTitle?: string;
+  buyerName?: string;
 };
 
 type Seller = {
   id: string;
   full_name: string;
-  city?: string;
+  username?: string;
+  phone?: string;
+  phone_verified?: boolean;
   kyc_status?: "verified" | "pending" | "failed" | null;
   is_suspended?: boolean;
-  listing_count?: number;
-  total_sales?: number;
-  rating?: number;
+  bio?: string;
 };
 
 type AuditLog = {
@@ -72,13 +94,11 @@ function timeAgo(date: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-/** Normalise an array of numbers to 0–100 for sparkline rendering */
 function normalise(arr: number[]): number[] {
   const max = Math.max(...arr, 1);
   return arr.map((v) => Math.round((v / max) * 100));
 }
 
-/** ISO date string for N days ago */
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -88,17 +108,18 @@ function daysAgo(n: number): string {
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { text: string; label: string }> = {
-    delivered:  { text: "#6B7E60", label: "Delivered" },
-    shipped:    { text: "#B48A5A", label: "Shipped" },
-    processing: { text: "#185FA5", label: "Processing" },
-    disputed:   { text: "#A1123F", label: "Disputed" },
-    paid:       { text: "#6B7E60", label: "Paid" },
-    pending:    { text: "#B48A5A", label: "Pending" },
-    verified:   { text: "#6B7E60", label: "Verified" },
-    failed:     { text: "#A1123F", label: "Failed" },
-    active:     { text: "#6B7E60", label: "Active" },
-    suspended:  { text: "#A1123F", label: "Suspended" },
-    review:     { text: "#B48A5A", label: "Review" },
+    delivered:      { text: "#6B7E60", label: "Delivered" },
+    shipped:        { text: "#B48A5A", label: "Shipped" },
+    processing:     { text: "#185FA5", label: "Processing" },
+    disputed:       { text: "#A1123F", label: "Disputed" },
+    paid:           { text: "#6B7E60", label: "Paid" },
+    pending:        { text: "#B48A5A", label: "Pending" },
+    verified:       { text: "#6B7E60", label: "Verified" },
+    failed:         { text: "#A1123F", label: "Failed" },
+    active:         { text: "#6B7E60", label: "Active" },
+    suspended:      { text: "#A1123F", label: "Suspended" },
+    review:         { text: "#B48A5A", label: "Review" },
+    pending_kyc:    { text: "#B48A5A", label: "Pending KYC" },
   };
   const s = map[status] ?? { text: "#888", label: status };
   return (
@@ -139,26 +160,37 @@ function Sparkline({ data, color = "currentColor" }: { data: number[]; color?: s
   );
 }
 
+// ─── PLATFORM HEALTH RING ────────────────────────────────────────────────────
+
+function HealthRing({ value, color, size = 40 }: { value: number; color: string; size?: number }) {
+  const r = (size - 6) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = (value / 100) * circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`${color}20`} strokeWidth={3} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke={color} strokeWidth={3}
+        strokeDasharray={`${filled} ${circ}`}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        style={{ transition: "stroke-dasharray 0.8s ease" }}
+      />
+    </svg>
+  );
+}
+
 // ─── SECURITY TOGGLE ─────────────────────────────────────────────────────────
 
 function SecurityToggle({
-  label,
-  sub,
-  defaultOn,
-  warn,
-  settingKey,
-  onToggle,
+  label, sub, defaultOn, warn, settingKey, onToggle,
 }: {
-  label: string;
-  sub: string;
-  defaultOn: boolean;
-  warn?: boolean;
-  settingKey: string;
-  onToggle: (key: string, value: boolean) => void;
+  label: string; sub: string; defaultOn: boolean; warn?: boolean;
+  settingKey: string; onToggle: (key: string, value: boolean) => void;
 }) {
   const [on, setOn] = useState(defaultOn);
   const [saving, setSaving] = useState(false);
-
   const toggle = async () => {
     const next = !on;
     setOn(next);
@@ -166,7 +198,6 @@ function SecurityToggle({
     await onToggle(settingKey, next);
     setSaving(false);
   };
-
   return (
     <div className="flex items-center gap-4 py-3 border-b border-[#2B0A0F]/06 last:border-0">
       <div className="flex-1 min-w-0">
@@ -174,8 +205,7 @@ function SecurityToggle({
         <p className="text-[9px] uppercase tracking-[0.1em] text-[#2B0A0F]/35 mt-0.5">{sub}</p>
       </div>
       <button
-        onClick={toggle}
-        disabled={saving}
+        onClick={toggle} disabled={saving}
         className="relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 focus:outline-none disabled:opacity-50"
         style={{ background: on ? (warn ? "#B48A5A" : "#6B7E60") : "#2B0A0F18" }}
         aria-label={`Toggle ${label}`}
@@ -189,20 +219,121 @@ function SecurityToggle({
   );
 }
 
+// ─── LIVE ACTIVITY FEED ───────────────────────────────────────────────────────
+
+function ActivityFeed({ events }: { events: ActivityEvent[] }) {
+  const iconMap: Record<ActivityEvent["type"], { icon: string; color: string }> = {
+    order:   { icon: "↗", color: "#6B7E60" },
+    ticket:  { icon: "!", color: "#A1123F" },
+    signup:  { icon: "+", color: "#185FA5" },
+  };
+  return (
+    <div className="bg-white border border-[#2B0A0F]/06 p-6 rounded-xl">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#6B7E60] animate-pulse" />
+          <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">Live Activity</p>
+        </div>
+        <span className="text-[8px] uppercase tracking-[0.15em] opacity-25">Realtime</span>
+      </div>
+      {events.length === 0 ? (
+        <p className="text-xs italic opacity-30 text-center py-6">Waiting for events…</p>
+      ) : (
+        <div className="space-y-2.5">
+          {events.map((ev) => {
+            const { icon, color } = iconMap[ev.type];
+            return (
+              <div key={ev.id} className="flex items-start gap-3">
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5"
+                  style={{ background: `${color}15`, color }}
+                >
+                  {icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs">{ev.label}</p>
+                  <p className="text-[9px] opacity-35 mt-0.5">{ev.detail}</p>
+                </div>
+                <span className="text-[8px] opacity-25 flex-shrink-0 mt-0.5">{timeAgo(ev.ts)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PLATFORM HEALTH CARD ─────────────────────────────────────────────────────
+
+function PlatformHealthCard({ health }: { health: PlatformHealth }) {
+  const metrics = [
+    {
+      label: "Order Success",
+      sub: "Delivered / total",
+      value: health.orderSuccessRate,
+      color: "#6B7E60",
+      display: `${health.orderSuccessRate.toFixed(1)}%`,
+    },
+    {
+      label: "KYC Pass Rate",
+      sub: "Verified sellers",
+      value: health.kycPassRate,
+      color: "#185FA5",
+      display: `${health.kycPassRate.toFixed(1)}%`,
+    },
+    {
+      label: "Dispute Rate",
+      sub: "Disputed / total",
+      value: health.disputeRate,
+      color: health.disputeRate > 10 ? "#A1123F" : "#B48A5A",
+      display: `${health.disputeRate.toFixed(1)}%`,
+      invert: true, // lower is better
+    },
+    {
+      label: "Payout SLA",
+      sub: "Avg days to clear",
+      value: Math.min(health.payoutSlaAvgDays / 7 * 100, 100), // normalise vs 7-day target
+      color: health.payoutSlaAvgDays <= 2 ? "#6B7E60" : health.payoutSlaAvgDays <= 5 ? "#B48A5A" : "#A1123F",
+      display: health.payoutSlaAvgDays > 0 ? `${health.payoutSlaAvgDays.toFixed(1)}d` : "—",
+      invert: true,
+    },
+  ];
+
+  return (
+    <div className="bg-white border border-[#2B0A0F]/06 p-6 rounded-xl">
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">Platform Health</p>
+        <span className="text-[8px] uppercase tracking-[0.15em] opacity-25">Computed</span>
+      </div>
+      <div className="grid grid-cols-2 gap-5">
+        {metrics.map((m) => (
+          <div key={m.label} className="flex items-center gap-3">
+            <HealthRing value={m.invert ? 100 - m.value : m.value} color={m.color} />
+            <div className="min-w-0">
+              <p
+                className="text-xl font-light"
+                style={{ fontFamily: "var(--font-playfair)", color: m.color }}
+              >
+                {m.display}
+              </p>
+              <p className="text-[9px] font-medium text-[#2B0A0F]/70 mt-0.5">{m.label}</p>
+              <p className="text-[8px] uppercase tracking-[0.1em] opacity-30">{m.sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 
 function AdminSidebar({
-  stats,
-  adminUser,
-  onSignOut,
-  sessionMins,
-  sessionSecs,
+  stats, adminUser, onSignOut, sessionMins, sessionSecs,
 }: {
-  stats: Stats;
-  adminUser: any;
-  onSignOut: () => void;
-  sessionMins: number;
-  sessionSecs: number;
+  stats: Stats; adminUser: any; onSignOut: () => void;
+  sessionMins: number; sessionSecs: number;
 }) {
   return (
     <div className="w-[200px] flex-shrink-0 min-h-screen border-r border-[#2B0A0F]/08 flex flex-col bg-[#F6F3EF]">
@@ -212,28 +343,27 @@ function AdminSidebar({
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-0.5">
+        {/* Overview */}
         <p className="text-[8px] uppercase tracking-[0.15em] opacity-30 px-2 pb-1 pt-2">Overview</p>
-        <Link
-          href="/admin"
-          className="flex items-center gap-2 px-2 py-2 rounded-lg bg-[#2B0A0F]/06 text-[11px] font-medium"
-        >
+        <Link href="/admin" className="flex items-center gap-2 px-2 py-2 rounded-lg bg-[#2B0A0F]/06 text-[11px] font-medium">
           Dashboard
         </Link>
 
+        {/* Marketplace */}
         <p className="text-[8px] uppercase tracking-[0.15em] opacity-30 px-2 pb-1 pt-3">Marketplace</p>
-        <Link
-          href="/admin/listings"
-          className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all"
-        >
+        <Link href="/admin/listings" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
           Listings
           <span className="bg-[#6B7E60]/15 text-[#6B7E60] text-[8px] px-1.5 py-0.5 rounded-full">
             {stats.totalListings}
           </span>
         </Link>
-        <Link
-          href="/admin/payout"
-          className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all"
-        >
+        <Link href="/admin/orders" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
+          Orders
+          <span className="bg-[#185FA5]/15 text-[#185FA5] text-[8px] px-1.5 py-0.5 rounded-full">
+            {stats.totalOrders}
+          </span>
+        </Link>
+        <Link href="/admin/payout" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
           Payouts
           {stats.pendingPayouts > 0 && (
             <span className="bg-[#B48A5A]/15 text-[#B48A5A] text-[8px] px-1.5 py-0.5 rounded-full">
@@ -242,17 +372,47 @@ function AdminSidebar({
           )}
         </Link>
 
+        {/* Users */}
+        <p className="text-[8px] uppercase tracking-[0.15em] opacity-30 px-2 pb-1 pt-3">Users</p>
+        <Link href="/admin/sellers" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
+          Sellers
+          <span className="bg-[#2B0A0F]/10 text-[#2B0A0F]/60 text-[8px] px-1.5 py-0.5 rounded-full">
+            {stats.totalSellers}
+          </span>
+        </Link>
+        <Link href="/admin/buyers" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
+          Buyers
+          <span className="bg-[#2B0A0F]/10 text-[#2B0A0F]/60 text-[8px] px-1.5 py-0.5 rounded-full">
+            {stats.activeUsers}
+          </span>
+        </Link>
+
+        {/* Trust & Safety */}
         <p className="text-[8px] uppercase tracking-[0.15em] opacity-30 px-2 pb-1 pt-3">Trust & Safety</p>
-        <Link
-          href="/admin/support"
-          className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all"
-        >
+        <Link href="/admin/support" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
           Support
           {stats.openDisputes > 0 && (
             <span className="bg-[#A1123F]/15 text-[#A1123F] text-[8px] px-1.5 py-0.5 rounded-full">
               {stats.openDisputes}
             </span>
           )}
+        </Link>
+        <Link href="/admin/kyc" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
+          KYC Review
+          {stats.pendingKyc > 0 && (
+            <span className="bg-[#B48A5A]/15 text-[#B48A5A] text-[8px] px-1.5 py-0.5 rounded-full">
+              {stats.pendingKyc}
+            </span>
+          )}
+        </Link>
+        <Link href="/admin/audit" className="flex items-center justify-between px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
+          Audit Log
+        </Link>
+
+        {/* System */}
+        <p className="text-[8px] uppercase tracking-[0.15em] opacity-30 px-2 pb-1 pt-3">System</p>
+        <Link href="/admin/settings" className="flex items-center gap-2 px-2 py-2 rounded-lg text-[11px] opacity-50 hover:opacity-80 hover:bg-[#2B0A0F]/04 transition-all">
+          Settings
         </Link>
       </nav>
 
@@ -264,10 +424,7 @@ function AdminSidebar({
           </span>
         </div>
         <p className="text-[9px] opacity-30 truncate">{adminUser?.full_name || adminUser?.email}</p>
-        <button
-          onClick={onSignOut}
-          className="text-[9px] uppercase tracking-[0.15em] text-[#A1123F]/50 hover:text-[#A1123F] transition-colors"
-        >
+        <button onClick={onSignOut} className="text-[9px] uppercase tracking-[0.15em] text-[#A1123F]/50 hover:text-[#A1123F] transition-colors">
           Sign out
         </button>
       </div>
@@ -285,6 +442,11 @@ export default function AdminDashboardPage() {
     openDisputes: 0,
     pendingPayouts: 0,
     pendingKyc: 0,
+    totalOrders: 0,
+    totalSellers: 0,
+    verifiedSellers: 0,
+    disputedOrders: 0,
+    deliveredOrders: 0,
   });
   const [deltas, setDeltas] = useState<StatDeltas>({
     listingsDelta: 0,
@@ -298,6 +460,13 @@ export default function AdminDashboardPage() {
     revenue:  [0, 0, 0, 0, 0, 0, 0],
     payouts:  [0, 0, 0, 0, 0, 0, 0],
   });
+  const [health, setHealth] = useState<PlatformHealth>({
+    orderSuccessRate: 0,
+    kycPassRate: 0,
+    disputeRate: 0,
+    payoutSlaAvgDays: 0,
+  });
+  const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -307,23 +476,15 @@ export default function AdminDashboardPage() {
   const [adminUser, setAdminUser] = useState<any>(null);
   const [sessionExpiry, setSessionExpiry] = useState<number>(30 * 60);
   const adminUserRef = useRef<any>(null);
+  const activityRef = useRef<ActivityEvent[]>([]);
 
   // ── AUTH GUARD ──
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user }, error: authErr }) => {
-      if (authErr || !user) {
-        window.location.href = "/admin/login"; // FIX: was missing leading slash
-        return;
-      }
+      if (authErr || !user) { window.location.href = "/admin/login"; return; }
       const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("role, full_name")
-        .eq("id", user.id)
-        .single();
-      if (profileErr || profile?.role !== "admin") {
-        window.location.href = "/";
-        return;
-      }
+        .from("profiles").select("role, full_name").eq("id", user.id).single();
+      if (profileErr || profile?.role !== "admin") { window.location.href = "/"; return; }
       const resolved = { ...user, full_name: profile.full_name };
       adminUserRef.current = resolved;
       setAdminUser(resolved);
@@ -345,7 +506,65 @@ export default function AdminDashboardPage() {
     return () => clearInterval(interval);
   }, [adminUser]);
 
-  // ── FETCH DATA on auth + every 60s ──
+  // ── REALTIME ACTIVITY FEED ──
+  useEffect(() => {
+    if (!adminUser) return;
+
+    const pushEvent = (ev: ActivityEvent) => {
+      activityRef.current = [ev, ...activityRef.current].slice(0, 10);
+      setActivityFeed([...activityRef.current]);
+    };
+
+    const ordersChannel = supabase
+      .channel("realtime:orders")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
+        const r = payload.new as any;
+        pushEvent({
+          id: `order-${r.id}`,
+          type: "order",
+          label: `New order #${r.id?.slice(0, 8).toUpperCase()}`,
+          detail: `₹${r.amount?.toLocaleString("en-IN")} · ${r.status}`,
+          ts: r.created_at || new Date().toISOString(),
+        });
+      })
+      .subscribe();
+
+    const ticketsChannel = supabase
+      .channel("realtime:tickets")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_tickets" }, (payload) => {
+        const r = payload.new as any;
+        pushEvent({
+          id: `ticket-${r.id}`,
+          type: "ticket",
+          label: `Support ticket opened`,
+          detail: r.subject || r.message?.slice(0, 40) || "No subject",
+          ts: r.created_at || new Date().toISOString(),
+        });
+      })
+      .subscribe();
+
+    const profilesChannel = supabase
+      .channel("realtime:profiles")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, (payload) => {
+        const r = payload.new as any;
+        pushEvent({
+          id: `signup-${r.id}`,
+          type: "signup",
+          label: `New ${r.role || "user"} signed up`,
+          detail: r.full_name || r.email || "Unknown",
+          ts: r.created_at || new Date().toISOString(),
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(ticketsChannel);
+      supabase.removeChannel(profilesChannel);
+    };
+  }, [adminUser]);
+
+  // ── FETCH ALL ──
   const fetchAll = useCallback(async () => {
     if (!adminUserRef.current) return;
     try {
@@ -361,93 +580,71 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []); // stable — no deps needed, uses ref
+  }, []);
 
   useEffect(() => {
     if (!adminUser) return;
     fetchAll();
-    const poll = setInterval(fetchAll, 60_000); // refresh every 60s
+    const poll = setInterval(fetchAll, 60_000);
     return () => clearInterval(poll);
   }, [adminUser, fetchAll]);
 
-  // ── STATS ──
+  // ── STATS + PLATFORM HEALTH ──
   const fetchStats = async () => {
     const sevenDaysAgo = daysAgo(7);
     const fourteenDaysAgo = daysAgo(14);
 
     const [
-      listings,
-      // Active users = had at least one order in last 90 days (not just total signups)
-      activeUserRows,
-      orders,
-      tickets,
-      payouts,
-      kyc,
-      // For delta: listings created in last 7 days
-      newListings,
-      // For user delta: users who signed up last week vs week before
-      usersThisWeek,
-      usersPriorWeek,
+      listings, activeUserRows, orders, tickets,
+      payouts, kyc, newListings, usersThisWeek, usersPriorWeek,
+      totalSellersResult, verifiedSellersResult,
+      disputedOrdersResult, deliveredOrdersResult,
+      totalOrdersResult,
+      payoutSlaRows,
     ] = await Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
-
-      // "Active" = placed at least one order in last 90 days
-      supabase
-        .from("orders")
-        .select("buyer_id")
-        .gte("created_at", daysAgo(90)),
-
-      // Revenue: sum across all terminal statuses, not just "paid"
-      // Adjust the status list to match your actual order lifecycle
-      supabase
-        .from("orders")
-        .select("amount")
-        .in("status", ["paid", "delivered", "shipped"]),
-
-      supabase
-        .from("support_tickets")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "open"),
-
-      supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("payout_status", "pending")
-        .in("status", ["paid", "delivered", "shipped"]),
-
-      supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("kyc_status", "pending"),
-
-      supabase
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", sevenDaysAgo),
-
-      supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", sevenDaysAgo),
-
-      supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", fourteenDaysAgo)
-        .lt("created_at", sevenDaysAgo),
+      supabase.from("orders").select("buyer_id").gte("created_at", daysAgo(90)),
+      supabase.from("orders").select("amount").in("status", ["paid", "delivered", "shipped"]),
+      supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+      supabase.from("orders").select("id", { count: "exact", head: true })
+        .eq("payout_status", "pending").in("status", ["paid", "delivered", "shipped"]),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("kyc_status", "pending"),
+      supabase.from("products").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo),
+      supabase.from("profiles").select("id", { count: "exact", head: true })
+        .gte("created_at", fourteenDaysAgo).lt("created_at", sevenDaysAgo),
+      // Platform health queries
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "seller"),
+      supabase.from("profiles").select("id", { count: "exact", head: true })
+        .eq("role", "seller").eq("kyc_status", "verified"),
+      supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "disputed"),
+      supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "delivered"),
+      supabase.from("orders").select("id", { count: "exact", head: true }),
+      // Payout SLA: orders that went from paid → payout done, fetch created_at and payout_completed_at
+      supabase.from("orders").select("created_at, payout_completed_at")
+        .eq("payout_status", "paid").not("payout_completed_at", "is", null).limit(100),
     ]);
 
-    const revenue = (orders.data || []).reduce(
-      (sum: number, o: any) => sum + (o.amount || 0),
-      0
-    );
-
-    // Unique active buyers
+    const revenue = (orders.data || []).reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
     const uniqueBuyers = new Set((activeUserRows.data || []).map((r: any) => r.buyer_id)).size;
-
     const thisWeekUsers = usersThisWeek.count || 0;
-    const priorWeekUsers = usersPriorWeek.count || 1; // avoid /0
+    const priorWeekUsers = usersPriorWeek.count || 1;
     const usersDeltaPct = Math.round(((thisWeekUsers - priorWeekUsers) / priorWeekUsers) * 100);
+
+    const totalOrd = totalOrdersResult.count || 0;
+    const deliveredOrd = deliveredOrdersResult.count || 0;
+    const disputedOrd = disputedOrdersResult.count || 0;
+    const totalSell = totalSellersResult.count || 0;
+    const verifiedSell = verifiedSellersResult.count || 0;
+
+    // Payout SLA: avg days
+    const slaRows = payoutSlaRows.data || [];
+    const avgSla = slaRows.length > 0
+      ? slaRows.reduce((sum: number, r: any) => {
+          const diff = new Date(r.payout_completed_at).getTime() - new Date(r.created_at).getTime();
+          return sum + diff / (1000 * 60 * 60 * 24);
+        }, 0) / slaRows.length
+      : 0;
 
     setStats({
       totalListings: listings.count || 0,
@@ -456,6 +653,11 @@ export default function AdminDashboardPage() {
       openDisputes: tickets.count || 0,
       pendingPayouts: payouts.count || 0,
       pendingKyc: kyc.count || 0,
+      totalOrders: totalOrd,
+      totalSellers: totalSell,
+      verifiedSellers: verifiedSell,
+      disputedOrders: disputedOrd,
+      deliveredOrders: deliveredOrd,
     });
 
     setDeltas({
@@ -464,64 +666,42 @@ export default function AdminDashboardPage() {
       revenueLabel: "All time",
       pendingPayoutsLabel: (payouts.count || 0) > 0 ? "Awaiting transfer" : "All clear",
     });
+
+    setHealth({
+      orderSuccessRate: totalOrd > 0 ? (deliveredOrd / totalOrd) * 100 : 0,
+      kycPassRate: totalSell > 0 ? (verifiedSell / totalSell) * 100 : 0,
+      disputeRate: totalOrd > 0 ? (disputedOrd / totalOrd) * 100 : 0,
+      payoutSlaAvgDays: avgSla,
+    });
   };
 
-  // ── SPARKLINES: daily buckets for last 7 days ──
+  // ── SPARKLINES ──
   const fetchSparklines = async () => {
-    // Build 7 day-start timestamps
     const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
       d.setHours(0, 0, 0, 0);
       return d;
     });
-
     const [listingRows, orderRows, userRows] = await Promise.all([
-      supabase
-        .from("products")
-        .select("created_at")
-        .gte("created_at", days[0].toISOString()),
-      supabase
-        .from("orders")
-        .select("created_at, amount, payout_status")
-        .gte("created_at", days[0].toISOString()),
-      supabase
-        .from("profiles")
-        .select("created_at")
-        .gte("created_at", days[0].toISOString()),
+      supabase.from("products").select("created_at").gte("created_at", days[0].toISOString()),
+      supabase.from("orders").select("created_at, amount, payout_status").gte("created_at", days[0].toISOString()),
+      supabase.from("profiles").select("created_at").gte("created_at", days[0].toISOString()),
     ]);
-
-    const bucket = (rows: any[], field = "created_at") =>
+    const bucket = (rows: any[]) =>
       days.map((d) => {
-        const next = new Date(d);
-        next.setDate(next.getDate() + 1);
-        return rows.filter((r) => {
-          const t = new Date(r[field]).getTime();
-          return t >= d.getTime() && t < next.getTime();
-        }).length;
+        const next = new Date(d); next.setDate(next.getDate() + 1);
+        return rows.filter((r) => { const t = new Date(r.created_at).getTime(); return t >= d.getTime() && t < next.getTime(); }).length;
       });
-
     const revBucket = days.map((d) => {
-      const next = new Date(d);
-      next.setDate(next.getDate() + 1);
-      return (orderRows.data || [])
-        .filter((r) => {
-          const t = new Date(r.created_at).getTime();
-          return t >= d.getTime() && t < next.getTime();
-        })
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      return (orderRows.data || []).filter((r) => { const t = new Date(r.created_at).getTime(); return t >= d.getTime() && t < next.getTime(); })
         .reduce((sum, r: any) => sum + (r.amount || 0), 0);
     });
-
     const payoutBucket = days.map((d) => {
-      const next = new Date(d);
-      next.setDate(next.getDate() + 1);
-      return (orderRows.data || [])
-        .filter((r) => {
-          const t = new Date(r.created_at).getTime();
-          return t >= d.getTime() && t < next.getTime() && r.payout_status === "pending";
-        }).length;
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      return (orderRows.data || []).filter((r) => { const t = new Date(r.created_at).getTime(); return t >= d.getTime() && t < next.getTime() && r.payout_status === "pending"; }).length;
     });
-
     setSparklines({
       listings: bucket(listingRows.data || []),
       users: bucket(userRows.data || []),
@@ -530,27 +710,51 @@ export default function AdminDashboardPage() {
     });
   };
 
-  // ── RECENT ORDERS ──
+  // ── RECENT ORDERS — manual join ──
   const fetchRecentOrders = async () => {
-    const { data, error } = await supabase
+    const { data: orderData, error: orderErr } = await supabase
       .from("orders")
-      .select(
-        "id, amount, status, payout_status, created_at, products(title), profiles!orders_buyer_id_fkey(full_name)"
-      )
+      .select("id, amount, status, payout_status, created_at, buyer_id, product_id")
       .order("created_at", { ascending: false })
       .limit(5);
-    if (error) console.error("orders fetch:", error.message);
-    if (data) setRecentOrders(data as RecentOrder[]);
+
+    if (orderErr) { console.error("orders fetch:", orderErr.message); return; }
+    if (!orderData || orderData.length === 0) { setRecentOrders([]); return; }
+
+    // Collect unique IDs for manual joins
+    const buyerIds = [...new Set(orderData.map((o: any) => o.buyer_id).filter(Boolean))];
+    const productIds = [...new Set(orderData.map((o: any) => o.product_id).filter(Boolean))];
+
+    const [profileRows, productRows] = await Promise.all([
+      buyerIds.length > 0
+        ? supabase.from("profiles").select("id, full_name").in("id", buyerIds)
+        : Promise.resolve({ data: [] }),
+      productIds.length > 0
+        ? supabase.from("products").select("id, title").in("id", productIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const profileMap: Record<string, string> = {};
+    (profileRows.data || []).forEach((p: any) => { profileMap[p.id] = p.full_name; });
+    const productMap: Record<string, string> = {};
+    (productRows.data || []).forEach((p: any) => { productMap[p.id] = p.title; });
+
+    setRecentOrders(
+      orderData.map((o: any) => ({
+        ...o,
+        buyerName: profileMap[o.buyer_id] || "Unknown",
+        productTitle: productMap[o.product_id] || "—",
+      }))
+    );
   };
 
   // ── SELLERS ──
   const fetchSellers = async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, city, kyc_status, is_suspended, listing_count, total_sales, rating")
+      .select("id, full_name, username, phone, phone_verified, kyc_status, is_suspended, bio")
       .eq("role", "seller")
-      // Sort by total_sales; falls back gracefully if column is null
-      .order("total_sales", { ascending: false, nullsFirst: false })
+      .order("full_name", { ascending: true })
       .limit(20);
     if (error) console.error("sellers fetch:", error.message);
     if (data) setSellers(data as Seller[]);
@@ -559,44 +763,34 @@ export default function AdminDashboardPage() {
   // ── AUDIT LOGS ──
   const fetchAuditLogs = async () => {
     const { data, error } = await supabase
-      .from("admin_audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(5);
+      .from("admin_audit_logs").select("*")
+      .order("created_at", { ascending: false }).limit(5);
     if (error) console.error("audit log fetch:", error.message);
     if (data) setAuditLogs(data as AuditLog[]);
   };
 
-  // ── SECURITY SETTING TOGGLE → persisted in DB ──
+  // ── SECURITY TOGGLE ──
   const handleSecurityToggle = async (key: string, value: boolean) => {
-    await supabase
-      .from("admin_settings")
+    await supabase.from("admin_settings")
       .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
-    // Log the action
     await supabase.from("admin_audit_logs").insert({
-      action: `security_setting_changed`,
+      action: "security_setting_changed",
       target: `${key}=${value}`,
       admin_email: adminUserRef.current?.email,
     });
-    // Refresh audit logs to reflect the new entry
     fetchAuditLogs();
   };
 
   // ── SELLER SUSPEND / REINSTATE ──
   const handleSuspendSeller = async (sellerId: string, suspend: boolean) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_suspended: suspend })
-      .eq("id", sellerId);
+    const { error } = await supabase.from("profiles").update({ is_suspended: suspend }).eq("id", sellerId);
     if (error) { console.error("suspend error:", error.message); return; }
     await supabase.from("admin_audit_logs").insert({
       action: suspend ? "seller_suspended" : "seller_reinstated",
       target: sellerId,
       admin_email: adminUserRef.current?.email,
     });
-    setSellers((prev) =>
-      prev.map((s) => (s.id === sellerId ? { ...s, is_suspended: suspend } : s))
-    );
+    setSellers((prev) => prev.map((s) => (s.id === sellerId ? { ...s, is_suspended: suspend } : s)));
     fetchAuditLogs();
   };
 
@@ -605,11 +799,9 @@ export default function AdminDashboardPage() {
     window.location.href = "/login";
   };
 
-  // ── SELLER FILTER ──
   const filteredSellers = sellers.filter((s) => {
     if (sellerTab === "pending_kyc") return s.kyc_status === "pending";
     if (sellerTab === "flagged") return s.is_suspended;
-    if (sellerTab === "top") return (s.total_sales || 0) > 0; // top earners: any sales
     return true;
   });
 
@@ -618,9 +810,7 @@ export default function AdminDashboardPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-[#F6F3EF] flex items-center justify-center">
-      <p className="uppercase tracking-[0.5em] text-[10px] opacity-40 animate-pulse">
-        Loading Console…
-      </p>
+      <p className="uppercase tracking-[0.5em] text-[10px] opacity-40 animate-pulse">Loading Console…</p>
     </div>
   );
 
@@ -628,10 +818,8 @@ export default function AdminDashboardPage() {
     <div className="min-h-screen bg-[#F6F3EF] flex flex-col items-center justify-center gap-4">
       <p className="uppercase tracking-[0.3em] text-[10px] text-[#A1123F]">Failed to load</p>
       <p className="text-xs opacity-40 max-w-sm text-center">{error}</p>
-      <button
-        onClick={() => { setError(null); setLoading(true); fetchAll(); }}
-        className="text-[9px] uppercase tracking-[0.2em] border border-[#2B0A0F]/20 px-4 py-2 rounded-full hover:bg-[#2B0A0F]/05 transition-colors"
-      >
+      <button onClick={() => { setError(null); setLoading(true); fetchAll(); }}
+        className="text-[9px] uppercase tracking-[0.2em] border border-[#2B0A0F]/20 px-4 py-2 rounded-full hover:bg-[#2B0A0F]/05 transition-colors">
         Retry
       </button>
     </div>
@@ -642,11 +830,8 @@ export default function AdminDashboardPage() {
 
       {/* ── SIDEBAR ── */}
       <AdminSidebar
-        stats={stats}
-        adminUser={adminUser}
-        onSignOut={handleSignOut}
-        sessionMins={sessionMins}
-        sessionSecs={sessionSecs}
+        stats={stats} adminUser={adminUser} onSignOut={handleSignOut}
+        sessionMins={sessionMins} sessionSecs={sessionSecs}
       />
 
       {/* ── MAIN CONTENT ── */}
@@ -656,14 +841,8 @@ export default function AdminDashboardPage() {
         <div className="border-b border-[#2B0A0F]/08 px-8 h-14 flex items-center justify-between bg-[#F6F3EF] flex-shrink-0">
           <h1 className="text-[10px] uppercase tracking-[0.3em] font-medium opacity-60">Dashboard</h1>
           <div className="flex items-center gap-3">
-            {/* Last refreshed indicator */}
-            <span className="text-[8px] uppercase tracking-[0.15em] opacity-25">
-              Live · refreshes every 60s
-            </span>
-            <button
-              onClick={() => fetchAll()}
-              className="text-[8px] uppercase tracking-[0.15em] opacity-30 hover:opacity-70 transition-opacity"
-            >
+            <span className="text-[8px] uppercase tracking-[0.15em] opacity-25">Live · refreshes every 60s</span>
+            <button onClick={() => fetchAll()} className="text-[8px] uppercase tracking-[0.15em] opacity-30 hover:opacity-70 transition-opacity">
               ↺ Refresh
             </button>
             <input
@@ -682,10 +861,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center gap-4 mb-4 px-5 py-4 border border-[#A1123F]/20 bg-[#A1123F]/04 rounded-xl hover:bg-[#A1123F]/08 transition-colors cursor-pointer">
                 <span className="text-[#A1123F] text-[10px]">●</span>
                 <p className="text-xs text-[#A1123F]/80 flex-1">
-                  <strong>
-                    {stats.openDisputes} open support ticket{stats.openDisputes !== 1 ? "s" : ""}
-                  </strong>{" "}
-                  — requires your attention
+                  <strong>{stats.openDisputes} open support ticket{stats.openDisputes !== 1 ? "s" : ""}</strong>{" "}— requires your attention
                 </p>
                 <span className="text-[9px] uppercase tracking-[0.2em] text-[#A1123F]/60">Review →</span>
               </div>
@@ -695,90 +871,54 @@ export default function AdminDashboardPage() {
             <div className="flex items-center gap-4 mb-4 px-5 py-4 border border-[#B48A5A]/20 bg-[#B48A5A]/04 rounded-xl">
               <span className="text-[#B48A5A] text-[10px]">●</span>
               <p className="text-xs text-[#B48A5A]/80 flex-1">
-                <strong>
-                  {stats.pendingKyc} seller{stats.pendingKyc !== 1 ? "s" : ""} pending KYC
-                </strong>{" "}
-                — review and verify
+                <strong>{stats.pendingKyc} seller{stats.pendingKyc !== 1 ? "s" : ""} pending KYC</strong>{" "}— review and verify
               </p>
-              <button
-                onClick={() => setSellerTab("pending_kyc")}
-                className="text-[9px] uppercase tracking-[0.2em] text-[#B48A5A]/60 hover:text-[#B48A5A] transition-colors"
-              >
+              <button onClick={() => setSellerTab("pending_kyc")}
+                className="text-[9px] uppercase tracking-[0.2em] text-[#B48A5A]/60 hover:text-[#B48A5A] transition-colors">
                 Review →
               </button>
             </div>
           )}
 
           {/* ── METRIC CARDS ── */}
-          <div className="grid grid-cols-4 gap-4 mb-10">
+          <div className="grid grid-cols-4 gap-4 mb-6">
             {[
-              {
-                label: "Total listings",
-                value: stats.totalListings.toLocaleString("en-IN"),
-                sparkData: sparklines.listings,
-                delta: deltas.listingsDelta > 0
-                  ? `+${deltas.listingsDelta} this week`
-                  : "No new listings this week",
-              },
-              {
-                label: "Active buyers",
-                value: stats.activeUsers.toLocaleString("en-IN"),
-                sparkData: sparklines.users,
-                delta: deltas.usersDeltaPct > 0
-                  ? `+${deltas.usersDeltaPct}% vs last week`
-                  : deltas.usersDeltaPct < 0
-                  ? `${deltas.usersDeltaPct}% vs last week`
-                  : "Same as last week",
-              },
-              {
-                label: "Total revenue",
-                value: `₹${stats.totalRevenue.toLocaleString("en-IN")}`,
-                sparkData: sparklines.revenue,
-                delta: deltas.revenueLabel,
-              },
-              {
-                label: "Pending payouts",
-                value: stats.pendingPayouts.toLocaleString("en-IN"),
-                sparkData: sparklines.payouts,
-                delta: deltas.pendingPayoutsLabel,
-                warn: stats.pendingPayouts > 0,
-              },
+              { label: "Total listings", value: stats.totalListings.toLocaleString("en-IN"), sparkData: sparklines.listings,
+                delta: deltas.listingsDelta > 0 ? `+${deltas.listingsDelta} this week` : "No new listings this week" },
+              { label: "Active buyers", value: stats.activeUsers.toLocaleString("en-IN"), sparkData: sparklines.users,
+                delta: deltas.usersDeltaPct > 0 ? `+${deltas.usersDeltaPct}% vs last week` : deltas.usersDeltaPct < 0 ? `${deltas.usersDeltaPct}% vs last week` : "Same as last week" },
+              { label: "Total revenue", value: `₹${stats.totalRevenue.toLocaleString("en-IN")}`, sparkData: sparklines.revenue, delta: deltas.revenueLabel },
+              { label: "Pending payouts", value: stats.pendingPayouts.toLocaleString("en-IN"), sparkData: sparklines.payouts,
+                delta: deltas.pendingPayoutsLabel, warn: stats.pendingPayouts > 0 },
             ].map((card) => (
               <div key={card.label} className="bg-white border border-[#2B0A0F]/06 p-6 rounded-xl">
                 <p className="text-[9px] uppercase tracking-[0.3em] opacity-40 mb-3">{card.label}</p>
-                <p
-                  className="text-3xl font-light mb-1"
-                  style={{
-                    fontFamily: "var(--font-playfair)",
-                    color: card.warn ? "#A1123F" : "#2B0A0F",
-                  }}
-                >
+                <p className="text-3xl font-light mb-1" style={{ fontFamily: "var(--font-playfair)", color: card.warn ? "#A1123F" : "#2B0A0F" }}>
                   {card.value}
                 </p>
-                <Sparkline
-                  data={card.sparkData}
-                  color={card.warn ? "#A1123F" : "#2B0A0F"}
-                />
+                <Sparkline data={card.sparkData} color={card.warn ? "#A1123F" : "#2B0A0F"} />
                 <p className="text-[9px] opacity-30">{card.delta}</p>
               </div>
             ))}
           </div>
 
-          {/* ── TWO COLUMN: ORDERS + SECURITY ── */}
+          {/* ── PLATFORM HEALTH + LIVE ACTIVITY ── */}
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <PlatformHealthCard health={health} />
+            <ActivityFeed events={activityFeed} />
+          </div>
+
+          {/* ── ORDERS + SECURITY ── */}
           <div className="grid grid-cols-2 gap-6 mb-6">
 
             {/* Recent Orders */}
             <div className="bg-white border border-[#2B0A0F]/06 p-6 rounded-xl">
               <div className="flex items-center justify-between mb-6">
                 <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">Recent Orders</p>
-                <Link
-                  href="/admin/payout"
-                  className="text-[9px] uppercase tracking-[0.2em] opacity-30 hover:opacity-70 transition-opacity"
-                >
+                <Link href="/admin/payout" className="text-[9px] uppercase tracking-[0.2em] opacity-30 hover:opacity-70 transition-opacity">
                   View all →
                 </Link>
               </div>
-
               {recentOrders.length === 0 ? (
                 <p className="text-xs italic opacity-30 text-center py-8">No orders yet</p>
               ) : (
@@ -787,21 +927,15 @@ export default function AdminDashboardPage() {
                     const colors = ["#6B7E60", "#B48A5A", "#185FA5", "#534AB7", "#A1123F"];
                     const color = colors[i % colors.length];
                     return (
-                      <div
-                        key={order.id}
-                        className="flex items-center gap-3 py-3 border-b border-[#2B0A0F]/05 last:border-0"
-                      >
-                        <Avatar name={order.profiles?.[0]?.full_name || "?"} color={color} />
+                      <div key={order.id} className="flex items-center gap-3 py-3 border-b border-[#2B0A0F]/05 last:border-0">
+                        <Avatar name={order.buyerName || "?"} color={color} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs truncate">{order.products?.[0]?.title || "—"}</p>
+                          <p className="text-xs truncate">{order.productTitle}</p>
                           <p className="text-[9px] opacity-35 mt-0.5">
-                            #{order.id.slice(0, 8).toUpperCase()} · {timeAgo(order.created_at)}
+                            {order.buyerName} · #{order.id.slice(0, 8).toUpperCase()} · {timeAgo(order.created_at)}
                           </p>
                         </div>
-                        <p
-                          className="text-sm font-light"
-                          style={{ fontFamily: "var(--font-playfair)" }}
-                        >
+                        <p className="text-sm font-light" style={{ fontFamily: "var(--font-playfair)" }}>
                           ₹{order.amount?.toLocaleString("en-IN")}
                         </p>
                         <StatusPill status={order.status} />
@@ -815,66 +949,23 @@ export default function AdminDashboardPage() {
             {/* Security Controls */}
             <div className="bg-white border border-[#2B0A0F]/06 p-6 rounded-xl">
               <div className="flex items-center justify-between mb-6">
-                <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">
-                  Security Controls
-                </p>
-                <Link
-                  href="/admin/audit"
-                  className="text-[9px] uppercase tracking-[0.2em] opacity-30 hover:opacity-70 transition-opacity"
-                >
+                <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">Security Controls</p>
+                <Link href="/admin/audit" className="text-[9px] uppercase tracking-[0.2em] opacity-30 hover:opacity-70 transition-opacity">
                   Audit log →
                 </Link>
               </div>
-
-              {/* Toggles now persist to admin_settings table */}
-              <SecurityToggle
-                label="Two-factor auth (admin)"
-                sub="Enforced for all admin accounts"
-                defaultOn={true}
-                settingKey="2fa_admin"
-                onToggle={handleSecurityToggle}
-              />
-              <SecurityToggle
-                label="Seller ID verification"
-                sub="Aadhaar / PAN required to list"
-                defaultOn={true}
-                settingKey="seller_id_verification"
-                onToggle={handleSecurityToggle}
-              />
-              <SecurityToggle
-                label="IP allowlist for admin login"
-                sub="Restrict access to known IPs"
-                defaultOn={false}
-                warn={true}
-                settingKey="ip_allowlist"
-                onToggle={handleSecurityToggle}
-              />
-              <SecurityToggle
-                label="Activity audit log"
-                sub="Every admin action is recorded"
-                defaultOn={true}
-                settingKey="audit_log"
-                onToggle={handleSecurityToggle}
-              />
-              <SecurityToggle
-                label="Auto session timeout (30 min)"
-                sub="Idle sessions signed out automatically"
-                defaultOn={true}
-                settingKey="session_timeout"
-                onToggle={handleSecurityToggle}
-              />
-
+              <SecurityToggle label="Two-factor auth (admin)" sub="Enforced for all admin accounts" defaultOn={true} settingKey="2fa_admin" onToggle={handleSecurityToggle} />
+              <SecurityToggle label="Seller ID verification" sub="Aadhaar / PAN required to list" defaultOn={true} settingKey="seller_id_verification" onToggle={handleSecurityToggle} />
+              <SecurityToggle label="IP allowlist for admin login" sub="Restrict access to known IPs" defaultOn={false} warn={true} settingKey="ip_allowlist" onToggle={handleSecurityToggle} />
+              <SecurityToggle label="Activity audit log" sub="Every admin action is recorded" defaultOn={true} settingKey="audit_log" onToggle={handleSecurityToggle} />
+              <SecurityToggle label="Auto session timeout (30 min)" sub="Idle sessions signed out automatically" defaultOn={true} settingKey="session_timeout" onToggle={handleSecurityToggle} />
               {auditLogs.length > 0 && (
                 <div className="mt-5 pt-5 border-t border-[#2B0A0F]/06">
-                  <p className="text-[9px] uppercase tracking-[0.25em] opacity-30 mb-3">
-                    Recent actions
-                  </p>
+                  <p className="text-[9px] uppercase tracking-[0.25em] opacity-30 mb-3">Recent actions</p>
                   <div className="space-y-2">
                     {auditLogs.map((log) => (
                       <div key={log.id} className="flex items-center gap-2">
-                        <span className="text-[8px] opacity-25 flex-shrink-0">
-                          {timeAgo(log.created_at)}
-                        </span>
+                        <span className="text-[8px] opacity-25 flex-shrink-0">{timeAgo(log.created_at)}</span>
                         <span className="text-[9px] opacity-50 truncate">
                           {log.action.replace(/_/g, " ")} — {log.target?.slice(0, 8)}
                         </span>
@@ -889,26 +980,15 @@ export default function AdminDashboardPage() {
           {/* ── SELLER MANAGEMENT ── */}
           <div className="bg-white border border-[#2B0A0F]/06 p-6 rounded-xl">
             <div className="flex items-center justify-between mb-5">
-              <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">
-                Seller Management
-              </p>
-              <button className="text-[9px] uppercase tracking-[0.2em] opacity-30 hover:opacity-70 transition-opacity">
-                Export CSV →
-              </button>
+              <p className="text-[10px] uppercase tracking-[0.3em] opacity-50 font-medium">Seller Management</p>
+              <button className="text-[9px] uppercase tracking-[0.2em] opacity-30 hover:opacity-70 transition-opacity">Export CSV →</button>
             </div>
 
             <div className="flex gap-1 p-1 bg-[#2B0A0F]/05 rounded-full w-fit mb-6">
-              {(["all", "pending_kyc", "flagged", "top"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setSellerTab(tab)}
-                  className={`px-4 py-1.5 rounded-full text-[8px] uppercase tracking-[0.15em] transition-all ${
-                    sellerTab === tab
-                      ? "bg-[#2B0A0F] text-[#F6F3EF]"
-                      : "opacity-40 hover:opacity-70"
-                  }`}
-                >
-                  {tab === "pending_kyc" ? "Pending KYC" : tab === "top" ? "Top Earners" : tab}
+              {(["all", "pending_kyc", "flagged"] as const).map((tab) => (
+                <button key={tab} onClick={() => setSellerTab(tab)}
+                  className={`px-4 py-1.5 rounded-full text-[8px] uppercase tracking-[0.15em] transition-all ${sellerTab === tab ? "bg-[#2B0A0F] text-[#F6F3EF]" : "opacity-40 hover:opacity-70"}`}>
+                  {tab === "pending_kyc" ? "Pending KYC" : tab}
                 </button>
               ))}
             </div>
@@ -922,13 +1002,8 @@ export default function AdminDashboardPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-[#2B0A0F]/06">
-                      {["Seller", "City", "Listings", "Revenue", "Rating", "KYC", "Status", "Action"].map((h) => (
-                        <th
-                          key={h}
-                          className="text-left text-[8px] uppercase tracking-[0.12em] opacity-30 pb-3 pr-4 font-medium"
-                        >
-                          {h}
-                        </th>
+                      {["Seller", "Username", "Phone", "Phone Verified", "KYC", "Status", "Action"].map((h) => (
+                        <th key={h} className="text-left text-[8px] uppercase tracking-[0.12em] opacity-30 pb-3 pr-4 font-medium">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -937,33 +1012,23 @@ export default function AdminDashboardPage() {
                       const colors = ["#6B7E60", "#B48A5A", "#185FA5", "#534AB7", "#A1123F"];
                       const color = colors[i % colors.length];
                       return (
-                        <tr
-                          key={seller.id}
-                          className="border-b border-[#2B0A0F]/04 last:border-0 hover:bg-[#F6F3EF]/50 transition-colors"
-                        >
+                        <tr key={seller.id} className="border-b border-[#2B0A0F]/04 last:border-0 hover:bg-[#F6F3EF]/50 transition-colors">
                           <td className="py-3 pr-4">
                             <div className="flex items-center gap-2">
                               <Avatar name={seller.full_name} color={color} />
                               <span className="text-xs">{seller.full_name}</span>
                             </div>
                           </td>
-                          <td className="py-3 pr-4 text-xs opacity-50">{seller.city || "—"}</td>
-                          <td className="py-3 pr-4 text-xs">{seller.listing_count ?? 0}</td>
-                          <td
-                            className="py-3 pr-4 text-xs"
-                            style={{ fontFamily: "var(--font-playfair)" }}
-                          >
-                            ₹{(seller.total_sales || 0).toLocaleString("en-IN")}
-                          </td>
-                          <td className="py-3 pr-4 text-xs">
-                            {seller.rating != null ? seller.rating.toFixed(1) : "—"}
-                          </td>
+                          <td className="py-3 pr-4 text-xs opacity-50">@{seller.username || "—"}</td>
+                          <td className="py-3 pr-4 text-xs opacity-50">{seller.phone || "—"}</td>
                           <td className="py-3 pr-4">
-                            <StatusPill status={seller.kyc_status || "pending"} />
+                            {seller.phone_verified
+                              ? <span className="text-[8px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full font-medium" style={{ background: "#6B7E6018", color: "#6B7E60" }}>Yes</span>
+                              : <span className="text-[8px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full font-medium" style={{ background: "#88888818", color: "#888" }}>No</span>
+                            }
                           </td>
-                          <td className="py-3 pr-4">
-                            <StatusPill status={seller.is_suspended ? "suspended" : "active"} />
-                          </td>
+                          <td className="py-3 pr-4"><StatusPill status={seller.kyc_status || "pending"} /></td>
+                          <td className="py-3 pr-4"><StatusPill status={seller.is_suspended ? "suspended" : "active"} /></td>
                           <td className="py-3">
                             <button
                               onClick={() => handleSuspendSeller(seller.id, !seller.is_suspended)}

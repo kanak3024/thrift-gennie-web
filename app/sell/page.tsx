@@ -253,6 +253,141 @@ function QualityMeter({ score, label, color, tips }: { score: number; label: str
     </motion.div>
   );
 }
+/* ─────────────────────────────
+   AI DESCRIPTION GENERATOR
+───────────────────────────── */
+function AIDescriptionButton({
+  photos,
+  title,
+  category,
+  condition,
+  size,
+  mood,
+  onGenerated,
+}: {
+  photos: string[];
+  title: string;
+  category: string;
+  condition: string;
+  size: string;
+  mood: string;
+  onGenerated: (text: string) => void;
+}) {
+  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+
+  const generate = async () => {
+    if (photos.length === 0) return;
+    setState("loading");
+
+    try {
+      // Convert first preview URL (blob) to base64
+      const blob = await fetch(photos[0]).then((r) => r.blob());
+      const base64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res((reader.result as string).split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(blob);
+      });
+
+      const mediaType = blob.type || "image/jpeg";
+
+      const prompt = `You are a fashion copywriter for ThriftGennie, a curated Indian secondhand fashion marketplace. 
+Write a short, evocative product description (2–3 sentences, max 120 words) for this listing.
+
+Details the seller provided:
+- Piece name: ${title || "Not specified"}
+- Category: ${category || "Not specified"}
+- Condition: ${condition || "Not specified"}
+- Size: ${size || "Not specified"}
+- Aesthetic/Mood: ${mood || "Not specified"}
+
+Guidelines:
+- Warm, editorial tone — like a friend recommending a find
+- Mention what you observe in the photo (fabric, color, silhouette, details)
+- Highlight why it deserves a new home
+- No generic filler phrases like "great condition" or "must have"
+- End with a gentle hook about styling it
+- Write in English, keep it under 120 words
+- Return ONLY the description text, no labels or preamble`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: mediaType, data: base64 },
+                },
+                { type: "text", text: prompt },
+              ],
+            },
+          ],
+        }),
+      });
+
+      const data = await response.json();
+      const text = data.content?.map((c: any) => c.text || "").join("").trim();
+      if (text) {
+        onGenerated(text);
+        setState("done");
+        setTimeout(() => setState("idle"), 3000);
+      } else {
+        setState("idle");
+      }
+    } catch (err) {
+      console.error("AI generation error:", err);
+      setState("idle");
+    }
+  };
+
+  return (
+    <motion.button
+      type="button"
+      onClick={generate}
+      disabled={state === "loading" || photos.length === 0}
+      whileTap={{ scale: 0.97 }}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] uppercase tracking-[0.2em] transition-all ${
+        state === "done"
+          ? "border-[#6B7E60] text-[#6B7E60] bg-[#6B7E60]/08"
+          : state === "loading"
+          ? "border-[#2B0A0F]/20 text-[#2B0A0F]/40"
+          : photos.length === 0
+          ? "border-[#2B0A0F]/10 text-[#2B0A0F]/25 cursor-not-allowed"
+          : "border-[#B48A5A]/50 text-[#B48A5A] hover:bg-[#B48A5A]/08"
+      }`}
+    >
+      {state === "loading" ? (
+        <>
+          <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+          </svg>
+          Writing...
+        </>
+      ) : state === "done" ? (
+        <>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Done
+        </>
+      ) : (
+        <>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+          </svg>
+          ✦ Write with AI
+        </>
+      )}
+    </motion.button>
+  );
+}
 
 /* ─────────────────────────────
    MAIN PAGE
@@ -284,6 +419,7 @@ export default function SellPage() {
     setTimeout(() => setToast(null), 3500);
   };
   /* ── AUTH + KYC CHECK ── */
+/* ── AUTH CHECK ── */
 useEffect(() => {
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -294,24 +430,11 @@ useEffect(() => {
     }
 
     setUserId(user.id);
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("kyc_status")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.kyc_status !== "verified") {
-      router.replace("/verify");
-      return;
-    }
-
     setCheckingAuth(false);
   };
 
   checkUser();
 }, [router]);
-   
   /* ── FILE HANDLING ── */
   const handleSlotFile = (slotIndex: number, newFile: File) => {
     setFiles(prev => {
@@ -781,7 +904,18 @@ useEffect(() => {
 
                     {/* Description */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">The Story</label>
+                      <div className="flex items-center justify-between mb-2">
+  <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">The Story</label>
+  <AIDescriptionButton
+    photos={previewUrls}
+    title={title}
+    category={category}
+    condition={condition}
+    size={size}
+    mood={mood}
+    onGenerated={(text) => setDescription(text)}
+  />
+</div>
                       <textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
