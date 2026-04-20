@@ -303,8 +303,11 @@ export default function SupportChat() {
 
   return (
     <>
+    
       {/* ── FLOATING BUTTON ── */}
-      className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 supports-[env(safe-area-inset-bottom)]:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]"
+  <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
+    style={{ bottom: "max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom)))" }}
+  >
         <AnimatePresence>
           {pulse && !open && (
             <motion.div
@@ -357,7 +360,7 @@ export default function SupportChat() {
             <span className="absolute inset-0 rounded-full animate-ping bg-[#2B0A0F] opacity-20" />
           )}
         </button>
-      
+       </div>
 
       {/* ── CHAT PANEL ── */}
       <AnimatePresence>
