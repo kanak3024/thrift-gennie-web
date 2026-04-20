@@ -404,26 +404,29 @@ export default function EditListingPage() {
             </div>
 
             {/* ── DESCRIPTION ── */}
-            <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-              <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">The Story</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
-                rows={4}
-                className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
-              />
-              <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-              <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">The Story</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
-                rows={4}
-                className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
-              />
-              <p className={`text-[9px] mb-2 ${description.length >= MAX_DESC ? "text-[#A1123F] opacity-80" : "opacity-25"}`}>
-                {description.length}/{MAX_DESC}
-              </p>
-            </div>
+             {/* ── DESCRIPTION ── */}
+<div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+  <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
+    The Story
+  </label>
+
+  <textarea
+    value={description}
+    onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
+    rows={4}
+    className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
+  />
+
+  <p
+    className={`text-[9px] mb-2 ${
+      description.length >= MAX_DESC
+        ? "text-[#A1123F] opacity-80"
+        : "opacity-25"
+    }`}
+  >
+    {description.length}/{MAX_DESC}
+  </p>
+</div>
 
             {/* ── ACTIONS ── */}
             <div className="space-y-3 pt-2">
