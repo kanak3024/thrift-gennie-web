@@ -310,29 +310,14 @@ Guidelines:
 - Write in English, keep it under 120 words
 - Return ONLY the description text, no labels or preamble`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+       const response = await fetch("/api/generate-description", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image",
-                  source: { type: "base64", media_type: mediaType, data: base64 },
-                },
-                { type: "text", text: prompt },
-              ],
-            },
-          ],
-        }),
+        body: JSON.stringify({ base64, mediaType, title, category, condition, size, mood }),
       });
 
       const data = await response.json();
-      const text = data.content?.map((c: any) => c.text || "").join("").trim();
+      const text = data.text;
       if (text) {
         onGenerated(text);
         setState("done");
