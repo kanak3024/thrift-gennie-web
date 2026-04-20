@@ -412,6 +412,47 @@ export default function EditListingPage() {
                 rows={4}
                 className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
               />
+              <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+              <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">The Story</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
+                rows={4}
+                className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
+              />
               <p className={`text-[9px] mb-2 ${description.length >= MAX_DESC ? "text-[#A1123F] opacity-80" : "opacity-25"}`}>
                 {description.length}/{MAX_DESC}
               </p>
+            </div>
+
+            {/* ── ACTIONS ── */}
+            <div className="space-y-3 pt-2">
+              <motion.button
+                type="submit" disabled={loading || !canSubmit} whileTap={{ scale: 0.98 }}
+                className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                    </svg>
+                    Saving Changes...
+                  </>
+                ) : "Save Changes ✦"}
+              </motion.button>
+
+              <button
+                type="button" onClick={() => router.back()}
+                className="w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-80 transition-opacity"
+              >
+                ← Cancel
+              </button>
+            </div>
+
+          </motion.div>
+        </form>
+      </div>
+    </main>
+    );  
+}
