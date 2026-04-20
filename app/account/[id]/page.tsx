@@ -590,17 +590,18 @@ export default function AccountPage() {
                   </div>
                 </div>
               ))}
-              {averageRating > 0 && (
-                <div className="text-center sm:text-left">
-                  <div className="text-lg sm:text-xl font-semibold flex items-center justify-center sm:justify-start gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
-                    {averageRating.toFixed(1)}
-                    <span className="text-[#B48A5A] text-base">★</span>
-                  </div>
-                  <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
-                    {sellerRatings.length} Reviews
-                  </div>
-                </div>
-              )}
+               <div className="text-center sm:text-left">
+  <div className="text-lg sm:text-xl font-semibold flex items-center justify-center sm:justify-start gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
+    {sellerRatings.length === 0 ? (
+      <span className="opacity-30">—</span>
+    ) : (
+      <>{averageRating.toFixed(1)}<span className="text-[#B48A5A] text-base">★</span></>
+    )}
+  </div>
+  <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
+    {sellerRatings.length === 0 ? "No reviews" : `${sellerRatings.length} Reviews`}
+  </div>
+</div>
             </div>
 
             {/* Bio / role */}
@@ -842,6 +843,47 @@ export default function AccountPage() {
             <p className="text-xs opacity-60 mt-2 sm:mt-3">Tap to view detailed analytics →</p>
           </div>
         )}
+        {sellerRatings.length > 0 && (
+  <div className="mb-6 sm:mb-10">
+    <div className="flex items-center justify-between mb-4">
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.25em] font-semibold">Reviews</p>
+        <p className="text-[9px] opacity-35 tracking-wide mt-0.5">
+          {averageRating.toFixed(1)} · {sellerRatings.length} {sellerRatings.length === 1 ? "review" : "reviews"}
+        </p>
+      </div>
+      <div className="flex gap-0.5">
+        {[1,2,3,4,5].map(s => (
+          <span key={s} className={`text-lg ${s <= Math.round(averageRating) ? "text-[#B48A5A]" : "opacity-15"}`}>★</span>
+        ))}
+      </div>
+    </div>
+    <div className="space-y-3">
+      {sellerRatings.slice(0, 3).map((r: any, i: number) => (
+        <div key={i} className="p-4 bg-white rounded-2xl border border-[#2B0A0F]/06">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex gap-0.5">
+              {[1,2,3,4,5].map(s => (
+                <span key={s} className={`text-xs ${s <= r.rating ? "text-[#B48A5A]" : "opacity-15"}`}>★</span>
+              ))}
+            </div>
+            <span className="text-[8px] uppercase tracking-[0.2em] opacity-30">
+              {new Date(r.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+            </span>
+          </div>
+          {r.review && (
+            <p className="text-sm leading-relaxed opacity-65 italic">"{r.review}"</p>
+          )}
+        </div>
+      ))}
+    </div>
+    {sellerRatings.length > 3 && (
+      <button className="mt-3 w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[9px] uppercase tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity">
+        See all {sellerRatings.length} reviews
+      </button>
+    )}
+  </div>
+)}
 
         {/* ══════════════════════════════
             TABS
