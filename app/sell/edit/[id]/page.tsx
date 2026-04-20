@@ -454,5 +454,5 @@ export default function EditListingPage() {
         </form>
       </div>
     </main>
-    );  
+    );
 }
