@@ -25,6 +25,7 @@ const MAX_SIZE_MB = 10;
 export default function SupportChat() {
   const [open, setOpen]               = useState(false);
   const [user, setUser]               = useState<any>(null);
+  const [userRole, setUserRole]       = useState<string | null>(null);  // FIX: track role
   const [ticketId, setTicketId]       = useState<string | null>(null);
   const [messages, setMessages]       = useState<any[]>([]);
   const [newMessage, setNewMessage]   = useState("");
@@ -34,6 +35,8 @@ export default function SupportChat() {
   const [step, setStep]               = useState<"subject" | "chat">("subject");
   const [selectedSubject, setSelectedSubject] = useState("General Inquiry");
   const [pulse, setPulse]             = useState(true);
+  const [sendError, setSendError] = useState(false);
+  const [agentTyping, setAgentTyping] = useState(false);
 
   // Attachment state
   const [pendingFile, setPendingFile]       = useState<File | null>(null);
@@ -41,14 +44,35 @@ export default function SupportChat() {
   const [uploading, setUploading]           = useState(false);
   const [uploadError, setUploadError]       = useState<string | null>(null);
 
-  const scrollRef  = useRef<HTMLDivElement>(null);
-  const inputRef   = useRef<HTMLInputElement>(null);
-  const fileRef    = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+
+  // FIX: track current ticketId in a ref so realtime cleanup is always in sync
+  const ticketIdRef = useRef<string | null>(null);
+  useEffect(() => { ticketIdRef.current = ticketId; }, [ticketId]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUser(user);
+    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
+      if (!u) return;
+
+      // Fetch role to decide whether to show the widget
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", u.id)
+        .single();
+
+      const role = profile?.role ?? null;
+      setUserRole(role);
+
+      // FIX: Admins should not use the user-facing support widget.
+      // They have /admin/support for that. Don't set user → widget won't render.
+      if (role === "admin") return;
+
+      setUser(u);
     });
+
     const t = setTimeout(() => setPulse(false), 8000);
     return () => clearTimeout(t);
   }, []);
@@ -63,32 +87,43 @@ export default function SupportChat() {
     }
   }, [open, step]);
 
+  /* ── REALTIME: per-ticket messages ── */
   useEffect(() => {
-    if (!ticketId) return;
-    const channel = supabase
-      .channel(`support-${ticketId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "support_messages",
-        filter: `ticket_id=eq.${ticketId}`,
-      }, (payload) => {
-        setMessages((prev) => {
-          if (prev.find((m) => m.id === payload.new.id)) return prev;
-          return [...prev, payload.new];
-        });
-        if (!open && payload.new.is_admin) setUnreadCount((c) => c + 1);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [ticketId, open]);
+  if (!ticketId) return;
 
+  const channel = supabase
+    .channel(`support-${ticketId}`)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "support_messages",
+      filter: `ticket_id=eq.${ticketId}`,
+    }, (payload) => {
+      setMessages((prev) => {
+        if (prev.find((m) => m.id === payload.new.id)) return prev;
+        return [...prev, payload.new];
+      });
+      setAgentTyping(false);
+      if (!open && payload.new.is_admin) setUnreadCount((c) => c + 1);
+    })
+    .on("broadcast", { event: "typing" }, () => {
+      setAgentTyping(true);
+      setTimeout(() => setAgentTyping(false), 3000);
+    })
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [ticketId]);// re-subscribe only when ticketId changes, NOT when open changes
+
+  // Unread badge: clear when panel opens
   useEffect(() => {
     if (open) setUnreadCount(0);
   }, [open]);
 
+  /* ── CHECK FOR EXISTING OPEN TICKET ── */
   useEffect(() => {
     if (!user) return;
+
     const checkExisting = async () => {
       const { data } = await supabase
         .from("support_tickets")
@@ -98,6 +133,7 @@ export default function SupportChat() {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+
       if (data) {
         setTicketId(data.id);
         setSelectedSubject(data.subject);
@@ -105,49 +141,57 @@ export default function SupportChat() {
         fetchMessages(data.id);
       }
     };
+
     checkExisting();
   }, [user]);
 
   const fetchMessages = async (tid: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("support_messages")
       .select("*")
       .eq("ticket_id", tid)
       .order("created_at", { ascending: true });
+    if (error) console.error("fetchMessages:", error.message);
     if (data) setMessages(data);
   };
 
   const startTicket = async () => {
-  // Always get a fresh user instead of relying on state
-  const { data: { user: freshUser } } = await supabase.auth.getUser();
-  if (!freshUser) return;
-  setLoading(true);
+    const { data: { user: freshUser } } = await supabase.auth.getUser();
+    if (!freshUser) return;
+    setLoading(true);
 
-  const { data, error } = await supabase
-    .from("support_tickets")
-    .insert({ user_id: freshUser.id, subject: selectedSubject })
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from("support_tickets")
+      .insert({ user_id: freshUser.id, subject: selectedSubject })
+      .select()
+      .single();
 
-  console.log("insert error:", error); // add this to see exact message
+    if (error) {
+      console.error("startTicket:", error.message);
+      setLoading(false);
+      return;
+    }
 
-    if (!error && data) {
+    if (data) {
       setTicketId(data.id);
       setStep("chat");
+
+      // Insert the automated greeting
       await supabase.from("support_messages").insert({
-        ticket_id: data.id,
-        sender_id: null,
-        text: `Hi there! 👋 You've reached Thrift Gennie support. We've received your inquiry about "${selectedSubject}". Our team usually responds within a few hours. Feel free to describe your issue below — you can also send images if needed.`,
-        is_admin: true,
-        read_by_user: false,
+        ticket_id:     data.id,
+        sender_id:     null,
+        text:          `Hi there! 👋 You've reached Thrift Gennie support. We've received your inquiry about "${selectedSubject}". Our team usually responds within a few hours. Feel free to describe your issue below — you can also send images if needed.`,
+        is_admin:      true,
+        read_by_user:  false,
         read_by_admin: true,
       });
+
       await fetchMessages(data.id);
     }
     setLoading(false);
   };
 
-  /* ── FILE SELECTION ── */
+  /* ── FILE HANDLING ── */
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError(null);
     const file = e.target.files?.[0];
@@ -164,7 +208,6 @@ export default function SupportChat() {
 
     setPendingFile(file);
     setPendingPreview(URL.createObjectURL(file));
-    // reset input so same file can be re-selected
     e.target.value = "";
   };
 
@@ -175,7 +218,6 @@ export default function SupportChat() {
     setUploadError(null);
   };
 
-  /* ── UPLOAD TO SUPABASE STORAGE ── */
   const uploadFile = async (file: File): Promise<string | null> => {
     const ext  = file.name.split(".").pop();
     const path = `${user.id}/${ticketId}/${Date.now()}.${ext}`;
@@ -183,44 +225,66 @@ export default function SupportChat() {
       .from("support-attachments")
       .upload(path, file, { contentType: file.type });
     if (error) { setUploadError("Upload failed. Please try again."); return null; }
-    const { data } = supabase.storage
-      .from("support-attachments")
-      .getPublicUrl(path);
+    const { data } = supabase.storage.from("support-attachments").getPublicUrl(path);
     return data.publicUrl;
   };
 
-  /* ── SEND MESSAGE (with optional attachment) ── */
-  const sendMessage = async (text?: string) => {
-    const msgText = text || newMessage;
-    if ((!msgText.trim() && !pendingFile) || !ticketId || !user || sending) return;
+  /* ── SEND MESSAGE ── */
+   const sendMessage = async (text?: string) => {
+  const msgText = text ?? newMessage;
+  if ((!msgText.trim() && !pendingFile) || !ticketId || !user || sending) return;
 
-    setNewMessage("");
-    setSending(true);
-    setUploadError(null);
+  setNewMessage("");
+  setSending(true);
+  setUploadError(null);
 
-    let attachmentUrl: string | null = null;
+  let attachmentUrl: string | null = null;
+  if (pendingFile) {
+    setUploading(true);
+    attachmentUrl = await uploadFile(pendingFile);
+    setUploading(false);
+    if (!attachmentUrl) { setSending(false); return; }
+    clearPending();
+  }
 
-    if (pendingFile) {
-      setUploading(true);
-      attachmentUrl = await uploadFile(pendingFile);
-      setUploading(false);
-      if (!attachmentUrl) { setSending(false); return; }
-      clearPending();
-    }
-
-    await supabase.from("support_messages").insert({
-      ticket_id:      ticketId,
-      sender_id:      user.id,
-      text:           msgText.trim() || null,
-      attachment_url: attachmentUrl,
-      is_admin:       false,
-      read_by_user:   true,
-      read_by_admin:  false,
-    });
-
-    setSending(false);
-    inputRef.current?.focus();
+  const newMsg = {
+    ticket_id:      ticketId,
+    sender_id:      user.id,
+    text:           msgText.trim() || null,
+    attachment_url: attachmentUrl,
+    is_admin:       false,
+    read_by_user:   true,
+    read_by_admin:  false,
   };
+
+  // ✅ Optimistically add to local state immediately
+  const optimisticMsg = {
+    ...newMsg,
+    id: `optimistic-${Date.now()}`,
+    created_at: new Date().toISOString(),
+  };
+  setMessages((prev) => [...prev, optimisticMsg]);
+
+  const { data, error } = await supabase
+    .from("support_messages")
+    .insert(newMsg)
+    .select()
+    .single();
+
+  if (error) {
+  console.error("sendMessage:", error.message);
+  setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+  setSendError(true);
+  setTimeout(() => setSendError(false), 4000); // auto-dismiss after 4s
+} else if (data) {
+  setMessages((prev) =>
+    prev.map((m) => (m.id === optimisticMsg.id ? data : m))
+  );
+}
+
+  setSending(false);
+  inputRef.current?.focus();
+};
 
   const closeTicket = async () => {
     if (!ticketId) return;
@@ -233,10 +297,14 @@ export default function SupportChat() {
     setStep("subject");
   };
 
+  // FIX: Don't render the widget at all for admins or unauthenticated users
+  // who haven't loaded yet. Once role is resolved, only show for non-admins.
+  if (userRole === "admin") return null;
+
   return (
     <>
       {/* ── FLOATING BUTTON ── */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+      className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 supports-[env(safe-area-inset-bottom)]:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]"
         <AnimatePresence>
           {pulse && !open && (
             <motion.div
@@ -256,15 +324,30 @@ export default function SupportChat() {
         >
           <AnimatePresence mode="wait">
             {open ? (
-              <motion.svg key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }} width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <motion.svg
+                key="close"
+                initial={{ rotate: -90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: 90, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                width="18" height="18" viewBox="0 0 24 24" fill="none"
+              >
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </motion.svg>
             ) : (
-              <motion.svg key="chat" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: 0.2 }} width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              <motion.svg
+                key="chat"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                width="20" height="20" viewBox="0 0 24 24" fill="none"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </motion.svg>
             )}
           </AnimatePresence>
+
           {unreadCount > 0 && !open && (
             <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#A1123F] text-white text-[9px] flex items-center justify-center font-medium">
               {unreadCount}
@@ -274,7 +357,7 @@ export default function SupportChat() {
             <span className="absolute inset-0 rounded-full animate-ping bg-[#2B0A0F] opacity-20" />
           )}
         </button>
-      </div>
+      
 
       {/* ── CHAT PANEL ── */}
       <AnimatePresence>
@@ -284,7 +367,7 @@ export default function SupportChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed bottom-24 right-6 z-50 w-[360px] max-h-[600px] flex flex-col bg-[#F6F3EF] rounded-2xl shadow-2xl overflow-hidden border border-[#2B0A0F]/08"
+            className="fixed bottom-24 right-6 z-50 w-[360px] max-h-[min(600px,calc(100svh-8rem))] flex flex-col bg-[#F6F3EF] rounded-2xl shadow-2xl overflow-hidden border border-[#2B0A0F]/08"
             style={{ boxShadow: "0 32px 80px rgba(43,10,15,0.22)" }}
           >
             {/* HEADER */}
@@ -316,19 +399,31 @@ export default function SupportChat() {
             {/* NOT LOGGED IN */}
             {!user ? (
               <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 text-center">
-                <p className="text-3xl opacity-20 mb-4" style={{ fontFamily: "var(--font-playfair)" }}>Hello.</p>
-                <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mb-6">Log in to chat with our support team</p>
-                <a href="/login" className="px-6 py-3 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[9px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity">
+                <p className="text-3xl opacity-20 mb-4" style={{ fontFamily: "var(--font-playfair)" }}>
+                  Hello.
+                </p>
+                <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mb-6">
+                  Log in to chat with our support team
+                </p>
+                <a
+                  href="/login"
+                  className="px-6 py-3 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[9px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity"
+                >
                   Log In
                 </a>
               </div>
+
             ) : step === "subject" ? (
 
               /* SUBJECT PICKER */
               <div className="flex-1 flex flex-col overflow-y-auto">
                 <div className="px-6 pt-6 pb-4">
-                  <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mb-1">What can we help with?</p>
-                  <p className="text-lg" style={{ fontFamily: "var(--font-playfair)" }}>Choose a topic</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mb-1">
+                    What can we help with?
+                  </p>
+                  <p className="text-lg" style={{ fontFamily: "var(--font-playfair)" }}>
+                    Choose a topic
+                  </p>
                 </div>
                 <div className="px-4 pb-4 space-y-2 flex-1">
                   {SUBJECTS.map((s) => (
@@ -343,7 +438,9 @@ export default function SupportChat() {
                     >
                       <span className="text-base w-5 flex-shrink-0 text-center">{s.icon}</span>
                       <span className="text-[11px] uppercase tracking-[0.15em]">{s.label}</span>
-                      {selectedSubject === s.value && <span className="ml-auto text-[#B48A5A]">✓</span>}
+                      {selectedSubject === s.value && (
+                        <span className="ml-auto text-[#B48A5A]">✓</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -366,7 +463,9 @@ export default function SupportChat() {
                 <div className="px-5 py-3 border-b border-[#2B0A0F]/06 bg-[#EAE3DB]/40 flex items-center justify-between flex-shrink-0">
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#6B7E60]" />
-                    <span className="text-[9px] uppercase tracking-[0.2em] opacity-60">{selectedSubject}</span>
+                    <span className="text-[9px] uppercase tracking-[0.2em] opacity-60">
+                      {selectedSubject}
+                    </span>
                   </div>
                   <button
                     onClick={closeTicket}
@@ -380,12 +479,12 @@ export default function SupportChat() {
                 <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3 min-h-0">
                   {messages.length === 0 && (
                     <div className="flex items-center justify-center h-full">
-                      <p className="text-[10px] uppercase tracking-[0.2em] opacity-20">Loading...</p>
+                      <p className="text-[10px] uppercase tracking-[0.2em] opacity-20">Loading…</p>
                     </div>
                   )}
                   {messages.map((msg, idx) => {
-                    const isMe = !msg.is_admin;
-                    const prev = messages[idx - 1];
+                    const isMe       = !msg.is_admin;
+                    const prev       = messages[idx - 1];
                     const sameAsPrev = prev?.is_admin === msg.is_admin;
                     return (
                       <motion.div
@@ -393,22 +492,32 @@ export default function SupportChat() {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.2 }}
-                        className={`flex ${isMe ? "justify-end" : "justify-start"} ${sameAsPrev ? "mt-1" : "mt-4"}`}
+                        className={`flex ${isMe ? "justify-end" : "justify-start"} ${
+                          sameAsPrev ? "mt-1" : "mt-4"
+                        }`}
                       >
                         {!isMe && !sameAsPrev && (
-                          <div className="w-6 h-6 rounded-full bg-[#2B0A0F] flex items-center justify-center text-[#B48A5A] text-[8px] flex-shrink-0 mr-2 mt-auto mb-1">✦</div>
+                          <div className="w-6 h-6 rounded-full bg-[#2B0A0F] flex items-center justify-center text-[#B48A5A] text-[8px] flex-shrink-0 mr-2 mt-auto mb-1">
+                            ✦
+                          </div>
                         )}
                         {!isMe && sameAsPrev && <div className="w-8 flex-shrink-0" />}
 
                         <div className={`max-w-[78%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                          <div className={`px-4 py-3 text-sm leading-relaxed ${
-                            isMe
-                              ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[16px] rounded-br-[4px]"
-                              : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[16px] rounded-bl-[4px]"
-                          }`}>
-                            {/* Image attachment */}
+                          <div
+                            className={`px-4 py-3 text-sm leading-relaxed ${
+                              isMe
+                                ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[16px] rounded-br-[4px]"
+                                : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[16px] rounded-bl-[4px]"
+                            }`}
+                          >
                             {msg.attachment_url && (
-                              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block mb-2">
+                              <a
+                                href={msg.attachment_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block mb-2"
+                              >
                                 <img
                                   src={msg.attachment_url}
                                   alt="Attachment"
@@ -419,19 +528,48 @@ export default function SupportChat() {
                             )}
                             {msg.text && <span>{msg.text}</span>}
                           </div>
-                          {(idx === messages.length - 1 || messages[idx + 1]?.is_admin !== msg.is_admin) && (
+                          {(idx === messages.length - 1 ||
+                            messages[idx + 1]?.is_admin !== msg.is_admin) && (
                             <span className={`text-[8px] opacity-30 mt-1 ${isMe ? "pr-1" : "pl-1"}`}>
-                              {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              {new Date(msg.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
                             </span>
                           )}
                         </div>
                       </motion.div>
                     );
                   })}
+                  {/* Typing indicator */}
+<AnimatePresence>
+  {agentTyping && (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      className="flex justify-start mt-4"
+    >
+      <div className="w-6 h-6 rounded-full bg-[#2B0A0F] flex items-center justify-center text-[#B48A5A] text-[8px] flex-shrink-0 mr-2 mt-auto mb-1">
+        ✦
+      </div>
+      <div className="bg-white border border-[#2B0A0F]/08 rounded-[16px] rounded-bl-[4px] px-4 py-3 flex items-center gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 block"
+            animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
                   <div ref={scrollRef} />
                 </div>
 
-                {/* Quick replies */}
+                {/* Quick replies (only on first message) */}
                 {messages.length <= 1 && (
                   <div className="px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-hide flex-shrink-0">
                     {QUICK_REPLIES.map((qr) => (
@@ -464,8 +602,8 @@ export default function SupportChat() {
                       {uploading && (
                         <div className="absolute inset-0 rounded-lg bg-black/40 flex items-center justify-center">
                           <svg className="animate-spin w-4 h-4 text-white" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
                           </svg>
                         </div>
                       )}
@@ -480,7 +618,6 @@ export default function SupportChat() {
                   </div>
                 )}
 
-                {/* Hidden file input */}
                 <input
                   ref={fileRef}
                   type="file"
@@ -488,11 +625,31 @@ export default function SupportChat() {
                   className="hidden"
                   onChange={handleFileSelect}
                 />
+                {/* Send error toast */}
+<AnimatePresence>
+  {sendError && (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      className="mx-4 mb-2 flex items-center justify-between gap-3 bg-[#A1123F]/10 border border-[#A1123F]/20 rounded-xl px-4 py-3 flex-shrink-0"
+    >
+      <p className="text-[9px] uppercase tracking-[0.15em] text-[#A1123F]">
+        Message failed to send
+      </p>
+      <button
+        onClick={() => sendMessage()}
+        className="text-[9px] uppercase tracking-[0.15em] text-[#A1123F] underline underline-offset-2 hover:opacity-70 transition-opacity whitespace-nowrap"
+      >
+        Retry ↺
+      </button>
+    </motion.div>
+  )}
+</AnimatePresence>
 
                 {/* Input row */}
                 <div className="px-4 py-4 border-t border-[#2B0A0F]/08 flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    {/* Paperclip button */}
                     <button
                       onClick={() => fileRef.current?.click()}
                       disabled={sending}
@@ -500,7 +657,10 @@ export default function SupportChat() {
                       title="Attach image"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path
+                          d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                          stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                        />
                       </svg>
                     </button>
 
@@ -522,13 +682,13 @@ export default function SupportChat() {
                     >
                       {sending ? (
                         <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
                         </svg>
                       ) : (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                          <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </motion.button>
