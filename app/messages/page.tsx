@@ -242,21 +242,25 @@ const [{ data, error }, { data: participantData }] = await Promise.all([
       .eq("user_id", currentId)
   ]);
 
-  if (!error && data) {
-    const sorted = data.sort((a: any, b: any) => {
-      const aLast = a.messages?.reduce((l: any, m: any) =>
-        !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
-      const bLast = b.messages?.reduce((l: any, m: any) =>
-        !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
-      return (bLast?.created_at ?? "").localeCompare(aLast?.created_at ?? "");
-    });
-    setConversations(sorted);
-  }
+    if (!error && data) {
+  const sorted = data.sort((a: any, b: any) => {
+    const aLast = a.messages?.reduce((l: any, m: any) =>
+      !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
+
+    const bLast = b.messages?.reduce((l: any, m: any) =>
+      !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
+
+    return (bLast?.created_at ?? "").localeCompare(aLast?.created_at ?? "");
+  });
+
   const withoutBlocked = sorted.filter((c: any) => {
-  const otherId = c.buyer_id === currentId ? c.seller_id : c.buyer_id;
-  return !blockedIds.includes(otherId);
-});
-setConversations(withoutBlocked);
+    const otherId =
+      c.buyer_id === currentId ? c.seller_id : c.buyer_id;
+    return !blockedIds.includes(otherId);
+  });
+
+  setConversations(withoutBlocked); // ✅ only once
+}
 
   if (participantData) {
     const map: Record<string, string | null> = {};
