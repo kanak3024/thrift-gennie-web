@@ -572,31 +572,33 @@ export default function AccountPage() {
         ↗
       </button>
     </>
-   ) : (
-  <div className="flex items-center gap-2">
-    {currentUser && (
-      <motion.button
-        whileTap={{ scale: 0.96 }}
-        onClick={handleFollow}
-        disabled={followLoading}
-        className={`px-5 sm:px-6 py-2.5 rounded-full text-[10px] uppercase tracking-[0.18em] transition-all disabled:opacity-40 ${
-          isFollowing
-            ? "border border-[#2B0A0F]/20 hover:border-[#A1123F]/30 hover:text-[#A1123F]"
-            : "bg-[#2B0A0F] text-[#F6F3EF] hover:opacity-80"
-        }`}
-      >
-        {followLoading ? "..." : isFollowing ? "Following ✦" : "Follow"}
-      </motion.button>
-    )}
-    <button
-      onClick={handleShareProfile}
-      className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
-      title="Share profile"
-    >
-      ↗
-    </button>
-  </div>
-)}
+  ) : (
+     
+      <div className="flex items-center gap-2">
+         {currentUser && (
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          onClick={handleFollow}
+          disabled={followLoading}
+          className={`px-5 sm:px-6 py-2.5 rounded-full text-[10px] uppercase tracking-[0.18em] transition-all disabled:opacity-40 ${
+            isFollowing
+              ? "border border-[#2B0A0F]/20 hover:border-[#A1123F]/30 hover:text-[#A1123F]"
+              : "bg-[#2B0A0F] text-[#F6F3EF] hover:opacity-80"
+          }`}
+        >
+          {followLoading ? "..." : isFollowing ? "Following ✦" : "Follow"}
+        </motion.button>
+         )}
+        <button
+          onClick={handleShareProfile}
+          className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
+          title="Share profile"
+        >
+          ↗
+        </button>
+      </div>
+    
+  )}
 </div>
 </div>
 
