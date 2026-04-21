@@ -10,15 +10,27 @@ import { supabase } from "../../lib/supabase";
    HELPERS
 ───────────────────────────── */
 function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins  = Math.floor(diff / 60000);
-  const hrs   = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
+  const normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
+  const date = new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hrs  = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
   if (mins < 1)  return "just now";
   if (mins < 60) return `${mins}m ago`;
   if (hrs  < 24) return `${hrs}h ago`;
   if (days < 7)  return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return new Date(normalized).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+function isUnread(lastMsg: any, lastReadAt: string | null, userId: string): boolean {
+  if (!lastMsg) return false;
+  if (lastMsg.sender_id === userId) return false; // your own message
+  if (!lastReadAt) return true; // never opened
+  const normalized = (s: string) => s.includes("T") ? s : s.replace(" ", "T");
+  const msgTime  = new Date(normalized(lastMsg.created_at) + (lastMsg.created_at.endsWith("Z") ? "" : "Z"));
+  const readTime = new Date(normalized(lastReadAt) + (lastReadAt.endsWith("Z") ? "" : "Z"));
+  return msgTime > readTime;
 }
 
 /* ─────────────────────────────
@@ -48,10 +60,12 @@ function ConvCard({
   conv,
   userId,
   index,
+  lastReadAt,
 }: {
   conv: any;
   userId: string;
   index: number;
+  lastReadAt: string | null;
 }) {
   const messages   = conv.messages || [];
   const lastMsg    = messages.reduce((latest: any, m: any) =>
@@ -59,7 +73,7 @@ function ConvCard({
   const isSeller   = conv.seller_id === userId;
   const isSold     = conv.products?.status === "sold";
   const isLastMine = lastMsg?.sender_id === userId;
-
+  const hasUnread  = isUnread(lastMsg, lastReadAt, userId);
   // Simulate unread — in production, track a `read_at` per user per conversation
   const hasUnread  = lastMsg && !isLastMine;
 
@@ -164,6 +178,7 @@ export default function MessagesPage() {
   const [userId, setUserId]     = useState<string | null>(null);
   const [filter, setFilter]     = useState<"all" | "buying" | "selling">("all");
   const [search, setSearch]     = useState("");
+  const [lastReadMap, setLastReadMap] = useState<Record<string, string | null>>({});
 
   /* ── AUTH + FETCH ── */
   useEffect(() => {
@@ -181,44 +196,66 @@ export default function MessagesPage() {
 
   /* ── REAL-TIME INBOX UPDATES ── */
   useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel("inbox-updates")
-      .on("postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => fetchConversations(userId)
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+  if (!userId) return;
+  const channel = supabase
+    .channel("inbox-updates")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
+      () => fetchConversations(userId, true))
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" },
+      () => fetchConversations(userId, true))
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "conversations" },
+      () => fetchConversations(userId, true))
+    .subscribe();
 
-  const fetchConversations = async (currentId: string) => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("conversations")
-      .select(`
-        id,
-        product_id,
-        buyer_id,
-        seller_id,
-        products (title, image_url, price, status),
-        messages (text, created_at, sender_id)
-      `)
-      .or(`buyer_id.eq.${currentId},seller_id.eq.${currentId}`);
+  const interval = setInterval(() => fetchConversations(userId, true), 30_000);
+  return () => { supabase.removeChannel(channel); clearInterval(interval); };
+}, [userId]);
 
-    if (!error && data) {
-      // Sort by latest message descending
-      const sorted = data.sort((a: any, b: any) => {
-        const aLast = a.messages?.reduce((l: any, m: any) =>
-          !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
-        const bLast = b.messages?.reduce((l: any, m: any) =>
-          !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
-        return (bLast?.created_at ?? "").localeCompare(aLast?.created_at ?? "");
-      });
-      setConversations(sorted);
-    }
-    setLoading(false);
-  };
+   const fetchConversations = async (currentId: string, silent = false) => {
+  if (!silent) setLoading(true);
+
+   const [{ data, error }, { data: participantData }] = await Promise.all([
+  supabase
+    .from("conversations")
+    .select(`
+      id,
+      product_id,
+      buyer_id,
+      seller_id,
+      products (title, image_url, price, status),
+      messages (text, created_at, sender_id)
+    `)
+    .or(`buyer_id.eq.${currentId},seller_id.eq.${currentId}`)
+    .order("created_at", { referencedTable: "messages", ascending: false })
+    .limit(1, { referencedTable: "messages" }), // ← only fetch last message per conversation
+    supabase
+      .from("conversation_participants")
+      .select("conversation_id, last_read_at")
+      .eq("user_id", currentId)
+  ]);
+
+  if (!error && data) {
+    const sorted = data.sort((a: any, b: any) => {
+      const aLast = a.messages?.reduce((l: any, m: any) =>
+        !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
+      const bLast = b.messages?.reduce((l: any, m: any) =>
+        !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
+      return (bLast?.created_at ?? "").localeCompare(aLast?.created_at ?? "");
+    });
+    setConversations(sorted);
+  }
+
+  if (participantData) {
+    const map: Record<string, string | null> = {};
+    participantData.forEach((p: any) => {
+      map[p.conversation_id] = p.last_read_at;
+    });
+    setLastReadMap(map);
+  }
+
+  setLoading(false);
+};
+
 
   /* ── FILTER + SEARCH ── */
   const filtered = useMemo(() => {
@@ -232,12 +269,14 @@ export default function MessagesPage() {
     return list;
   }, [conversations, filter, search, userId]);
 
-  const unreadCount = useMemo(() => conversations.filter(c => {
+  const unreadCount = useMemo(() =>
+  conversations.filter(c => {
     const msgs = c.messages || [];
     const last = msgs.reduce((l: any, m: any) =>
       !l || new Date(m.created_at) > new Date(l.created_at) ? m : l, null);
-    return last && last.sender_id !== userId;
-  }).length, [conversations, userId]);
+    return isUnread(last, lastReadMap[c.id] ?? null, userId!);
+  }).length,
+[conversations, lastReadMap, userId]);
 
   const tabs = [
     { key: "all",     label: "All",        count: conversations.length },
@@ -382,9 +421,15 @@ export default function MessagesPage() {
         <AnimatePresence>
           {!loading && userId && filtered.length > 0 && (
             <div className="space-y-2">
-              {filtered.map((conv, i) => (
-                <ConvCard key={conv.id} conv={conv} userId={userId} index={i} />
-              ))}
+               {filtered.map((conv, i) => (
+  <ConvCard
+    key={conv.id}
+    conv={conv}
+    userId={userId}
+    index={i}
+    lastReadAt={lastReadMap[conv.id] ?? null}
+  />
+))}
             </div>
           )}
         </AnimatePresence>

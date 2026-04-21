@@ -47,3 +47,8 @@ body {
 .delay-2 {
   animation-delay: 0.2s;
 }
+/* Safe area insets for notched phones */
+.input-bar-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+

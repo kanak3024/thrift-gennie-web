@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../../lib/supabase";
+import { useVisualViewport } from "../../hooks/useVisualViewport";
 
 export default function ChatDetailPage() {
   const { id } = useParams();
@@ -19,17 +20,24 @@ export default function ChatDetailPage() {
   const [product, setProduct] = useState<any>(null);
   const [otherProfile, setOtherProfile] = useState<any>(null);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isLoadingMoreRef = useRef(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const viewportHeight = useVisualViewport();
+  const PAGE_SIZE = 50;
 
-  /* ── INIT ── */
+  /* ── Effect 1: init data once when page loads ── */
   useEffect(() => {
     const initChat = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
 
-      // Fetch conversation + product + profiles
       const { data: conv } = await supabase
         .from("conversations")
         .select(`
@@ -48,7 +56,6 @@ export default function ChatDetailPage() {
         setProductStatus((conv.products as any)?.status || "available");
         setProduct(conv.products);
 
-        // Fetch the OTHER person's profile
         const otherId = user.id === conv.seller_id ? conv.buyer_id : conv.seller_id;
         const { data: profile } = await supabase
           .from("profiles")
@@ -56,59 +63,142 @@ export default function ChatDetailPage() {
           .eq("id", otherId)
           .single();
         setOtherProfile(profile);
+
+        // Create or update participant row — marks conversation as read on open
+        await supabase
+          .from("conversation_participants")
+          .upsert(
+            {
+              conversation_id: id as string,
+              user_id: user.id,
+              last_read_at: new Date().toISOString(),
+            },
+            { onConflict: "conversation_id,user_id" }
+          );
       }
     };
 
     initChat();
     fetchMessages();
+    // Note: markAsRead is called inside initChat after user is confirmed
+  }, [id]);
 
-    // Real-time messages
+  /* ── Effect 2: real-time messages ── */
+  useEffect(() => {
     const messageChannel = supabase
       .channel(`chat-${id}`)
-      .on("postgres_changes",
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${id}` },
         (payload) => {
           setMessages((prev) => {
             if (prev.find((m) => m.id === payload.new.id)) return prev;
             return [...prev, payload.new];
           });
+          // If user has this tab open and visible, mark as read immediately
+          if (document.visibilityState === "visible") markAsRead();
         }
       )
       .subscribe();
 
-    // Real-time product status
+    return () => { supabase.removeChannel(messageChannel); };
+  }, [id]);
+
+  /* ── Effect 3: real-time product status ── */
+  useEffect(() => {
+    if (!productId) return;
     const productChannel = supabase
-      .channel("product-status")
-      .on("postgres_changes",
-        { event: "UPDATE", schema: "public", table: "products" },
+      .channel(`product-${productId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "products", filter: `id=eq.${productId}` },
         (payload) => {
-          if (payload.new.id === productId) {
-            setProductStatus(payload.new.status);
-            setProduct((prev: any) => ({ ...prev, status: payload.new.status }));
-          }
+          setProductStatus(payload.new.status);
+          setProduct((prev: any) => ({ ...prev, status: payload.new.status }));
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(messageChannel);
-      supabase.removeChannel(productChannel);
-    };
-  }, [id, productId]);
+    return () => { supabase.removeChannel(productChannel); };
+  }, [productId]);
 
   /* ── AUTO SCROLL ── */
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  if (isLoadingMoreRef.current) return; // don't scroll when loading older messages
+  scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+}, [messages]);
+
+useEffect(() => {
+  // Prevent body scroll on iOS when chat is open
+  document.body.style.overflow = "hidden";
+  document.body.style.position = "fixed";
+  document.body.style.width = "100%";
+  return () => {
+    document.body.style.overflow = "";
+    document.body.style.position = "";
+    document.body.style.width = "";
+  };
+}, []);
 
   /* ── FETCH MESSAGES ── */
   const fetchMessages = async () => {
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: true });
-    if (data) setMessages(data);
+  const { data, error, count } = await supabase
+    .from("messages")
+    .select("*", { count: "exact" })
+    .eq("conversation_id", id)
+    .order("created_at", { ascending: false }) // newest first so we can slice from end
+    .range(0, PAGE_SIZE - 1);
+
+  if (error) {
+    setLoadError("Couldn't load messages. Pull down to retry.");
+    return;
+  }
+
+  if (data) {
+    const sorted = [...data].reverse(); // flip back to chronological order
+    setMessages(sorted);
+    setOffset(PAGE_SIZE);
+    setHasMore((count ?? 0) > PAGE_SIZE);
+  }
+};
+
+const loadMoreMessages = async () => {
+  if (loadingMore || !hasMore) return;
+  setLoadingMore(true);
+  isLoadingMoreRef.current = true;
+
+  const { data, error, count } = await supabase
+    .from("messages")
+    .select("*", { count: "exact" })
+    .eq("conversation_id", id)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+
+  if (error) {
+    isLoadingMoreRef.current = false;
+    setLoadingMore(false);
+    return;
+  }
+
+  if (data) {
+    const sorted = [...data].reverse();
+    setMessages((prev) => [...sorted, ...prev]); // prepend older messages
+    setOffset((prev) => prev + PAGE_SIZE);
+    setHasMore((count ?? 0) > offset + PAGE_SIZE);
+  }
+
+  setLoadingMore(false);
+};
+
+  /* ── MARK AS READ ── */
+  const markAsRead = async () => {
+    if (!userId) return;
+    await supabase
+      .from("conversation_participants")
+      .upsert(
+        { conversation_id: id, user_id: userId, last_read_at: new Date().toISOString() },
+        { onConflict: "conversation_id,user_id" }
+      );
   };
 
   /* ── SEND MESSAGE ── */
@@ -120,6 +210,21 @@ export default function ChatDetailPage() {
     setNewMessage("");
     setSending(true);
 
+    // Optimistic message — appears instantly before DB confirms
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticMsg = {
+      id: optimisticId,
+      conversation_id: id,
+      text,
+      sender_id: userId,
+      created_at: new Date().toISOString(),
+      receiver_id: null,
+      product_id: null,
+      _sending: true,
+      _failed: false,
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
     const { error } = await supabase.from("messages").insert([{
       conversation_id: id,
       text,
@@ -127,10 +232,27 @@ export default function ChatDetailPage() {
     }]);
 
     if (error) {
-      console.error("Send Error:", error.message);
-      setNewMessage(text);
+      // Mark the optimistic message as failed instead of removing it
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === optimisticId ? { ...m, _sending: false, _failed: true } : m
+        )
+      );
+      setSendError("Message failed to send. Tap to retry.");
+    } else {
+      // Remove optimistic message — real one will arrive via real-time
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     }
+
     setSending(false);
+    inputRef.current?.focus();
+  };
+
+  /* ── RETRY FAILED MESSAGE ── */
+  const retryMessage = async (failedMsg: any) => {
+    setMessages((prev) => prev.filter((m) => m.id !== failedMsg.id));
+    setSendError(null);
+    setNewMessage(failedMsg.text);
     inputRef.current?.focus();
   };
 
@@ -149,8 +271,9 @@ export default function ChatDetailPage() {
 
   /* ── GROUP MESSAGES BY DATE ── */
   const groupedMessages = messages.reduce((groups: any, msg) => {
-    const date = new Date(msg.created_at).toLocaleDateString("en-IN", {
-      weekday: "long", day: "numeric", month: "long"
+    const raw = msg.created_at.includes("T") ? msg.created_at : msg.created_at.replace(" ", "T");
+    const date = new Date(raw.endsWith("Z") ? raw : raw + "Z").toLocaleDateString("en-IN", {
+      weekday: "long", day: "numeric", month: "long",
     });
     if (!groups[date]) groups[date] = [];
     groups[date].push(msg);
@@ -264,12 +387,31 @@ export default function ChatDetailPage() {
 
       {/* ── MESSAGES AREA ── */}
       <div
-        className="flex-1 overflow-y-auto px-6 pb-28"
-        style={{ paddingTop: isSold ? "168px" : "136px", maxWidth: "760px", margin: "0 auto", width: "100%" }}
-      >
+  className="flex-1 overflow-y-auto px-6"
+  style={{
+    paddingTop: isSold ? "168px" : "136px",
+    paddingBottom: `${Math.max(112, window.innerHeight - viewportHeight + 112)}px`,
+    maxWidth: "760px",
+    margin: "0 auto",
+    width: "100%"
+  }}
+>
+
+        {/* Load error */}
+        {loadError && (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 mb-4 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-[11px] text-red-400">{loadError}</p>
+            <button
+              onClick={() => { setLoadError(null); fetchMessages(); }}
+              className="text-[10px] uppercase tracking-widest text-red-400 hover:text-red-600"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Empty state */}
-        {messages.length === 0 && (
+        {messages.length === 0 && !loadError && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -286,6 +428,28 @@ export default function ChatDetailPage() {
             </p>
           </motion.div>
         )}
+        {/* Load earlier messages */}
+{hasMore && (
+  <div className="flex justify-center mb-4">
+    <button
+      onClick={loadMoreMessages}
+      disabled={loadingMore}
+      className="flex items-center gap-2 text-[9px] uppercase tracking-[0.25em] opacity-40 hover:opacity-100 transition-opacity disabled:opacity-20"
+    >
+      {loadingMore ? (
+        <>
+          <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+          </svg>
+          Loading...
+        </>
+      ) : (
+        "↑ Load earlier messages"
+      )}
+    </button>
+  </div>
+)}
 
         {/* Grouped messages */}
         {Object.entries(groupedMessages).map(([date, msgs]: [string, any]) => (
@@ -316,17 +480,30 @@ export default function ChatDetailPage() {
                     className={`flex ${isMe ? "justify-end" : "justify-start"} ${isSameAsPrev ? "mt-1" : "mt-4"}`}
                   >
                     <div className={`max-w-[72%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
-                      <div className={`px-5 py-3 text-sm leading-relaxed ${
-                        isMe
-                          ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[18px] rounded-br-[4px]"
-                          : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px]"
-                      }`}>
+                      <div
+                        onClick={() => m._failed && retryMessage(m)}
+                        className={`px-5 py-3 text-sm leading-relaxed transition-opacity ${
+                          isMe
+                            ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[18px] rounded-br-[4px]"
+                            : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px]"
+                        } ${m._sending ? "opacity-50" : ""} ${m._failed ? "opacity-50 cursor-pointer border border-red-300" : ""}`}
+                      >
                         {m.text}
+                        {m._failed && (
+                          <span className="block text-[9px] text-red-400 mt-1">
+                            Failed — tap to retry
+                          </span>
+                        )}
                       </div>
-                      {/* Timestamp — only on last in group or last message */}
-                      {(idx === msgs.length - 1 || msgs[idx + 1]?.sender_id !== m.sender_id) && (
+
+                      {/* Timestamp with UTC fix — hidden while sending or failed */}
+                      {(idx === msgs.length - 1 || msgs[idx + 1]?.sender_id !== m.sender_id) && !m._sending && !m._failed && (
                         <span className={`text-[9px] opacity-30 mt-1.5 ${isMe ? "pr-1" : "pl-1"}`}>
-                          {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {(() => {
+                            const raw = m.created_at.includes("T") ? m.created_at : m.created_at.replace(" ", "T");
+                            return new Date(raw.endsWith("Z") ? raw : raw + "Z")
+                              .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                          })()}
                         </span>
                       )}
                     </div>
@@ -341,7 +518,13 @@ export default function ChatDetailPage() {
       </div>
 
       {/* ── INPUT BAR ── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#F6F3EF]/95 backdrop-blur-md border-t border-[#2B0A0F]/08 z-40">
+      <div
+  className="fixed left-0 right-0 bg-[#F6F3EF]/95 backdrop-blur-md border-t border-[#2B0A0F]/08 z-40 transition-transform duration-100"
+  style={{
+    bottom: 0,
+    transform: `translateY(-${Math.max(0, window.innerHeight - viewportHeight)}px)`
+  }}
+>
         <div className="max-w-[760px] mx-auto px-6 py-4">
           {isSold ? (
             <div className="text-center py-2">
@@ -350,34 +533,48 @@ export default function ChatDetailPage() {
               </p>
             </div>
           ) : (
-            <form onSubmit={sendMessage} className="flex items-center gap-3">
-              <input
-                ref={inputRef}
-                suppressHydrationWarning
-                className="flex-1 bg-white border border-[#2B0A0F]/12 rounded-full px-5 py-3 text-sm outline-none focus:border-[#2B0A0F]/40 transition-colors placeholder:opacity-30"
-                placeholder="Write a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-              />
-              <motion.button
-                type="submit"
-                disabled={!newMessage.trim() || sending}
-                whileTap={{ scale: 0.95 }}
-                className="w-11 h-11 rounded-full bg-[#2B0A0F] text-[#F6F3EF] flex items-center justify-center flex-shrink-0 disabled:opacity-25 hover:bg-[#1A060B] transition-colors"
-              >
-                {sending ? (
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </motion.button>
-            </form>
+            <>
+              {/* Send error banner */}
+              {sendError && (
+                <div className="flex items-center justify-between gap-3 px-2 py-2 mb-2">
+                  <p className="text-[10px] text-red-400">{sendError}</p>
+                  <button
+                    onClick={() => setSendError(null)}
+                    className="text-[10px] uppercase tracking-widest text-red-400 hover:text-red-600"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+              <form onSubmit={sendMessage} className="flex items-center gap-3">
+                <input
+                  ref={inputRef}
+                  suppressHydrationWarning
+                  className="flex-1 bg-white border border-[#2B0A0F]/12 rounded-full px-5 py-3 text-sm outline-none focus:border-[#2B0A0F]/40 transition-colors placeholder:opacity-30"
+                  placeholder="Write a message..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                />
+                <motion.button
+                  type="submit"
+                  disabled={!newMessage.trim() || sending}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-11 h-11 rounded-full bg-[#2B0A0F] text-[#F6F3EF] flex items-center justify-center flex-shrink-0 disabled:opacity-25 hover:bg-[#1A060B] transition-colors"
+                >
+                  {sending ? (
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </motion.button>
+              </form>
+            </>
           )}
         </div>
       </div>
