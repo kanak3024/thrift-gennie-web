@@ -75,7 +75,7 @@ function ConvCard({
   const isLastMine = lastMsg?.sender_id === userId;
   const hasUnread  = isUnread(lastMsg, lastReadAt, userId);
   // Simulate unread — in production, track a `read_at` per user per conversation
-  const hasUnread  = lastMsg && !isLastMine;
+   
 
   return (
     <motion.div
