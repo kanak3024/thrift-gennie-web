@@ -94,7 +94,7 @@ function QuickViewDrawer({
           />
           {/* Wishlist on image */}
           <button
-            onClick={() => toggleWishlist(product)}
+            onClick={() => toggleWishlist(product.id)}
             className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill={isWishlisted(product.id) ? "#A1123F" : "none"} stroke="#A1123F" strokeWidth="2">
@@ -164,7 +164,7 @@ function QuickViewDrawer({
             </button>
           </Link>
           <button
-            onClick={() => toggleWishlist(product)}
+            onClick={() => toggleWishlist(product.id)}
             className="w-12 h-12 rounded-full border border-[#2B0A0F]/15 flex items-center justify-center hover:border-[#A1123F]/40 transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill={isWishlisted(product.id) ? "#A1123F" : "none"} stroke="#A1123F" strokeWidth="2">
@@ -262,7 +262,7 @@ function ProductCard({
             scale: isMobile ? 1 : imgHovered ? 1 : 0.8,
           }}
           transition={{ duration: 0.15 }}
-          onClick={(e) => { e.preventDefault(); toggleWishlist(product); }}
+          onClick={(e) => { e.preventDefault(); toggleWishlist(product.id); }}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill={isWishlisted(product.id) ? "#A1123F" : "none"} stroke="#A1123F" strokeWidth="2.5">

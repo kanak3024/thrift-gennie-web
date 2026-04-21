@@ -58,6 +58,7 @@ export async function POST(req: Request) {
       await supabase.from("notifications").insert({
         user_id: offer.buyer_id,
         text: `Your offer of ₹${offer.amount.toLocaleString("en-IN")} was accepted! Complete your purchase.`,
+        link: `/messages/${conv?.id}`,
       });
 
       if (conv) {
@@ -76,6 +77,7 @@ export async function POST(req: Request) {
       await supabase.from("notifications").insert({
         user_id: offer.buyer_id,
         text: `Your offer of ₹${offer.amount.toLocaleString("en-IN")} was declined.`,
+        link: `/messages/${conv?.id}`,
       });
 
       if (conv) {
@@ -97,6 +99,7 @@ export async function POST(req: Request) {
       await supabase.from("notifications").insert({
         user_id: offer.buyer_id,
         text: `The seller countered your offer with ₹${counterAmount.toLocaleString("en-IN")}.`,
+        
       });
 
       if (conv) {
