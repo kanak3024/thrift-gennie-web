@@ -94,52 +94,6 @@ function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
   );
 }
 
-/* ─────────────────────────────
-   VERIFICATION BANNER
-───────────────────────────── */
-function VerificationBanner({ kycStatus }: { kycStatus: string }) {
-  if (kycStatus === "verified") return (
-    <div className="flex items-center gap-3 px-5 py-3.5 bg-[#6B7E60]/08 border border-[#6B7E60]/20 rounded-xl mb-4 sm:mb-6">
-      <div className="w-5 h-5 rounded-full bg-[#6B7E60]/15 flex items-center justify-center flex-shrink-0">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-          <path d="M5 13l4 4L19 7" stroke="#6B7E60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </div>
-      <div className="flex-1">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-[#6B7E60] font-medium">Verified seller</p>
-        <p className="text-[9px] text-[#2B0A0F]/35 mt-0.5">Your number is confirmed. You can list items.</p>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="flex items-center gap-3 px-5 py-3.5 bg-[#B48A5A]/08 border border-[#B48A5A]/20 rounded-xl mb-4 sm:mb-6">
-      <div className="w-5 h-5 rounded-full bg-[#B48A5A]/15 flex items-center justify-center flex-shrink-0">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-          <path d="M12 9v4M12 17h.01" stroke="#B48A5A" strokeWidth="2.5" strokeLinecap="round"/>
-          <circle cx="12" cy="12" r="9" stroke="#B48A5A" strokeWidth="2"/>
-        </svg>
-      </div>
-      <div className="flex-1">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48A5A] font-medium">Verify to start selling</p>
-        <p className="text-[9px] text-[#2B0A0F]/35 mt-0.5">Confirm your number to list items and receive payouts.</p>
-      </div>
-      <a
-        href="/verify"
-        className="text-[9px] uppercase tracking-[0.2em] bg-[#2B0A0F] text-[#F6F3EF] px-3 py-2 rounded-lg hover:opacity-80 transition-all flex-shrink-0"
-      >
-        Verify →
-      </a>
-    </div>
-  );
-}
-
-const INDIAN_STATES = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana",
-  "Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur",
-  "Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
-  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir","Ladakh","Puducherry","Chandigarh",
-];
 
 /* ─────────────────────────────
    MAIN PAGE
@@ -194,6 +148,10 @@ export default function AccountPage() {
   const [savingAddress, setSavingAddress]     = useState(false);
 
   const formatCurrency = (num: number) => new Intl.NumberFormat("en-IN").format(num || 0);
+  const formatJoinedDate = (dateStr: string) => {
+  if (!dateStr) return null;
+  return new Date(dateStr).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+};
 
   const animateValue = (value: number, setter: any) => {
     let start = 0;
@@ -564,6 +522,14 @@ export default function AccountPage() {
           Orders
         </button>
       </Link>
+      <Link href="/settings">
+  <button
+    className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
+    title="Settings"
+  >
+    ⚙
+  </button>
+</Link>
       <button
         onClick={handleShareProfile}
         className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
@@ -601,36 +567,47 @@ export default function AccountPage() {
   )}
 </div>
 </div>
+{/* Stats row */}
+<div className="flex justify-center sm:justify-start gap-6 sm:gap-8 py-3 sm:py-4 border-y border-[#2B0A0F]/08 mb-4 sm:mb-5">
+  {[
+    { value: availableProducts.length, label: "Items" },
+    { value: followerCount,            label: "Followers" },
+    { value: followingCount,           label: "Following" },
+  ].map((stat) => (
+    <div key={stat.label} className="text-center sm:text-left">
+      <div className="text-lg sm:text-xl font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
+        {stat.value}
+      </div>
+      <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
+        {stat.label}
+      </div>
+    </div>
+  ))}
 
-            {/* Stats row */}
-            <div className="flex justify-center sm:justify-start gap-6 sm:gap-8 py-3 sm:py-4 border-y border-[#2B0A0F]/08 mb-4 sm:mb-5">
-              {[
-                { value: availableProducts.length, label: "Items" },
-                { value: followerCount,             label: "Followers" },
-                { value: followingCount,            label: "Following" },
-              ].map((stat) => (
-                <div key={stat.label} className="text-center sm:text-left">
-                  <div className="text-lg sm:text-xl font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
-                    {stat.value}
-                  </div>
-                  <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-               <div className="text-center sm:text-left">
-  <div className="text-lg sm:text-xl font-semibold flex items-center justify-center sm:justify-start gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
-    {sellerRatings.length === 0 ? (
-      <span className="opacity-30">—</span>
-    ) : (
-      <>{averageRating.toFixed(1)}<span className="text-[#B48A5A] text-base">★</span></>
-    )}
-  </div>
-  <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
-    {sellerRatings.length === 0 ? "No reviews" : `${sellerRatings.length} Reviews`}
-  </div>
+  {/* Joined date — live from DB */}
+  {user.created_at && (
+    <div className="text-center sm:text-left">
+      <div className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
+        {formatJoinedDate(user.created_at)}
+      </div>
+      <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
+        Joined
+      </div>
+    </div>
+  )}
+
+  {/* Ratings — only show if reviews exist */}
+  {sellerRatings.length > 0 && (
+    <div className="text-center sm:text-left">
+      <div className="text-lg sm:text-xl font-semibold flex items-center justify-center sm:justify-start gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
+        {averageRating.toFixed(1)}<span className="text-[#B48A5A] text-base">★</span>
+      </div>
+      <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
+        {sellerRatings.length} {sellerRatings.length === 1 ? "Review" : "Reviews"}
+      </div>
+    </div>
+  )}
 </div>
-            </div>
 
             {/* Bio / role */}
             <div className="max-w-sm mx-auto sm:mx-0 space-y-2">
@@ -655,264 +632,21 @@ export default function AccountPage() {
                   <p className="text-[10px] uppercase tracking-[0.25em] font-semibold text-[#B48A5A]">
                     {user.role || "Archive Curator"}
                   </p>
-                  <p className="text-sm leading-relaxed opacity-65 italic">
-                    "{user.bio || "Sustainability is the new luxury."}"
-                  </p>
+                   {user.bio ? (
+  <p className="text-sm leading-relaxed opacity-65 italic">"{user.bio}"</p>
+) : isOwner ? (
+  <button
+    onClick={() => setIsEditing(true)}
+    className="text-sm opacity-30 italic hover:opacity-60 transition-opacity"
+  >
+    + Add a bio to tell buyers your style...
+  </button>
+) : null}
                 </>
               )}
             </div>
           </div>
         </div>
-
-        {/* ══════════════════════════════
-            VERIFICATION BANNER (owner only)
-        ══════════════════════════════ */}
-        {isOwner && (
-          <VerificationBanner kycStatus={user.kyc_status || ""} />
-        )}
-
-        {/* ══════════════════════════════
-            PAYOUT DETAILS (owner only)
-        ══════════════════════════════ */}
-        {isOwner && (
-          <div className="mb-4 sm:mb-6 p-4 sm:p-6 bg-white rounded-2xl border border-[#2B0A0F]/06">
-            <div className="flex items-start sm:items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.25em] font-semibold mb-1">Payout Details</p>
-                <p className="text-[9px] opacity-40 uppercase tracking-widest truncate">
-                  {user.bank_account_number
-                    ? `Account ••••${user.bank_account_number.slice(-4)}${user.bank_upi ? ` · UPI: ${user.bank_upi}` : ""}`
-                    : "No payout details added yet"}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowBankForm(!showBankForm)}
-                className="flex-shrink-0 px-3 sm:px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[9px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
-              >
-                {showBankForm ? "Cancel" : user.bank_account_number ? "Edit" : "Add"}
-              </button>
-            </div>
-
-            <AnimatePresence>
-              {showBankForm && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-5 mt-5 border-t border-[#2B0A0F]/06 space-y-5">
-                    <p className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
-                      <span>🔒</span> Your bank details are private and only visible to you.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                      {[
-                        { label: "Account Holder Name", value: bankName,    setter: setBankName,    placeholder: "As per bank records" },
-                        { label: "Account Number",      value: bankAccount, setter: setBankAccount, placeholder: "XXXXXXXXXXXX" },
-                        { label: "IFSC Code",           value: bankIfsc,    setter: (v: string) => setBankIfsc(v.toUpperCase()), placeholder: "SBIN0001234" },
-                        { label: "UPI ID (optional)",   value: bankUpi,     setter: setBankUpi,    placeholder: "name@upi" },
-                      ].map((field) => (
-                        <div key={field.label} className="border-b border-[#2B0A0F]/08 pb-2">
-                          <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">
-                            {field.label}
-                          </label>
-                          <input
-                            type="text"
-                            value={field.value}
-                            onChange={(e) => field.setter(e.target.value)}
-                            placeholder={field.placeholder}
-                            className="w-full bg-transparent text-base sm:text-sm outline-none placeholder:opacity-20"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={handleSaveBankDetails}
-                      disabled={savingBank}
-                      className="w-full py-3.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.25em] hover:opacity-80 transition-opacity disabled:opacity-40"
-                    >
-                      {savingBank ? "Saving..." : "Save Payout Details"}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* ══════════════════════════════
-            RETURN ADDRESS (owner only)
-        ══════════════════════════════ */}
-        {isOwner && (
-          <div className="mb-4 sm:mb-6 p-4 sm:p-6 bg-white rounded-2xl border border-[#2B0A0F]/06">
-            <div className="flex items-start sm:items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.25em] font-semibold mb-1">Return Address</p>
-                <p className="text-[9px] opacity-40 uppercase tracking-widest truncate">
-                  {hasReturnAddress
-                    ? `${user.address_line}, ${user.city}, ${user.state} — ${user.pincode}`
-                    : "Add your address — appears on shipping labels"}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAddressForm(!showAddressForm)}
-                className="flex-shrink-0 px-3 sm:px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[9px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
-              >
-                {showAddressForm ? "Cancel" : hasReturnAddress ? "Edit" : "Add"}
-              </button>
-            </div>
-
-            <AnimatePresence>
-              {showAddressForm && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-5 mt-5 border-t border-[#2B0A0F]/06 space-y-4 sm:space-y-5">
-                    <p className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
-                      <span>📦</span> Shown as the return address on your printed shipping labels.
-                    </p>
-                    <div className="border-b border-[#2B0A0F]/08 pb-2">
-                      <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Address Line *</label>
-                      <input
-                        type="text" value={addrLine} onChange={(e) => setAddrLine(e.target.value)}
-                        placeholder="House no., street, area, landmark"
-                        className="w-full bg-transparent text-base sm:text-sm outline-none placeholder:opacity-20"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="border-b border-[#2B0A0F]/08 pb-2">
-                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">City *</label>
-                        <input
-                          type="text" value={addrCity} onChange={(e) => setAddrCity(e.target.value)}
-                          placeholder="Mumbai"
-                          className="w-full bg-transparent text-base sm:text-sm outline-none placeholder:opacity-20"
-                        />
-                      </div>
-                      <div className="border-b border-[#2B0A0F]/08 pb-2">
-                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">State *</label>
-                        <div className="relative">
-                          <select
-                            value={addrState} onChange={(e) => setAddrState(e.target.value)}
-                            className="w-full bg-transparent text-base sm:text-sm outline-none appearance-none cursor-pointer pb-1 pr-5"
-                          >
-                            <option value="">Select...</option>
-                            {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <svg className="absolute right-0 bottom-2 pointer-events-none opacity-30" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="6 9 12 15 18 9"/>
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="border-b border-[#2B0A0F]/08 pb-2">
-                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Pincode *</label>
-                        <input
-                          type="tel" inputMode="numeric" value={addrPincode}
-                          onChange={(e) => setAddrPincode(e.target.value)}
-                          placeholder="411048" maxLength={6}
-                          className="w-full bg-transparent text-base sm:text-sm outline-none placeholder:opacity-20"
-                        />
-                      </div>
-                      <div className="border-b border-[#2B0A0F]/08 pb-2">
-                        <label className="text-[8px] uppercase tracking-[0.2em] opacity-40 block mb-1.5">Phone *</label>
-                        <input
-                          type="tel" inputMode="numeric" value={addrPhone}
-                          onChange={(e) => setAddrPhone(e.target.value)}
-                          placeholder="10-digit mobile" maxLength={10}
-                          className="w-full bg-transparent text-base sm:text-sm outline-none placeholder:opacity-20"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleSaveAddress} disabled={savingAddress}
-                      className="w-full py-3.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.25em] hover:opacity-80 transition-opacity disabled:opacity-40"
-                    >
-                      {savingAddress ? "Saving..." : "Save Return Address"}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* ══════════════════════════════
-            EARNINGS CARD (owner only)
-        ══════════════════════════════ */}
-        {isOwner && (
-          <div
-            onClick={() => router.push("/seller/earnings")}
-            className="mb-6 sm:mb-10 p-5 sm:p-6 rounded-2xl cursor-pointer bg-gradient-to-br from-[#2B0A0F] to-[#4a1a22] text-white hover:scale-[1.01] sm:hover:scale-[1.02] transition-all duration-300 shadow-md"
-          >
-            <p className="text-[10px] uppercase tracking-[0.25em] opacity-70">Earnings</p>
-            <div className="flex justify-between items-end mt-3 sm:mt-4">
-              <div>
-                <p className="text-xl sm:text-2xl font-semibold">₹{formatCurrency(animatedTotal)}</p>
-                <p className="text-xs opacity-70 mt-1">₹{formatCurrency(animatedPending)} pending</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs opacity-70">Received</p>
-                <p className="text-sm font-medium">₹{formatCurrency(animatedReleased)}</p>
-              </div>
-            </div>
-            {miniChartData.length > 0 && (
-              <div className="h-12 sm:h-16 mt-3 sm:mt-4 opacity-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={miniChartData}>
-                    <Line type="monotone" dataKey="earnings" stroke="#B48A5A" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-            <p className="text-xs opacity-60 mt-2 sm:mt-3">Tap to view detailed analytics →</p>
-          </div>
-        )}
-        {sellerRatings.length > 0 && (
-  <div className="mb-6 sm:mb-10">
-    <div className="flex items-center justify-between mb-4">
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.25em] font-semibold">Reviews</p>
-        <p className="text-[9px] opacity-35 tracking-wide mt-0.5">
-          {averageRating.toFixed(1)} · {sellerRatings.length} {sellerRatings.length === 1 ? "review" : "reviews"}
-        </p>
-      </div>
-      <div className="flex gap-0.5">
-        {[1,2,3,4,5].map(s => (
-          <span key={s} className={`text-lg ${s <= Math.round(averageRating) ? "text-[#B48A5A]" : "opacity-15"}`}>★</span>
-        ))}
-      </div>
-    </div>
-    <div className="space-y-3">
-      {sellerRatings.slice(0, 3).map((r: any, i: number) => (
-        <div key={i} className="p-4 bg-white rounded-2xl border border-[#2B0A0F]/06">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex gap-0.5">
-              {[1,2,3,4,5].map(s => (
-                <span key={s} className={`text-xs ${s <= r.rating ? "text-[#B48A5A]" : "opacity-15"}`}>★</span>
-              ))}
-            </div>
-            <span className="text-[8px] uppercase tracking-[0.2em] opacity-30">
-              {new Date(r.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-            </span>
-          </div>
-          {r.review && (
-            <p className="text-sm leading-relaxed opacity-65 italic">"{r.review}"</p>
-          )}
-        </div>
-      ))}
-    </div>
-    {sellerRatings.length > 3 && (
-      <button className="mt-3 w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[9px] uppercase tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity">
-        See all {sellerRatings.length} reviews
-      </button>
-    )}
-  </div>
-)}
-
         {/* ══════════════════════════════
             TABS
         ══════════════════════════════ */}
