@@ -751,7 +751,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
 
               {!isMine && (
                 <button
-                  onClick={() => toggleWishlist(product)}
+                  onClick={() => toggleWishlist(product.id)}
                   className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24"
@@ -931,7 +931,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
 
                 {/* Make an Offer */}
                  {/* Make an Offer — only show if seller marked it negotiable */}
-{product.negotiable && (
+ 
 <motion.button
   whileTap={{ scale: 0.98 }}
   onClick={() => setOfferOpen(true)}
@@ -945,7 +945,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
     ? `Offer Pending — ₹${existingOffer.amount?.toLocaleString("en-IN")}`
     : "Make an Offer"}
 </motion.button>
-)} 
+
 
                 {/* Inquire + Wishlist — side by side */}
                 <div className="flex gap-3">
@@ -963,7 +963,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
 
                   <motion.button
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => toggleWishlist(product)}
+                    onClick={() => toggleWishlist(product.id)}
                     className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
                       isWishlisted(product.id)
                         ? "bg-[#A1123F] border-[#A1123F] text-white"

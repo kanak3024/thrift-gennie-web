@@ -214,7 +214,15 @@ export default function MessagesPage() {
    const fetchConversations = async (currentId: string, silent = false) => {
   if (!silent) setLoading(true);
 
-   const [{ data, error }, { data: participantData }] = await Promise.all([
+    // First get blocked user IDs
+const { data: blockedData } = await supabase
+  .from("blocks")
+  .select("blocked_id")
+  .eq("blocker_id", currentId);
+
+const blockedIds = blockedData?.map((b: any) => b.blocked_id) || [];
+
+const [{ data, error }, { data: participantData }] = await Promise.all([
   supabase
     .from("conversations")
     .select(`
@@ -227,7 +235,7 @@ export default function MessagesPage() {
     `)
     .or(`buyer_id.eq.${currentId},seller_id.eq.${currentId}`)
     .order("created_at", { referencedTable: "messages", ascending: false })
-    .limit(1, { referencedTable: "messages" }), // ← only fetch last message per conversation
+    .limit(1, { referencedTable: "messages" }),// ← only fetch last message per conversation
     supabase
       .from("conversation_participants")
       .select("conversation_id, last_read_at")
@@ -244,6 +252,11 @@ export default function MessagesPage() {
     });
     setConversations(sorted);
   }
+  const withoutBlocked = sorted.filter((c: any) => {
+  const otherId = c.buyer_id === currentId ? c.seller_id : c.buyer_id;
+  return !blockedIds.includes(otherId);
+});
+setConversations(withoutBlocked);
 
   if (participantData) {
     const map: Record<string, string | null> = {};

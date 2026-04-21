@@ -6,6 +6,7 @@ import { useWishlist } from "../hooks/useWishlist";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import ActivityFeed from "../ActivityFeed/page";
 
 type Piece = {
   id: string;
@@ -35,6 +36,16 @@ const SIZES = ["XS", "S", "M", "L", "XL", "Free size"];
 const BUDGETS = ["Under ₹500", "₹500–₹1500", "₹1500–₹3000", "₹3000+"];
 const TRENDING = ["mini skirts", "leather trench", "cargo sets", "sheer tops", "bling clutch"];
 
+// ─── Bell Icon ────────────────────────────────────────────────
+function BellIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
 export default function Navbar() {
   const { wishlist } = useWishlist();
   const [user, setUser] = useState<any>(null);
@@ -53,6 +64,11 @@ export default function Navbar() {
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
+  // ── Notification state ────────────────────────────────────
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
+
   const fetchProfile = async (userId: string) => {
     const { data: profile } = await supabase
       .from("profiles")
@@ -70,20 +86,86 @@ export default function Navbar() {
     if (data) setSuggestedSellers(data);
   };
 
+  // ── Fetch + subscribe to unread count ─────────────────────
+  const fetchUnreadCount = useCallback(async (userId: string) => {
+    const { count } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_read", false)
+      .not("type", "is", null); // only rich activity notifications
+    setUnreadCount(count ?? 0);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
-      if (data.user) fetchProfile(data.user.id);
+      if (data.user) {
+        fetchProfile(data.user.id);
+        fetchUnreadCount(data.user.id);
+
+        // Realtime: recount when new notification comes in
+        const channel = supabase
+          .channel("navbar_unread")
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "notifications",
+              filter: `user_id=eq.${data.user.id}`,
+            },
+            () => fetchUnreadCount(data.user.id)
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "notifications",
+              filter: `user_id=eq.${data.user.id}`,
+            },
+            () => fetchUnreadCount(data.user.id)
+          )
+          .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setUserName(null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+        fetchUnreadCount(session.user.id);
+      } else {
+        setUserName(null);
+        setUnreadCount(0);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [fetchUnreadCount]);
+
+  // ── Close notif panel on outside click ────────────────────
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    if (notifOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [notifOpen]);
+
+  // ── When panel opens, mark all as read ───────────────────
+  const handleBellClick = async () => {
+    setNotifOpen(prev => !prev);
+    if (!notifOpen && user && unreadCount > 0) {
+      await supabase.rpc("mark_notifications_read", { p_user_id: user.id });
+      setUnreadCount(0);
+    }
+  };
 
   useEffect(() => {
     document.body.style.overflow = menuOpen || searchOpen ? "hidden" : "";
@@ -108,7 +190,10 @@ export default function Navbar() {
         e.preventDefault();
         setSearchOpen(true);
       }
-      if (e.key === "Escape") setSearchOpen(false);
+      if (e.key === "Escape") {
+        setSearchOpen(false);
+        setNotifOpen(false);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -164,19 +249,19 @@ export default function Navbar() {
   const highlight = (text: string | null, q: string) => {
     if (!text) return "";
     if (!q.trim()) return text;
-    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"); // ✅ add this line
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
     const parts = text.split(re);
     return parts.map((part, i) =>
       re.test(part)
         ? <mark key={i} className="bg-[#B48A5A]/30 text-[#F6F3EF] rounded px-[2px]">{part}</mark>
         : part
     );
-};
+  };
+
   const getInitials = (name: string | null) => {
     if (!name) return "?";
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-};
-
+  };
 
   const avatarColors = ["#3d1a2e", "#1a2e3d", "#1a3d2e", "#2e1a3d", "#3d2e1a"];
   const getAvatarColor = (id: string) => avatarColors[id.charCodeAt(0) % avatarColors.length];
@@ -218,7 +303,7 @@ export default function Navbar() {
             THRIFT GENNIE
           </Link>
 
-          {/* ── SEARCH PILL — right after logo, desktop only ── */}
+          {/* SEARCH PILL */}
           <button
             onClick={() => setSearchOpen(true)}
             className="hidden md:flex items-center gap-2.5 pl-3.5 pr-3 py-[7px] rounded-full
@@ -239,7 +324,6 @@ export default function Navbar() {
             </span>
           </button>
 
-          {/* Spacer — pushes nav links to the right */}
           <div className="hidden md:block flex-1" />
 
           {/* DESKTOP NAV LINKS */}
@@ -295,10 +379,63 @@ export default function Navbar() {
                 </span>
               </Link>
             ) : (
-              <div className="flex items-center gap-5 ml-1 border-l border-white/10 pl-6">
+              <div className="flex items-center gap-4 ml-1 border-l border-white/10 pl-6">
                 <span className="text-[10px] opacity-50 tracking-normal normal-case">
                   {userName ?? user.email}
                 </span>
+
+                {/* ── BELL BUTTON ── */}
+                <div className="relative" ref={notifPanelRef}>
+                  <button
+                    onClick={handleBellClick}
+                    className={`relative text-white/60 hover:text-[#B48A5A] transition-colors duration-200 ${notifOpen ? "text-[#B48A5A]" : ""}`}
+                    aria-label="Notifications"
+                  >
+                    <BellIcon />
+                    {/* Unread badge */}
+                    {unreadCount > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-[#8B1A3A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 shadow-md shadow-[#8B1A3A]/40"
+                      >
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </motion.span>
+                    )}
+                  </button>
+
+                  {/* ── NOTIFICATION DROPDOWN PANEL ── */}
+                  <AnimatePresence>
+                    {notifOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                        transition={{ duration: 0.18 }}
+                        className="absolute right-0 top-8 w-[420px] max-h-[560px] overflow-y-auto bg-[#FAF7F4] border border-[#EEE5DC] rounded-2xl shadow-2xl shadow-black/20 z-50"
+                        // Stop clicks inside from closing
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {/* Panel header */}
+                        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4] z-10">
+                          <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
+                          <button
+                            onClick={() => setNotifOpen(false)}
+                            className="text-[#B0A090] hover:text-[#1A0A0A] transition text-lg leading-none"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        {/* ActivityFeed rendered inside the panel */}
+                        <div className="px-4 pt-2">
+                          <ActivityFeed />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <button
                   onClick={handleLogout}
                   className="border border-white/30 px-4 py-1 rounded-full hover:bg-white hover:text-black transition-all duration-300"
@@ -309,7 +446,7 @@ export default function Navbar() {
             )}
           </nav>
 
-          {/* MOBILE RIGHT — search icon + hamburger */}
+          {/* MOBILE RIGHT — search + bell + hamburger */}
           <div className="flex md:hidden items-center gap-4 ml-auto">
             {wishlist.length > 0 && (
               <Link href="/wishlist">
@@ -318,6 +455,23 @@ export default function Navbar() {
                 </span>
               </Link>
             )}
+
+            {/* Mobile bell */}
+            {user && (
+              <button
+                onClick={handleBellClick}
+                className="relative text-white/60 hover:text-[#B48A5A] transition"
+                aria-label="Notifications"
+              >
+                <BellIcon size={19} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] bg-[#8B1A3A] text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => setSearchOpen(true)}
               className="text-white/60 hover:text-[#B48A5A] transition"
@@ -342,6 +496,40 @@ export default function Navbar() {
         </div>
       </motion.header>
 
+      {/* MOBILE ACTIVITY PANEL — full screen sheet */}
+      <AnimatePresence>
+        {notifOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: "100%" }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]">
+              <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
+              <button onClick={() => setNotifOpen(false)} className="text-[#B0A090] text-lg leading-none">✕</button>
+            </div>
+            <div className="px-4 pt-2 pb-8">
+              <ActivityFeed />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile activity backdrop */}
+      <AnimatePresence>
+        {notifOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[54] bg-black/40 md:hidden"
+            onClick={() => setNotifOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── SEARCH OVERLAY ── */}
       <AnimatePresence>
         {searchOpen && (
@@ -352,16 +540,11 @@ export default function Navbar() {
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[60] flex flex-col"
           >
-            {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setSearchOpen(false)}
             />
-
-            {/* Panel */}
             <div className="relative z-10 mt-[57px] bg-[#F5F0E8] w-full shadow-2xl max-h-[85vh] overflow-hidden flex flex-col">
-
-              {/* Search input row */}
               <div className="flex items-center gap-3 px-6 md:px-10 py-4 border-b border-[#D4C9B0]">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9a8a7a" strokeWidth="1.8" className="flex-shrink-0">
                   <circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="22" y2="22" />
@@ -382,97 +565,57 @@ export default function Navbar() {
                   <button
                     onClick={() => { setQuery(""); setResults({ pieces: [], sellers: [] }); searchInputRef.current?.focus(); }}
                     className="text-[#9a8a7a] hover:text-[#2d1a0e] text-lg leading-none transition flex-shrink-0"
-                  >
-                    ✕
-                  </button>
+                  >✕</button>
                 )}
                 <button
                   onClick={() => setSearchOpen(false)}
                   className="ml-1 text-[#9a8a7a] hover:text-[#2d1a0e] text-[10px] uppercase tracking-widest transition flex-shrink-0"
-                >
-                  close
-                </button>
+                >close</button>
               </div>
 
-              {/* Body */}
               <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-
-                {/* LEFT */}
                 <div className="flex-1 overflow-y-auto px-6 md:px-10 py-5">
-
-                  {/* IDLE — filters + trending */}
                   {!query && (
                     <>
                       <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">Filter by vibe</p>
                       <div className="flex flex-wrap gap-2 mb-5">
                         {VIBES.map((v) => (
-                          <button
-                            key={v}
-                            onClick={() => toggleVibe(v)}
+                          <button key={v} onClick={() => toggleVibe(v)}
                             className={`px-3 py-1.5 rounded-full text-[11px] border transition-all tracking-wide ${
-                              activeVibes.includes(v)
-                                ? "bg-[#2d1a0e] text-[#e8d5b0] border-[#2d1a0e]"
-                                : "bg-[#f0e8d8] text-[#5a3e28] border-[#d4c4a0] hover:bg-[#2d1a0e] hover:text-[#e8d5b0] hover:border-[#2d1a0e]"
+                              activeVibes.includes(v) ? "bg-[#2d1a0e] text-[#e8d5b0] border-[#2d1a0e]" : "bg-[#f0e8d8] text-[#5a3e28] border-[#d4c4a0] hover:bg-[#2d1a0e] hover:text-[#e8d5b0] hover:border-[#2d1a0e]"
                             }`}
-                          >
-                            {v}
-                          </button>
+                          >{v}</button>
                         ))}
                       </div>
-
                       <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">Size</p>
                       <div className="flex flex-wrap gap-2 mb-5">
                         {SIZES.map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => setActiveSize(activeSize === s ? null : s)}
+                          <button key={s} onClick={() => setActiveSize(activeSize === s ? null : s)}
                             className={`px-3 py-1.5 rounded-full text-[11px] border transition-all tracking-wide ${
-                              activeSize === s
-                                ? "bg-[#c94060] text-white border-[#c94060]"
-                                : "bg-white text-[#5a3e28] border-[#d4c4a0] hover:bg-[#c94060] hover:text-white hover:border-[#c94060]"
+                              activeSize === s ? "bg-[#c94060] text-white border-[#c94060]" : "bg-white text-[#5a3e28] border-[#d4c4a0] hover:bg-[#c94060] hover:text-white hover:border-[#c94060]"
                             }`}
-                          >
-                            {s}
-                          </button>
+                          >{s}</button>
                         ))}
                       </div>
-
                       <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">Budget</p>
                       <div className="flex flex-wrap gap-2 mb-6">
                         {BUDGETS.map((b) => (
-                          <button
-                            key={b}
-                            onClick={() => setActiveBudget(activeBudget === b ? null : b)}
+                          <button key={b} onClick={() => setActiveBudget(activeBudget === b ? null : b)}
                             className={`px-3 py-1.5 rounded-full text-[11px] border transition-all tracking-wide ${
-                              activeBudget === b
-                                ? "bg-[#2d1a0e] text-[#e8d5b0] border-[#2d1a0e]"
-                                : "bg-white text-[#5a3e28] border-[#d4c4a0] hover:bg-[#2d1a0e] hover:text-[#e8d5b0] hover:border-[#2d1a0e]"
+                              activeBudget === b ? "bg-[#2d1a0e] text-[#e8d5b0] border-[#2d1a0e]" : "bg-white text-[#5a3e28] border-[#d4c4a0] hover:bg-[#2d1a0e] hover:text-[#e8d5b0] hover:border-[#2d1a0e]"
                             }`}
-                          >
-                            {b}
-                          </button>
+                          >{b}</button>
                         ))}
                       </div>
-
                       {(activeVibes.length > 0 || activeSize || activeBudget) && (
                         <button
-                          onClick={() => {
-                            router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`);
-                            setSearchOpen(false);
-                          }}
+                          onClick={() => { router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`); setSearchOpen(false); }}
                           className="mb-6 bg-[#2d1a0e] text-[#e8d5b0] text-[11px] tracking-[2px] uppercase px-5 py-2.5 rounded-full hover:bg-[#B48A5A] hover:text-black transition-all"
-                        >
-                          Browse filtered archive →
-                        </button>
+                        >Browse filtered archive →</button>
                       )}
-
                       <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">Trending right now</p>
                       {TRENDING.map((word, i) => (
-                        <button
-                          key={word}
-                          onClick={() => handleTrendingClick(word)}
-                          className="flex items-center gap-3 w-full py-2.5 border-b border-[#e0d8c8] text-left group"
-                        >
+                        <button key={word} onClick={() => handleTrendingClick(word)} className="flex items-center gap-3 w-full py-2.5 border-b border-[#e0d8c8] text-left group">
                           <span className="text-[11px] text-[#b0a090] w-5">0{i + 1}</span>
                           <span className="text-[13px] text-[#2d1a0e] group-hover:text-[#c94060] transition">{word}</span>
                         </button>
@@ -480,71 +623,40 @@ export default function Navbar() {
                     </>
                   )}
 
-                  {/* RESULTS */}
                   {query && (
                     <>
                       <div className="flex gap-0 mb-4 border-b border-[#e0d8c8]">
                         {(["pieces", "sellers"] as const).map((tab) => (
-                          <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
+                          <button key={tab} onClick={() => setActiveTab(tab)}
                             className={`pb-2.5 pt-1 px-4 text-[10px] tracking-[2px] uppercase border-b-2 -mb-px transition-all ${
-                              activeTab === tab
-                                ? "border-[#c94060] text-[#2d1a0e]"
-                                : "border-transparent text-[#9a8a7a] hover:text-[#2d1a0e]"
+                              activeTab === tab ? "border-[#c94060] text-[#2d1a0e]" : "border-transparent text-[#9a8a7a] hover:text-[#2d1a0e]"
                             }`}
-                          >
-                            {tab} ({tab === "pieces" ? results.pieces.length : results.sellers.length})
-                          </button>
+                          >{tab} ({tab === "pieces" ? results.pieces.length : results.sellers.length})</button>
                         ))}
                       </div>
 
                       {activeTab === "pieces" && (
                         <div>
                           {results.pieces.length === 0 && !loading && (
-                            <div className="text-center py-10 text-[#9a8a7a] text-sm">
-                              <div className="text-3xl mb-2">🧺</div>
-                              nothing in the archive matches that vibe yet
-                            </div>
+                            <div className="text-center py-10 text-[#9a8a7a] text-sm"><div className="text-3xl mb-2">🧺</div>nothing in the archive matches that vibe yet</div>
                           )}
                           {results.pieces.map((p) => (
-                            <Link
-                              key={p.id}
-                              href={`/buy/${p.id}`}
-                              onClick={() => setSearchOpen(false)}
-                              className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition group"
-                            >
+                            <Link key={p.id} href={`/buy/${p.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition group">
                               <div className="w-11 h-11 rounded-md bg-[#f0e8d8] flex-shrink-0 overflow-hidden">
-                                {p.image_url
-                                  ? <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" />
-                                  : <span className="flex items-center justify-center h-full text-lg">🛍️</span>
-                                }
+                                {p.image_url ? <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-lg">🛍️</span>}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-[13px] text-[#2d1a0e] font-medium truncate group-hover:text-[#c94060] transition">
-                                  {highlight(p.title, query)}
-                                </p>
-                                {p.seller_name && (
-                                  <p className="text-[11px] text-[#9a8a7a]">@{p.seller_name}</p>
-                                )}
+                                <p className="text-[13px] text-[#2d1a0e] font-medium truncate group-hover:text-[#c94060] transition">{highlight(p.title, query)}</p>
+                                {p.seller_name && <p className="text-[11px] text-[#9a8a7a]">@{p.seller_name}</p>}
                               </div>
                               <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                 <span className="text-[13px] font-medium text-[#2d1a0e]">₹{p.price}</span>
-                                {p.vibe && (
-                                  <span className="text-[9px] tracking-wide px-2 py-0.5 rounded-full bg-[#f0e8d8] text-[#7a5a38] border border-[#d4c4a0]">
-                                    {p.vibe}
-                                  </span>
-                                )}
+                                {p.vibe && <span className="text-[9px] tracking-wide px-2 py-0.5 rounded-full bg-[#f0e8d8] text-[#7a5a38] border border-[#d4c4a0]">{p.vibe}</span>}
                               </div>
                             </Link>
                           ))}
                           {results.pieces.length > 0 && (
-                            <button
-                              onClick={() => { router.push(`/buy?q=${query}`); setSearchOpen(false); }}
-                              className="mt-4 text-[11px] text-[#9a8a7a] hover:text-[#c94060] tracking-widest uppercase transition"
-                            >
-                              see all results in archive →
-                            </button>
+                            <button onClick={() => { router.push(`/buy?q=${query}`); setSearchOpen(false); }} className="mt-4 text-[11px] text-[#9a8a7a] hover:text-[#c94060] tracking-widest uppercase transition">see all results in archive →</button>
                           )}
                         </div>
                       )}
@@ -552,36 +664,16 @@ export default function Navbar() {
                       {activeTab === "sellers" && (
                         <div>
                           {results.sellers.length === 0 && !loading && (
-                            <div className="text-center py-10 text-[#9a8a7a] text-sm">
-                              <div className="text-3xl mb-2">👀</div>
-                              no sellers found for that name
-                            </div>
+                            <div className="text-center py-10 text-[#9a8a7a] text-sm"><div className="text-3xl mb-2">👀</div>no sellers found for that name</div>
                           )}
                           {results.sellers.map((s) => (
-                            <Link
-                              key={s.id}
-                              href={`/account/${s.id}`}
-                              onClick={() => setSearchOpen(false)}
-                              className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition"
-                            >
-                              <div
-                                className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium overflow-hidden"
-                                style={{ background: getAvatarColor(s.id), color: "#e8d5b0" }}
-                              >
-                                {s.avatar_url
-                                  ? <img src={s.avatar_url} alt={s.full_name} className="w-full h-full object-cover rounded-full" />
-                                  : getInitials(s.full_name)
-                                }
+                            <Link key={s.id} href={`/account/${s.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition">
+                              <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium overflow-hidden" style={{ background: getAvatarColor(s.id), color: "#e8d5b0" }}>
+                                {s.avatar_url ? <img src={s.avatar_url} alt={s.full_name} className="w-full h-full object-cover rounded-full" /> : getInitials(s.full_name)}
                               </div>
                               <div>
-                                <p className="text-[13px] text-[#2d1a0e] font-medium">
-                                  {highlight(s.full_name, query)}
-                                </p>
-                                {s.username && (
-                                  <p className="text-[11px] text-[#9a8a7a]">
-                                    {highlight(`@${s.username}`, query)}
-                                  </p>
-                                )}
+                                <p className="text-[13px] text-[#2d1a0e] font-medium">{highlight(s.full_name, query)}</p>
+                                {s.username && <p className="text-[11px] text-[#9a8a7a]">{highlight(`@${s.username}`, query)}</p>}
                               </div>
                             </Link>
                           ))}
@@ -589,48 +681,28 @@ export default function Navbar() {
                       )}
 
                       {noResults && (
-                        <div className="text-center py-10 text-[#9a8a7a] text-sm">
-                          <div className="text-3xl mb-2">🔍</div>
-                          no pieces or sellers found for <span className="italic">"{query}"</span>
-                        </div>
+                        <div className="text-center py-10 text-[#9a8a7a] text-sm"><div className="text-3xl mb-2">🔍</div>no pieces or sellers found for <span className="italic">"{query}"</span></div>
                       )}
                     </>
                   )}
                 </div>
 
-                {/* RIGHT — suggested sellers, desktop only */}
                 <div className="hidden md:block w-72 border-l border-[#e0d8c8] px-5 py-5 overflow-y-auto flex-shrink-0">
                   <p className="text-[9px] tracking-[3px] text-[#9a8a7a] mb-3 uppercase">
                     {query && results.sellers.length > 0 ? "Matching sellers" : "People you might know"}
                   </p>
                   {suggestedSellers.map((s) => (
-                    <Link
-                      key={s.id}
-                      href={`/account/${s.id}`}
-                      onClick={() => setSearchOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f0e8d8] transition"
-                    >
-                      <div
-                        className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-[12px] font-medium overflow-hidden"
-                        style={{ background: getAvatarColor(s.id), color: "#e8d5b0" }}
-                      >
-                        {s.avatar_url
-                          ? <img src={s.avatar_url} alt={s.full_name} className="w-full h-full object-cover rounded-full" />
-                          : getInitials(s.full_name)
-                        }
+                    <Link key={s.id} href={`/account/${s.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f0e8d8] transition">
+                      <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-[12px] font-medium overflow-hidden" style={{ background: getAvatarColor(s.id), color: "#e8d5b0" }}>
+                        {s.avatar_url ? <img src={s.avatar_url} alt={s.full_name} className="w-full h-full object-cover rounded-full" /> : getInitials(s.full_name)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-[#2d1a0e] font-medium truncate">
-                          {query ? highlight(s.full_name, query) : s.full_name}
-                        </p>
-                        {s.username && (
-                          <p className="text-[11px] text-[#9a8a7a] truncate">@{s.username}</p>
-                        )}
+                        <p className="text-[13px] text-[#2d1a0e] font-medium truncate">{query ? highlight(s.full_name, query) : s.full_name}</p>
+                        {s.username && <p className="text-[11px] text-[#9a8a7a] truncate">@{s.username}</p>}
                       </div>
                     </Link>
                   ))}
                 </div>
-
               </div>
             </div>
           </motion.div>
@@ -649,10 +721,7 @@ export default function Navbar() {
           >
             <nav className="flex flex-col gap-6 mt-8">
               {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMenuOpen(false)}
+                <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)}
                   className="text-[#F6F3EF]/70 hover:text-[#B48A5A] uppercase tracking-[0.3em] text-sm border-b border-white/[0.08] pb-6 transition-colors"
                 >
                   {link.label}

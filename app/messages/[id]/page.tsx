@@ -22,6 +22,10 @@ export default function ChatDetailPage() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -60,12 +64,22 @@ export default function ChatDetailPage() {
         setProduct(conv.products);
 
         const otherId = user.id === conv.seller_id ? conv.buyer_id : conv.seller_id;
+
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name, avatar_url")
           .eq("id", otherId)
           .single();
         setOtherProfile(profile);
+
+        // Check if this user is blocked
+        const { data: blockData } = await supabase
+          .from("blocks")
+          .select("id")
+          .eq("blocker_id", user.id)
+          .eq("blocked_id", otherId)
+          .maybeSingle();
+        setIsBlocked(!!blockData);
 
         // Create or update participant row — marks conversation as read on open
         await supabase
@@ -83,7 +97,6 @@ export default function ChatDetailPage() {
 
     initChat();
     fetchMessages();
-    // Note: markAsRead is called inside initChat after user is confirmed
   }, [id]);
 
   /* ── Effect 2: real-time messages ── */
@@ -98,7 +111,6 @@ export default function ChatDetailPage() {
             if (prev.find((m) => m.id === payload.new.id)) return prev;
             return [...prev, payload.new];
           });
-          // If user has this tab open and visible, mark as read immediately
           if (document.visibilityState === "visible") markAsRead();
         }
       )
@@ -127,108 +139,106 @@ export default function ChatDetailPage() {
 
   /* ── Effect 4: typing indicator via presence ── */
   useEffect(() => {
-  if (!userId) return;
+    if (!userId) return;
 
-  const typingChannel = supabase.channel(`typing-${id}`, {
-    config: { presence: { key: userId } }
-  });
-  // Add this line right after typingChannel is created
-  typingChannelRef.current = typingChannel;
-
-  typingChannel
-    .on("presence", { event: "sync" }, () => {
-      const state = typingChannel.presenceState();
-      // Check if anyone other than me is present and typing
-      const othersTyping = Object.keys(state)
-        .filter((key) => key !== userId)
-        .some((key) => (state[key] as any)[0]?.isTyping === true);
-      setOtherIsTyping(othersTyping);
-    })
-    .subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        await typingChannel.track({ isTyping: false });
-      }
+    const typingChannel = supabase.channel(`typing-${id}`, {
+      config: { presence: { key: userId } }
     });
+    typingChannelRef.current = typingChannel;
 
-  return () => { supabase.removeChannel(typingChannel); };
-}, [userId, id]);
+    typingChannel
+      .on("presence", { event: "sync" }, () => {
+        const state = typingChannel.presenceState();
+        const othersTyping = Object.keys(state)
+          .filter((key) => key !== userId)
+          .some((key) => (state[key] as any)[0]?.isTyping === true);
+        setOtherIsTyping(othersTyping);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await typingChannel.track({ isTyping: false });
+        }
+      });
 
-/* ── Effect 5: cleanup typing timeout ── */
-useEffect(() => {
-  return () => {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-  };
-}, []);
+    return () => { supabase.removeChannel(typingChannel); };
+  }, [userId, id]);
+
+  /* ── Effect 5: cleanup typing timeout ── */
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
+  /* ── Effect 6: prevent body scroll on iOS ── */
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, []);
 
   /* ── AUTO SCROLL ── */
   useEffect(() => {
-  if (isLoadingMoreRef.current) return; // don't scroll when loading older messages
-  scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-}, [messages]);
-
-useEffect(() => {
-  // Prevent body scroll on iOS when chat is open
-  document.body.style.overflow = "hidden";
-  document.body.style.position = "fixed";
-  document.body.style.width = "100%";
-  return () => {
-    document.body.style.overflow = "";
-    document.body.style.position = "";
-    document.body.style.width = "";
-  };
-}, []);
+    if (isLoadingMoreRef.current) return;
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   /* ── FETCH MESSAGES ── */
   const fetchMessages = async () => {
-  const { data, error, count } = await supabase
-    .from("messages")
-    .select("*", { count: "exact" })
-    .eq("conversation_id", id)
-    .order("created_at", { ascending: false }) // newest first so we can slice from end
-    .range(0, PAGE_SIZE - 1);
+    const { data, error, count } = await supabase
+      .from("messages")
+      .select("*", { count: "exact" })
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .range(0, PAGE_SIZE - 1);
 
-  if (error) {
-    setLoadError("Couldn't load messages. Pull down to retry.");
-    return;
-  }
+    if (error) {
+      setLoadError("Couldn't load messages. Pull down to retry.");
+      return;
+    }
 
-  if (data) {
-    const sorted = [...data].reverse(); // flip back to chronological order
-    setMessages(sorted);
-    setOffset(PAGE_SIZE);
-    setHasMore((count ?? 0) > PAGE_SIZE);
-  }
-};
+    if (data) {
+      const sorted = [...data].reverse();
+      setMessages(sorted);
+      setOffset(PAGE_SIZE);
+      setHasMore((count ?? 0) > PAGE_SIZE);
+    }
+  };
 
-const loadMoreMessages = async () => {
-  if (loadingMore || !hasMore) return;
-  setLoadingMore(true);
-  isLoadingMoreRef.current = true;
+  /* ── LOAD MORE MESSAGES ── */
+  const loadMoreMessages = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    isLoadingMoreRef.current = true;
 
-  const { data, error, count } = await supabase
-    .from("messages")
-    .select("*", { count: "exact" })
-    .eq("conversation_id", id)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
+    const { data, error, count } = await supabase
+      .from("messages")
+      .select("*", { count: "exact" })
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
 
-  if (error) {
+    if (error) {
+      isLoadingMoreRef.current = false;
+      setLoadingMore(false);
+      return;
+    }
+
+    if (data) {
+      const sorted = [...data].reverse();
+      setMessages((prev) => [...sorted, ...prev]);
+      setOffset((prev) => prev + PAGE_SIZE);
+      setHasMore((count ?? 0) > offset + PAGE_SIZE);
+    }
+
     isLoadingMoreRef.current = false;
     setLoadingMore(false);
-    return;
-  }
-
-  if (data) {
-    const sorted = [...data].reverse();
-    setMessages((prev) => [...sorted, ...prev]); // prepend older messages
-    setOffset((prev) => prev + PAGE_SIZE);
-    setHasMore((count ?? 0) > offset + PAGE_SIZE);
-  }
-
-  setLoadingMore(false);
-};
+  };
 
   /* ── MARK AS READ ── */
   const markAsRead = async () => {
@@ -248,11 +258,10 @@ const loadMoreMessages = async () => {
 
     const text = newMessage.trim();
     setNewMessage("");
-    typingChannelRef.current?.track({ isTyping: false }); // ← add this
+    typingChannelRef.current?.track({ isTyping: false });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setSending(true);
 
-    // Optimistic message — appears instantly before DB confirms
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticMsg = {
       id: optimisticId,
@@ -262,6 +271,7 @@ const loadMoreMessages = async () => {
       created_at: new Date().toISOString(),
       receiver_id: null,
       product_id: null,
+      image_url: null,
       _sending: true,
       _failed: false,
     };
@@ -274,7 +284,6 @@ const loadMoreMessages = async () => {
     }]);
 
     if (error) {
-      // Mark the optimistic message as failed instead of removing it
       setMessages((prev) =>
         prev.map((m) =>
           m.id === optimisticId ? { ...m, _sending: false, _failed: true } : m
@@ -282,12 +291,47 @@ const loadMoreMessages = async () => {
       );
       setSendError("Message failed to send. Tap to retry.");
     } else {
-      // Remove optimistic message — real one will arrive via real-time
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     }
 
     setSending(false);
     inputRef.current?.focus();
+  };
+
+  /* ── SEND IMAGE ── */
+  const sendImage = async (file: File) => {
+    if (!userId || imageUploading) return;
+
+    const currentId = id as string;
+    if (!currentId) return;
+
+    setImageUploading(true);
+
+    const ext = file.name.split(".").pop();
+    const path = `${userId}/${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("chat-images")
+      .upload(path, file, { contentType: file.type });
+
+    if (uploadError) {
+      alert("Failed to upload image");
+      setImageUploading(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("chat-images")
+      .getPublicUrl(path);
+
+    await supabase.from("messages").insert({
+      conversation_id: currentId,
+      sender_id: userId,
+      text: "",
+      image_url: publicUrl,
+    });
+
+    setImageUploading(false);
   };
 
   /* ── RETRY FAILED MESSAGE ── */
@@ -306,6 +350,44 @@ const loadMoreMessages = async () => {
       .update({ status: "sold" })
       .eq("id", productId);
     if (!error) setProductStatus("sold");
+  };
+
+  /* ── BLOCK / UNBLOCK ── */
+  const handleBlock = async () => {
+    if (!userId || !otherProfile) return;
+    setBlockLoading(true);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const otherId = sellerId === userId ? buyerId : sellerId;
+
+    await fetch("/api/block", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({
+        blockedId: otherId,
+        action: isBlocked ? "unblock" : "block",
+      }),
+    });
+
+    setIsBlocked((prev) => !prev);
+    setBlockLoading(false);
+  };
+
+  /* ── REPORT USER ── */
+  const handleReport = async () => {
+    if (!userId) return;
+    const otherId = sellerId === userId ? buyerId : sellerId;
+    const reason = window.prompt("Reason for report (spam, harassment, scam, other):");
+    if (!reason) return;
+    await supabase.from("reports").insert({
+      reporter_id: userId,
+      reported_id: otherId,
+      reason,
+    });
+    alert("Report submitted. We'll review it shortly.");
   };
 
   const isSold = productStatus === "sold";
@@ -327,7 +409,7 @@ const loadMoreMessages = async () => {
 
       {/* ── HEADER ── */}
       <div className="fixed top-[64px] left-0 right-0 z-40 bg-[#F6F3EF]/95 backdrop-blur-md border-b border-[#2B0A0F]/08">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-5">
+        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-3 sm:gap-5">
 
           {/* Back */}
           <Link
@@ -395,7 +477,7 @@ const loadMoreMessages = async () => {
                   <span>{(otherProfile.full_name || "?")[0].toUpperCase()}</span>
                 )}
               </div>
-              <span className="text-[10px] uppercase tracking-[0.15em] opacity-50">
+              <span className="hidden sm:inline text-[10px] uppercase tracking-[0.15em] opacity-50">
                 {otherProfile.full_name || "Curator"}
               </span>
             </div>
@@ -410,6 +492,30 @@ const loadMoreMessages = async () => {
               Mark Sold
             </button>
           )}
+
+          {/* Block button — only shown to non-seller */}
+          {!isSeller && (
+            <button
+              onClick={handleBlock}
+              disabled={blockLoading}
+              className={`flex-shrink-0 text-[9px] uppercase tracking-[0.18em] border px-3 py-1.5 rounded-full transition-all disabled:opacity-40 ${
+                isBlocked
+                  ? "border-red-300 text-red-400 hover:bg-red-400 hover:text-white hover:border-red-400"
+                  : "border-[#2B0A0F]/25 hover:bg-red-400 hover:text-white hover:border-red-400"
+              }`}
+            >
+              {blockLoading ? "..." : isBlocked ? "Unblock" : "Block"}
+            </button>
+          )}
+
+          {/* Report button */}
+          <button
+            onClick={handleReport}
+            className="flex-shrink-0 text-[9px] uppercase tracking-[0.18em] border border-[#2B0A0F]/25 px-3 py-1.5 rounded-full hover:bg-[#A1123F] hover:text-white hover:border-[#A1123F] transition-all"
+          >
+            Report
+          </button>
+
         </div>
       </div>
 
@@ -427,17 +533,31 @@ const loadMoreMessages = async () => {
         )}
       </AnimatePresence>
 
+      {/* ── BLOCKED BANNER ── */}
+      <AnimatePresence>
+        {isBlocked && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="fixed top-[120px] left-0 right-0 z-30 bg-red-500 text-white text-[9px] uppercase tracking-[0.4em] py-2.5 text-center"
+          >
+            — You have blocked this user —
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── MESSAGES AREA ── */}
       <div
-  className="flex-1 overflow-y-auto px-6"
-  style={{
-    paddingTop: isSold ? "168px" : "136px",
-    paddingBottom: `${Math.max(112, window.innerHeight - viewportHeight + 112)}px`,
-    maxWidth: "760px",
-    margin: "0 auto",
-    width: "100%"
-  }}
->
+        className="flex-1 overflow-y-auto px-6"
+        style={{
+          paddingTop: isSold || isBlocked ? "168px" : "136px",
+          paddingBottom: `${Math.max(112, window.innerHeight - viewportHeight + 112)}px`,
+          maxWidth: "760px",
+          margin: "0 auto",
+          width: "100%"
+        }}
+      >
 
         {/* Load error */}
         {loadError && (
@@ -459,10 +579,7 @@ const loadMoreMessages = async () => {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center pt-20 gap-3"
           >
-            <p
-              className="text-2xl opacity-15"
-              style={{ fontFamily: "var(--font-playfair)" }}
-            >
+            <p className="text-2xl opacity-15" style={{ fontFamily: "var(--font-playfair)" }}>
               Start the conversation.
             </p>
             <p className="text-[9px] uppercase tracking-[0.3em] opacity-25">
@@ -470,28 +587,29 @@ const loadMoreMessages = async () => {
             </p>
           </motion.div>
         )}
+
         {/* Load earlier messages */}
-{hasMore && (
-  <div className="flex justify-center mb-4">
-    <button
-      onClick={loadMoreMessages}
-      disabled={loadingMore}
-      className="flex items-center gap-2 text-[9px] uppercase tracking-[0.25em] opacity-40 hover:opacity-100 transition-opacity disabled:opacity-20"
-    >
-      {loadingMore ? (
-        <>
-          <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
-          </svg>
-          Loading...
-        </>
-      ) : (
-        "↑ Load earlier messages"
-      )}
-    </button>
-  </div>
-)}
+        {hasMore && (
+          <div className="flex justify-center mb-4">
+            <button
+              onClick={loadMoreMessages}
+              disabled={loadingMore}
+              className="flex items-center gap-2 text-[9px] uppercase tracking-[0.25em] opacity-40 hover:opacity-100 transition-opacity disabled:opacity-20"
+            >
+              {loadingMore ? (
+                <>
+                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                  </svg>
+                  Loading...
+                </>
+              ) : (
+                "↑ Load earlier messages"
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Grouped messages */}
         {Object.entries(groupedMessages).map(([date, msgs]: [string, any]) => (
@@ -524,21 +642,39 @@ const loadMoreMessages = async () => {
                     <div className={`max-w-[72%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
                       <div
                         onClick={() => m._failed && retryMessage(m)}
-                        className={`px-5 py-3 text-sm leading-relaxed transition-opacity ${
-                          isMe
-                            ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[18px] rounded-br-[4px]"
-                            : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px]"
+                        className={`text-sm leading-relaxed transition-opacity ${
+                          m.image_url
+                            ? "p-0 bg-transparent"
+                            : `px-5 py-3 ${isMe
+                                ? "bg-[#2B0A0F] text-[#F6F3EF] rounded-[18px] rounded-br-[4px]"
+                                : "bg-white text-[#2B0A0F] border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px]"
+                              }`
                         } ${m._sending ? "opacity-50" : ""} ${m._failed ? "opacity-50 cursor-pointer border border-red-300" : ""}`}
                       >
-                        {m.text}
-                        {m._failed && (
-                          <span className="block text-[9px] text-red-400 mt-1">
-                            Failed — tap to retry
-                          </span>
+                        {m.image_url ? (
+                          <div className="relative rounded-2xl overflow-hidden max-w-[220px]">
+                            <Image
+                              src={m.image_url}
+                              alt="Shared image"
+                              width={220}
+                              height={280}
+                              className="object-cover rounded-2xl"
+                              style={{ maxHeight: "280px" }}
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            {m.text}
+                            {m._failed && (
+                              <span className="block text-[9px] text-red-400 mt-1">
+                                Failed — tap to retry
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
 
-                      {/* Timestamp with UTC fix — hidden while sending or failed */}
+                      {/* Timestamp with UTC fix */}
                       {(idx === msgs.length - 1 || msgs[idx + 1]?.sender_id !== m.sender_id) && !m._sending && !m._failed && (
                         <span className={`text-[9px] opacity-30 mt-1.5 ${isMe ? "pr-1" : "pl-1"}`}>
                           {(() => {
@@ -555,43 +691,44 @@ const loadMoreMessages = async () => {
             </div>
           </div>
         ))}
-        {/* Typing indicator */}
-<AnimatePresence>
-  {otherIsTyping && (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 6 }}
-      transition={{ duration: 0.2 }}
-      className="flex justify-start mt-4"
-    >
-      <div className="bg-white border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px] px-5 py-3 flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "0ms" }} />
-        <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "150ms" }} />
-        <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "300ms" }} />
-      </div>
-    </motion.div>
-  )}
-</AnimatePresence>
 
-<div ref={scrollRef} />
+        {/* Typing indicator */}
+        <AnimatePresence>
+          {otherIsTyping && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.2 }}
+              className="flex justify-start mt-4"
+            >
+              <div className="bg-white border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px] px-5 py-3 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div ref={scrollRef} />
       </div>
 
       {/* ── INPUT BAR ── */}
       <div
-  className="fixed left-0 right-0 bg-[#F6F3EF]/95 backdrop-blur-md border-t border-[#2B0A0F]/08 z-40 transition-transform duration-100"
-  style={{
-    bottom: 0,
-    transform: `translateY(-${Math.max(0, window.innerHeight - viewportHeight)}px)`
-  }}
->
+        className="fixed left-0 right-0 bg-[#F6F3EF]/95 backdrop-blur-md border-t border-[#2B0A0F]/08 z-40 transition-transform duration-100"
+        style={{
+          bottom: 0,
+          transform: `translateY(-${Math.max(0, window.innerHeight - viewportHeight)}px)`
+        }}
+      >
         <div className="max-w-[760px] mx-auto px-6 py-4">
-          {isSold ? (
+          {isSold || isBlocked ? (
             <div className="text-center py-2">
               <p className="text-[10px] uppercase tracking-[0.3em] opacity-30">
-                This thread is archived · Piece has been sold
+                {isBlocked
+                  ? "You have blocked this user"
+                  : "This thread is archived · Piece has been sold"}
               </p>
             </div>
           ) : (
@@ -608,7 +745,43 @@ const loadMoreMessages = async () => {
                   </button>
                 </div>
               )}
+
               <form onSubmit={sendMessage} className="flex items-center gap-3">
+
+                {/* Hidden file input */}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) sendImage(file);
+                    e.target.value = "";
+                  }}
+                />
+
+                {/* Image upload button */}
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={imageUploading}
+                  className="w-10 h-10 rounded-full border border-[#2B0A0F]/15 flex items-center justify-center flex-shrink-0 text-[#2B0A0F]/40 hover:text-[#2B0A0F] hover:border-[#2B0A0F]/30 transition-all disabled:opacity-25"
+                >
+                  {imageUploading ? (
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                    </svg>
+                  ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <path d="M21 15l-5-5L5 21"/>
+                    </svg>
+                  )}
+                </button>
+
                 <input
                   ref={inputRef}
                   suppressHydrationWarning
@@ -616,19 +789,15 @@ const loadMoreMessages = async () => {
                   placeholder="Write a message..."
                   value={newMessage}
                   onChange={(e) => {
-  setNewMessage(e.target.value);
-
-  // Broadcast that I'm typing
-  typingChannelRef.current?.track({ isTyping: true });
-
-  // Stop typing indicator after 2 seconds of no input
-  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-  typingTimeoutRef.current = setTimeout(() => {
-    typingChannelRef.current?.track({ isTyping: false });
-  }, 2000);
-}}
-                    
+                    setNewMessage(e.target.value);
+                    typingChannelRef.current?.track({ isTyping: true });
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                    typingTimeoutRef.current = setTimeout(() => {
+                      typingChannelRef.current?.track({ isTyping: false });
+                    }, 2000);
+                  }}
                 />
+
                 <motion.button
                   type="submit"
                   disabled={!newMessage.trim() || sending}
