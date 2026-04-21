@@ -24,10 +24,13 @@ export default function ChatDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingChannelRef = useRef<any>(null);
   const isLoadingMoreRef = useRef(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [otherIsTyping, setOtherIsTyping] = useState(false);
   const viewportHeight = useVisualViewport();
   const PAGE_SIZE = 50;
 
@@ -122,6 +125,43 @@ export default function ChatDetailPage() {
     return () => { supabase.removeChannel(productChannel); };
   }, [productId]);
 
+  /* ── Effect 4: typing indicator via presence ── */
+  useEffect(() => {
+  if (!userId) return;
+
+  const typingChannel = supabase.channel(`typing-${id}`, {
+    config: { presence: { key: userId } }
+  });
+  // Add this line right after typingChannel is created
+  typingChannelRef.current = typingChannel;
+
+  typingChannel
+    .on("presence", { event: "sync" }, () => {
+      const state = typingChannel.presenceState();
+      // Check if anyone other than me is present and typing
+      const othersTyping = Object.keys(state)
+        .filter((key) => key !== userId)
+        .some((key) => (state[key] as any)[0]?.isTyping === true);
+      setOtherIsTyping(othersTyping);
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await typingChannel.track({ isTyping: false });
+      }
+    });
+
+  return () => { supabase.removeChannel(typingChannel); };
+}, [userId, id]);
+
+/* ── Effect 5: cleanup typing timeout ── */
+useEffect(() => {
+  return () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+  };
+}, []);
+
   /* ── AUTO SCROLL ── */
   useEffect(() => {
   if (isLoadingMoreRef.current) return; // don't scroll when loading older messages
@@ -208,6 +248,8 @@ const loadMoreMessages = async () => {
 
     const text = newMessage.trim();
     setNewMessage("");
+    typingChannelRef.current?.track({ isTyping: false }); // ← add this
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setSending(true);
 
     // Optimistic message — appears instantly before DB confirms
@@ -513,6 +555,26 @@ const loadMoreMessages = async () => {
             </div>
           </div>
         ))}
+        {/* Typing indicator */}
+<AnimatePresence>
+  {otherIsTyping && (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.2 }}
+      className="flex justify-start mt-4"
+    >
+      <div className="bg-white border border-[#2B0A0F]/08 rounded-[18px] rounded-bl-[4px] px-5 py-3 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "0ms" }} />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "150ms" }} />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "300ms" }} />
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
+<div ref={scrollRef} />
 
         <div ref={scrollRef} />
       </div>
@@ -553,7 +615,19 @@ const loadMoreMessages = async () => {
                   className="flex-1 bg-white border border-[#2B0A0F]/12 rounded-full px-5 py-3 text-sm outline-none focus:border-[#2B0A0F]/40 transition-colors placeholder:opacity-30"
                   placeholder="Write a message..."
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => {
+  setNewMessage(e.target.value);
+
+  // Broadcast that I'm typing
+  typingChannelRef.current?.track({ isTyping: true });
+
+  // Stop typing indicator after 2 seconds of no input
+  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+  typingTimeoutRef.current = setTimeout(() => {
+    typingChannelRef.current?.track({ isTyping: false });
+  }, 2000);
+}}
+                    
                 />
                 <motion.button
                   type="submit"
