@@ -135,8 +135,11 @@ export default function ProductPage() {
   useEffect(() => {
     if (!user || !id) return;
     supabase.from("offers").select("*")
-      .eq("product_id", id).eq("buyer_id", user.id)
-      .eq("status", "pending").maybeSingle()
+  .eq("product_id", id).eq("buyer_id", user.id)
+  .in("status", ["pending", "countered", "accepted"])
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle()
       .then(({ data }) => { if (data) setExistingOffer(data); });
   }, [user, id]);
 
@@ -226,17 +229,20 @@ export default function ProductPage() {
     try {
       let convId = conversationId;
       if (!convId) convId = await initConversation();
-      const res = await fetch("/api/make-offer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: product.id,
-          buyerId: user.id,
-          sellerId: product.seller_id,
-          amount: parseFloat(offerAmount),
-          message: offerMessage,
-        }),
-      });
+       const { data: { session } } = await supabase.auth.getSession();
+const res = await fetch("/api/offers/create", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${session?.access_token}`,
+  },
+  body: JSON.stringify({
+    productId: product.id,
+    sellerId: product.seller_id,
+    amount: parseFloat(offerAmount),
+    message: offerMessage,
+  }),
+});
       const result = await res.json();
       if (result.error) {
         alert(result.error);
@@ -401,10 +407,91 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                   </p>
 
                   {existingOffer ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-                      You already have a pending offer of ₹{existingOffer.amount?.toLocaleString("en-IN")} on this item.
-                    </div>
-                  ) : (
+  <div className="space-y-4">
+    {/* Counter offer state */}
+    {existingOffer.status === "countered" && (
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <p className="text-[9px] uppercase tracking-widest text-blue-500 mb-1">Seller Countered</p>
+        <p className="text-2xl text-blue-700" style={{ fontFamily: "var(--font-playfair)" }}>
+          ₹{existingOffer.counter_amount?.toLocaleString("en-IN")}
+        </p>
+        <p className="text-[10px] text-blue-500 mt-1">Your original offer: ₹{existingOffer.amount?.toLocaleString("en-IN")}</p>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              await fetch("/api/offers/respond", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+                body: JSON.stringify({ offerId: existingOffer.id, action: "accept" }),
+              });
+              setExistingOffer({ ...existingOffer, status: "accepted" });
+              setTimeout(() => setOfferOpen(false), 1500);
+            }}
+            className="flex-1 py-2.5 rounded-full bg-blue-600 text-white text-[9px] uppercase tracking-widest hover:opacity-80 transition-opacity"
+          >
+            Accept ₹{existingOffer.counter_amount?.toLocaleString("en-IN")}
+          </button>
+          <button
+            onClick={async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              await fetch("/api/offers/respond", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+                body: JSON.stringify({ offerId: existingOffer.id, action: "decline" }),
+              });
+              setExistingOffer(null);
+              setOfferOpen(false);
+            }}
+            className="flex-1 py-2.5 rounded-full border border-blue-200 text-blue-600 text-[9px] uppercase tracking-widest hover:opacity-80 transition-opacity"
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Pending offer state */}
+    {existingOffer.status === "pending" && (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <p className="text-[9px] uppercase tracking-widest text-amber-600 mb-1">Offer Pending</p>
+        <p className="text-2xl text-amber-700" style={{ fontFamily: "var(--font-playfair)" }}>
+          ₹{existingOffer.amount?.toLocaleString("en-IN")}
+        </p>
+        <p className="text-[10px] text-amber-500 mt-1">Waiting for seller to respond</p>
+      </div>
+    )}
+
+    {/* Accepted state */}
+    {existingOffer.status === "accepted" && (
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+        <p className="text-2xl mb-2">✅</p>
+        <p className="text-sm text-green-700">Offer accepted! Proceed to payment.</p>
+      </div>
+    )}
+
+    {/* Cancel button — only for pending */}
+    {existingOffer.status === "pending" && (
+      <button
+        onClick={async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch("/api/offers/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+            body: JSON.stringify({ offerId: existingOffer.id }),
+          });
+          if (res.ok) {
+            setExistingOffer(null);
+            setOfferOpen(false);
+          }
+        }}
+        className="w-full py-3 rounded-full border border-red-200 text-red-400 text-[9px] uppercase tracking-widest hover:bg-red-50 transition-all"
+      >
+        Cancel Offer
+      </button>
+    )}
+  </div>
+) : (
                     <div className="space-y-4">
                       <div className="border-b border-[#2B0A0F]/10 pb-2">
                         <label className="text-[9px] uppercase tracking-widest opacity-50 block mb-2">Your Offer (₹)</label>
@@ -843,19 +930,22 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                 </motion.button>
 
                 {/* Make an Offer */}
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setOfferOpen(true)}
-                  className={`w-full py-4 rounded-full text-[10px] uppercase tracking-[0.25em] transition-all border ${
-                    existingOffer
-                      ? "border-amber-300 text-amber-600 bg-amber-50"
-                      : "border-[#2B0A0F]/20 hover:bg-[#2B0A0F]/05"
-                  }`}
-                >
-                  {existingOffer
-                    ? `Offer Pending — ₹${existingOffer.amount?.toLocaleString("en-IN")}`
-                    : "Make an Offer"}
-                </motion.button>
+                 {/* Make an Offer — only show if seller marked it negotiable */}
+{product.negotiable && (
+<motion.button
+  whileTap={{ scale: 0.98 }}
+  onClick={() => setOfferOpen(true)}
+  className={`w-full py-4 rounded-full text-[10px] uppercase tracking-[0.25em] transition-all border ${
+    existingOffer
+      ? "border-amber-300 text-amber-600 bg-amber-50"
+      : "border-[#2B0A0F]/20 hover:bg-[#2B0A0F]/05"
+  }`}
+>
+  {existingOffer
+    ? `Offer Pending — ₹${existingOffer.amount?.toLocaleString("en-IN")}`
+    : "Make an Offer"}
+</motion.button>
+)} 
 
                 {/* Inquire + Wishlist — side by side */}
                 <div className="flex gap-3">
@@ -1040,7 +1130,10 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                         {msg.text}
                         {(idx === messages.length - 1 || messages[idx + 1]?.sender_id !== msg.sender_id) && (
                           <div className={`text-[8px] mt-1.5 opacity-30 ${isMe ? "text-right" : "text-left"}`}>
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {(() => {
+  const raw = msg.created_at.includes("T") ? msg.created_at : msg.created_at.replace(" ", "T");
+  return new Date(raw.endsWith("Z") ? raw : raw + "Z").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+})()}
                           </div>
                         )}
                       </div>
