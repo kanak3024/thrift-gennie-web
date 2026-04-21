@@ -422,6 +422,15 @@ export default function AccountPage() {
       showToast("Marked as sold ✦");
     }
   };
+  const handleShareProfile = async () => {
+  const url = `${window.location.origin}/account/${id}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("Profile link copied ✦");
+  } catch {
+    showToast("Couldn't copy link", "error");
+  }
+};
 
   const handleMarkUnavailable = async (productId: string) => {
     const { error } = await supabase.from("products").update({ status: "unavailable" }).eq("id", productId);
@@ -528,51 +537,68 @@ export default function AccountPage() {
               )}
 
               {/* Action buttons */}
-              <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap sm:ml-2">
-                {isOwner ? (
-                  <>
-                    <button
-                      onClick={isEditing ? handleUpdateProfile : () => setIsEditing(true)}
-                      className={`px-4 sm:px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.18em] transition-all ${
-                        isEditing
-                          ? "bg-[#2B0A0F] text-[#F6F3EF] hover:opacity-80"
-                          : "border border-[#2B0A0F]/20 hover:bg-[#2B0A0F] hover:text-[#F6F3EF]"
-                      }`}
-                    >
-                      {isEditing ? "Save" : "Edit Profile"}
-                    </button>
-                    {isEditing && (
-                      <button
-                        onClick={() => setIsEditing(false)}
-                        className="px-4 sm:px-5 py-2 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.18em] opacity-50 hover:opacity-100 transition-opacity"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <Link href="/orders">
-                      <button className="px-4 sm:px-5 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
-                        Orders
-                      </button>
-                    </Link>
-                  </>
-                ) : (
-                  currentUser && (
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      onClick={handleFollow}
-                      disabled={followLoading}
-                      className={`px-5 sm:px-6 py-2.5 rounded-full text-[10px] uppercase tracking-[0.18em] transition-all disabled:opacity-40 ${
-                        isFollowing
-                          ? "border border-[#2B0A0F]/20 hover:border-[#A1123F]/30 hover:text-[#A1123F]"
-                          : "bg-[#2B0A0F] text-[#F6F3EF] hover:opacity-80"
-                      }`}
-                    >
-                      {followLoading ? "..." : isFollowing ? "Following ✦" : "Follow"}
-                    </motion.button>
-                  )
-                )}
-              </div>
-            </div>
+
+         <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap sm:ml-2">
+  {isOwner ? (
+    <>
+      <button
+        onClick={isEditing ? handleUpdateProfile : () => setIsEditing(true)}
+        className={`px-4 sm:px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.18em] transition-all ${
+          isEditing
+            ? "bg-[#2B0A0F] text-[#F6F3EF] hover:opacity-80"
+            : "border border-[#2B0A0F]/20 hover:bg-[#2B0A0F] hover:text-[#F6F3EF]"
+        }`}
+      >
+        {isEditing ? "Save" : "Edit Profile"}
+      </button>
+      {isEditing && (
+        <button
+          onClick={() => setIsEditing(false)}
+          className="px-4 sm:px-5 py-2 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.18em] opacity-50 hover:opacity-100 transition-opacity"
+        >
+          Cancel
+        </button>
+      )}
+      <Link href="/orders">
+        <button className="px-4 sm:px-5 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
+          Orders
+        </button>
+      </Link>
+      <button
+        onClick={handleShareProfile}
+        className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
+        title="Share profile"
+      >
+        ↗
+      </button>
+    </>
+  ) : (
+    currentUser && (
+      <div className="flex items-center gap-2">
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          onClick={handleFollow}
+          disabled={followLoading}
+          className={`px-5 sm:px-6 py-2.5 rounded-full text-[10px] uppercase tracking-[0.18em] transition-all disabled:opacity-40 ${
+            isFollowing
+              ? "border border-[#2B0A0F]/20 hover:border-[#A1123F]/30 hover:text-[#A1123F]"
+              : "bg-[#2B0A0F] text-[#F6F3EF] hover:opacity-80"
+          }`}
+        >
+          {followLoading ? "..." : isFollowing ? "Following ✦" : "Follow"}
+        </motion.button>
+        <button
+          onClick={handleShareProfile}
+          className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
+          title="Share profile"
+        >
+          ↗
+        </button>
+      </div>
+    )
+  )}
+</div>
+</div>
 
             {/* Stats row */}
             <div className="flex justify-center sm:justify-start gap-6 sm:gap-8 py-3 sm:py-4 border-y border-[#2B0A0F]/08 mb-4 sm:mb-5">

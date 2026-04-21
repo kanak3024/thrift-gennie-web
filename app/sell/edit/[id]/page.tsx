@@ -50,6 +50,9 @@ export default function EditListingPage() {
   const [userId, setUserId]             = useState<string | null>(null);
   const [toast, setToast]               = useState<{ message: string; type: "success" | "error" } | null>(null);
 
+  // ── Track original price to detect drops ──────────────────
+  const originalPrice = useRef<number>(0);
+
   // Existing images from DB
   const [existingImages, setExistingImages] = useState<string[]>([]);
   // New files the user adds
@@ -100,6 +103,9 @@ export default function EditListingPage() {
       setCategory(product.category || "");
       setMood(product.mood || "");
 
+      // ── Store original price for drop detection ──────────
+      originalPrice.current = product.price ?? 0;
+
       const imgs = [product.image_url, ...(product.extra_images || [])].filter(Boolean);
       setExistingImages(imgs);
       setFetching(false);
@@ -147,10 +153,10 @@ export default function EditListingPage() {
       // Upload any new files
       const uploadedUrls: string[] = [];
       for (const file of newFiles) {
-        const ext       = file.name.split(".").pop();
+        const ext        = file.name.split(".").pop();
         const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 20);
-        const fileName  = `${cleanTitle}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const filePath  = `inventory/${userId}/${fileName}`;
+        const fileName   = `${cleanTitle}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const filePath   = `inventory/${userId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("product-images").upload(filePath, file);
@@ -165,12 +171,17 @@ export default function EditListingPage() {
       const allImages   = [...existingImages, ...uploadedUrls];
       const mainImage   = allImages[0];
       const extraImages = allImages.slice(1);
+      const newPrice    = parseFloat(price);
 
+      // ── Update the product ────────────────────────────────
+      // The price drop Supabase trigger (on_price_drop) fires
+      // automatically here if newPrice < originalPrice.current
+      // It notifies all wishlisted buyers — no extra code needed.
       const { error: dbError } = await supabase
         .from("products")
         .update({
           title,
-          price:        parseFloat(price),
+          price:        newPrice,
           location,
           description,
           condition,
@@ -184,8 +195,23 @@ export default function EditListingPage() {
 
       if (dbError) throw dbError;
 
-      showToast("Listing updated ✦");
-      setTimeout(() => router.push(`/account/${userId}`), 1500);
+      // ── Show contextual toast based on whether price dropped ──
+      const isPriceDrop = newPrice < originalPrice.current;
+      const wishlistCount = isPriceDrop
+        ? await supabase
+            .from("wishlists")
+            .select("*", { count: "exact", head: true })
+            .eq("product_id", id)
+            .then(({ count }) => count ?? 0)
+        : 0;
+
+      if (isPriceDrop && wishlistCount > 0) {
+        showToast(`Price drop sent to ${wishlistCount} wishlisters 🔥`);
+      } else {
+        showToast("Listing updated ✦");
+      }
+
+      setTimeout(() => router.push(`/account/${userId}`), 1800);
 
     } catch (err: any) {
       console.error(err);
@@ -237,50 +263,36 @@ export default function EditListingPage() {
               </label>
 
               <div className="grid grid-cols-4 gap-2 mb-3">
-                {/* Existing images */}
                 {existingImages.map((url, i) => (
                   <div key={`existing-${i}`} className={`relative overflow-hidden rounded-xl group ${i === 0 ? "col-span-2 row-span-2 aspect-[3/4]" : "aspect-square"}`}>
                     <Image src={url} alt={`Photo ${i + 1}`} fill className="object-cover" />
                     <button
-                      type="button"
-                      onClick={() => removeExisting(i)}
+                      type="button" onClick={() => removeExisting(i)}
                       className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white text-[10px] rounded-full flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                    >
-                      ✕
-                    </button>
+                    >✕</button>
                     {i === 0 && (
-                      <span className="absolute bottom-2 left-2 text-[8px] uppercase tracking-[0.2em] bg-black/50 text-white px-2 py-0.5 rounded-full">
-                        Main
-                      </span>
+                      <span className="absolute bottom-2 left-2 text-[8px] uppercase tracking-[0.2em] bg-black/50 text-white px-2 py-0.5 rounded-full">Main</span>
                     )}
                   </div>
                 ))}
 
-                {/* New preview images */}
                 {newPreviews.map((url, i) => (
                   <div key={`new-${i}`} className="relative overflow-hidden rounded-xl aspect-square group">
                     <Image src={url} alt={`New photo ${i + 1}`} fill className="object-cover" />
                     <button
-                      type="button"
-                      onClick={() => removeNew(i)}
+                      type="button" onClick={() => removeNew(i)}
                       className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white text-[10px] rounded-full flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                    >
-                      ✕
-                    </button>
+                    >✕</button>
                   </div>
                 ))}
 
-                {/* Add more slot */}
                 {allPreviews.length < MAX_PHOTOS && (
                   <label className="aspect-square rounded-xl border-2 border-dashed border-[#2B0A0F]/12 bg-[#EAE3DB]/50 hover:border-[#2B0A0F]/30 hover:bg-[#EAE3DB] transition-all cursor-pointer flex flex-col items-center justify-center gap-1 opacity-40 hover:opacity-70">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
                     </svg>
                     <span className="text-[8px] uppercase tracking-[0.15em]">Add</span>
-                    <input
-                      type="file" accept="image/*" multiple className="hidden"
-                      onChange={(e) => handleNewFiles(e.target.files)}
-                    />
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleNewFiles(e.target.files)} />
                   </label>
                 )}
               </div>
@@ -304,7 +316,15 @@ export default function EditListingPage() {
             {/* ── PRICE + CITY ── */}
             <div className="grid grid-cols-2 gap-6">
               <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-                <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Price (₹) *</label>
+                <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
+                  Price (₹) *
+                  {/* Subtle hint when a price drop will notify buyers */}
+                  {parseFloat(price) < originalPrice.current && originalPrice.current > 0 && (
+                    <span className="ml-2 text-[#7C4A1E] normal-case tracking-normal opacity-80">
+                      🔥 wishlisted buyers will be notified
+                    </span>
+                  )}
+                </label>
                 <input
                   required type="number" min="50" inputMode="decimal" value={price}
                   onChange={(e) => setPrice(e.target.value)}
@@ -335,9 +355,7 @@ export default function EditListingPage() {
                 {CONDITIONS.map((c) => (
                   <button key={c.value} type="button" onClick={() => setCondition(c.value)}
                     className={`px-4 py-3 rounded-xl border text-left transition-all ${
-                      condition === c.value
-                        ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
-                        : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30"
+                      condition === c.value ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]" : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30"
                     }`}
                   >
                     <p className="text-[10px] uppercase tracking-[0.15em] font-medium">{c.value}</p>
@@ -354,9 +372,7 @@ export default function EditListingPage() {
                 {CATEGORIES.map((cat) => (
                   <button key={cat} type="button" onClick={() => setCategory(cat)}
                     className={`px-4 py-2 rounded-full border text-[10px] uppercase tracking-[0.12em] transition-all ${
-                      category === cat
-                        ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
-                        : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30"
+                      category === cat ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]" : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30"
                     }`}
                   >
                     {cat}
@@ -372,9 +388,7 @@ export default function EditListingPage() {
                 {SIZES.map((s) => (
                   <button key={s} type="button" onClick={() => setSize(size === s ? "" : s)}
                     className={`min-w-[44px] h-[44px] px-3 rounded-full border text-[10px] uppercase tracking-[0.1em] transition-all ${
-                      size === s
-                        ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
-                        : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30"
+                      size === s ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]" : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/30"
                     }`}
                   >
                     {s}
@@ -390,9 +404,7 @@ export default function EditListingPage() {
                 {MOODS.map((m) => (
                   <button key={m.tag} type="button" onClick={() => setMood(mood === m.tag ? "" : m.tag)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] uppercase tracking-[0.12em] transition-all ${
-                      mood === m.tag
-                        ? "border-transparent text-[#F6F3EF]"
-                        : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/20"
+                      mood === m.tag ? "border-transparent text-[#F6F3EF]" : "border-[#2B0A0F]/12 hover:border-[#2B0A0F]/20"
                     }`}
                     style={mood === m.tag ? { background: m.color } : {}}
                   >
@@ -404,29 +416,18 @@ export default function EditListingPage() {
             </div>
 
             {/* ── DESCRIPTION ── */}
-             {/* ── DESCRIPTION ── */}
-<div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-  <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-    The Story
-  </label>
-
-  <textarea
-    value={description}
-    onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
-    rows={4}
-    className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
-  />
-
-  <p
-    className={`text-[9px] mb-2 ${
-      description.length >= MAX_DESC
-        ? "text-[#A1123F] opacity-80"
-        : "opacity-25"
-    }`}
-  >
-    {description.length}/{MAX_DESC}
-  </p>
-</div>
+            <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+              <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">The Story</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
+                rows={4}
+                className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20 resize-none leading-relaxed"
+              />
+              <p className={`text-[9px] mb-2 ${description.length >= MAX_DESC ? "text-[#A1123F] opacity-80" : "opacity-25"}`}>
+                {description.length}/{MAX_DESC}
+              </p>
+            </div>
 
             {/* ── ACTIONS ── */}
             <div className="space-y-3 pt-2">
@@ -457,5 +458,5 @@ export default function EditListingPage() {
         </form>
       </div>
     </main>
-    );
+  );
 }
