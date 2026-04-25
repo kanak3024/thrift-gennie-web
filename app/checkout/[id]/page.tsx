@@ -134,13 +134,17 @@ export default function CheckoutPage() {
   const handlePay = async (address: ShippingAddress) => {
     setPaying(true);
     try {
-      const shippingFee = product.shipping_price || 0;
+       const shippingFee = Number(product.shipping_price ?? 0);
+const itemPrice = Number(product.price ?? 0);
+const totalAmount = itemPrice + shippingFee;
+
+console.log("Debug:", { itemPrice, shippingFee, totalAmount }); // remove after fix
 
 const res = await fetch("/api/create-order", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    amount:     product.price + shippingFee,
+    amount: totalAmount,
     productId:  product.id,
     buyerId:    user.id,
     buyerEmail: user.email,
