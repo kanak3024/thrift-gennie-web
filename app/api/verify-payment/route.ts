@@ -139,14 +139,15 @@ export async function POST(req: Request) {
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
-      product_id:       productId,
+       product_id:       productId,
       buyer_id:         buyerId,
       seller_id:        product.seller_id,
       amount:           authorativeAmount,
-      status:           "paid",
+      status:           "payment_held",
       payment_id:       razorpay_payment_id,
       buyer_email:      buyerEmail ?? null,
       shipping_address: shippingAddress,
+      hold_release_at:  new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select()
     .single();

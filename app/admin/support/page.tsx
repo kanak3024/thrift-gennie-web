@@ -58,6 +58,10 @@ export default function AdminSupportPage() {
   const [loading, setLoading]               = useState(true);
   const [filterStatus, setFilterStatus]     = useState<"all" | "open" | "in_progress" | "closed">("open");
   const [adminUser, setAdminUser]           = useState<any>(null);
+  const [linkedOrder, setLinkedOrder] = useState<any>(null);
+  const [disputeLoading, setDisputeLoading] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
+const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
 
   // Use a ref so realtime callbacks always have the latest filterStatus
   const filterStatusRef = useRef(filterStatus);
@@ -172,6 +176,22 @@ export default function AdminSupportPage() {
     if (error) console.error("fetchMessages:", error.message);
     if (data) setMessages(data);
 
+    // Fetch linked order for dispute resolution
+const { data: orderData } = await supabase
+  .from("orders")
+  .select(`
+    id, amount, status, tracking_id, payout_status,
+    products (title, image_url),
+    profiles!orders_seller_id_fkey (full_name)
+  `)
+  .eq("buyer_id", ticket.user_id)
+  .not("status", "eq", "refunded")
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+setLinkedOrder(orderData || null);
+
     // Mark unread user messages as read by admin
     await supabase
       .from("support_messages")
@@ -213,32 +233,53 @@ export default function AdminSupportPage() {
 
   /* ── SEND REPLY ── */
   const sendReply = async () => {
-    if (!replyText.trim() || !selectedTicket || !adminUserRef.current || sending) return;
-    const text = replyText.trim();
-    setReplyText("");
-    setSending(true);
+  if ((!replyText.trim() && !attachment) || !selectedTicket || !adminUserRef.current || sending) return;
+  const text = replyText.trim();
+  setReplyText("");
+  setAttachment(null);
+  setAttachmentPreview(null);
+  setSending(true);
 
-    const { error } = await supabase.from("support_messages").insert({
-      ticket_id:     selectedTicket.id,
-      sender_id:     adminUserRef.current.id,
-      text,
-      is_admin:      true,
-      read_by_user:  false,
-      read_by_admin: true,
-    });
+  // Upload attachment if exists
+  let attachmentUrl = null;
+  if (attachment) {
+    const fileExt = attachment.name.split(".").pop();
+    const filePath = `${selectedTicket.id}/${Date.now()}.${fileExt}`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("support-attachments")
+      .upload(filePath, attachment);
 
-    if (error) console.error("sendReply:", error.message);
+    if (uploadError) {
+      console.error("upload error:", uploadError.message);
+    } else if (uploadData) {
+      const { data: urlData } = supabase.storage
+        .from("support-attachments")
+        .getPublicUrl(uploadData.path);
+      attachmentUrl = urlData.publicUrl;
+    }
+  }
 
-    // Update ticket updated_at so it bubbles to top of list
-    await supabase
-      .from("support_tickets")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", selectedTicket.id);
+  const { error } = await supabase.from("support_messages").insert({
+    ticket_id:      selectedTicket.id,
+    sender_id:      adminUserRef.current.id,
+    text:           text || null,
+    is_admin:       true,
+    read_by_user:   false,
+    read_by_admin:  true,
+    attachment_url: attachmentUrl,
+  });
 
-    setSending(false);
-    inputRef.current?.focus();
-  };
+  if (error) console.error("sendReply:", error.message);
 
+  await supabase
+    .from("support_tickets")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", selectedTicket.id);
+
+  setSending(false);
+  inputRef.current?.focus();
+};
   /* ── CHANGE STATUS ── */
   const changeStatus = async (status: string) => {
     if (!selectedTicket) return;
@@ -258,6 +299,83 @@ export default function AdminSupportPage() {
       prev.map((t) => t.id === selectedTicket.id ? { ...t, status: status as any } : t)
     );
   };
+
+  const handleRefund = async (orderId: string) => {
+  if (!selectedTicket) return;
+  setDisputeLoading(true);
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ 
+      status: "refunded",
+      payout_status: "refunded"
+    })
+    .eq("id", orderId);
+
+  if (error) { 
+    console.error("refund error:", error.message); 
+    setDisputeLoading(false);
+    return; 
+  }
+
+  // Update linked order state immediately
+  setLinkedOrder((prev: any) => prev ? { 
+    ...prev, 
+    status: "refunded",
+    payout_status: "refunded" 
+  } : prev);
+
+  // Close the ticket
+  await changeStatus("closed");
+
+  // Log it
+  await supabase.from("admin_audit_logs").insert({
+    action: "order_refunded",
+    target: orderId,
+    admin_email: adminUserRef.current?.email,
+  });
+
+  setDisputeLoading(false);
+};
+
+const handleRelease = async (orderId: string) => {
+  if (!selectedTicket) return;
+  setDisputeLoading(true);
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ 
+      status: "released",
+      payout_status: "pending",
+      hold_release_at: new Date().toISOString()
+    })
+    .eq("id", orderId);
+
+  if (error) { 
+    console.error("release error:", error.message); 
+    setDisputeLoading(false);
+    return; 
+  }
+
+  // Update linked order state immediately
+  setLinkedOrder((prev: any) => prev ? { 
+    ...prev, 
+    status: "released",
+    payout_status: "pending" 
+  } : prev);
+
+  // Close the ticket
+  await changeStatus("closed");
+
+  // Log it
+  await supabase.from("admin_audit_logs").insert({
+    action: "payment_released",
+    target: orderId,
+    admin_email: adminUserRef.current?.email,
+  });
+
+  setDisputeLoading(false);
+};
 
   /* ── CHANGE PRIORITY ── */
   const changePriority = async (priority: string) => {
@@ -577,6 +695,71 @@ export default function AdminSupportPage() {
                 </div>
               </div>
 
+              {/* ── LINKED ORDER / DISPUTE CARD ── */}
+{linkedOrder && (
+  <div className="mt-4 p-4 bg-white rounded-xl border border-[#2B0A0F]/08 flex items-center justify-between gap-4">
+    <div className="flex items-center gap-3 min-w-0">
+      {linkedOrder.products?.image_url && (
+        <img
+          src={linkedOrder.products.image_url}
+          alt={linkedOrder.products?.title}
+          className="w-10 h-12 rounded-lg object-cover flex-shrink-0"
+        />
+      )}
+      <div className="min-w-0">
+        <p className="text-[8px] uppercase tracking-[0.2em] opacity-40 mb-0.5">
+          Linked Order
+        </p>
+        <p className="text-xs font-medium truncate">
+          {linkedOrder.products?.title}
+        </p>
+        <p className="text-[9px] opacity-50 mt-0.5">
+          ₹{linkedOrder.amount?.toLocaleString("en-IN")} · 
+          Seller: {linkedOrder.profiles?.full_name} · 
+          Status: {linkedOrder.status}
+        </p>
+        {linkedOrder.tracking_id && (
+          <p className="text-[9px] opacity-40 mt-0.5">
+            Tracking: {linkedOrder.tracking_id}
+          </p>
+        )}
+      </div>
+    </div>
+
+    {/* Action buttons — only show if order is not already resolved */}
+    {!["refunded", "released"].includes(linkedOrder.status) && (
+      <div className="flex gap-2 flex-shrink-0">
+        <button
+          onClick={() => handleRefund(linkedOrder.id)}
+          disabled={disputeLoading}
+          className="text-[8px] uppercase tracking-[0.15em] px-3 py-2 border border-[#A1123F]/30 text-[#A1123F] rounded-full hover:bg-[#A1123F] hover:text-white transition-all disabled:opacity-30"
+        >
+          {disputeLoading ? "..." : "Refund Buyer"}
+        </button>
+        <button
+          onClick={() => handleRelease(linkedOrder.id)}
+          disabled={disputeLoading}
+          className="text-[8px] uppercase tracking-[0.15em] px-3 py-2 border border-[#6B7E60]/30 text-[#6B7E60] rounded-full hover:bg-[#6B7E60] hover:text-white transition-all disabled:opacity-30"
+        >
+          {disputeLoading ? "..." : "Release Payment"}
+        </button>
+      </div>
+    )}
+
+    {/* Already resolved state */}
+    {["refunded", "released"].includes(linkedOrder.status) && (
+      <span className="text-[8px] uppercase tracking-[0.15em] px-3 py-2 rounded-full flex-shrink-0"
+        style={{ 
+          background: linkedOrder.status === "refunded" ? "#A1123F15" : "#6B7E6015",
+          color: linkedOrder.status === "refunded" ? "#A1123F" : "#6B7E60"
+        }}
+      >
+        {linkedOrder.status === "refunded" ? "Refunded" : "Payment Released"}
+      </span>
+    )}
+  </div>
+)}
+
               {/* ── MESSAGES ── */}
               <div
                 className="flex-1 overflow-y-auto px-8 py-6 space-y-2"
@@ -654,6 +837,58 @@ export default function AdminSupportPage() {
 
               {/* ── REPLY BOX ── */}
               <div className="px-8 py-5 border-t border-[#2B0A0F]/08 flex-shrink-0 bg-[#F6F3EF]">
+              {/* ── CANNED RESPONSES ── */}
+{selectedTicket.status !== "closed" && (
+  <div className="mb-2">
+    <select
+      value=""
+      onChange={(e) => {
+        if (e.target.value) setReplyText(e.target.value);
+      }}
+      className="w-full text-[9px] uppercase tracking-[0.15em] border border-[#2B0A0F]/10 rounded-full px-4 py-2 bg-white outline-none cursor-pointer hover:border-[#2B0A0F]/25 transition-colors opacity-60"
+    >
+      <option value="">Quick replies...</option>
+      <optgroup label="Orders">
+        <option value="Hi! Your order is on its way. Sellers have 3 days to dispatch after payment. We'll update you with a tracking ID as soon as it's shipped.">
+          Order delay
+        </option>
+        <option value="Your payment will be released to the seller 3 days after confirmed delivery. This protects both you and the seller.">
+          Payment hold explanation
+        </option>
+        <option value="You can track your order from your Orders page. The seller will update the tracking ID once your item is dispatched.">
+          How to track order
+        </option>
+      </optgroup>
+      <optgroup label="Disputes">
+        <option value="We're sorry to hear this. Could you share clear photos of the item you received? We'll review and resolve this within 24 hours.">
+          Item not as described
+        </option>
+        <option value="We've reviewed your dispute and processed a full refund. This will reflect within 5-7 business days depending on your payment method.">
+          Refund processed
+        </option>
+        <option value="We've reviewed your case and released the payment to the seller. Thank you for your patience during this process.">
+          Payment released
+        </option>
+      </optgroup>
+      <optgroup label="Sellers">
+        <option value="Your payout will be transferred to your UPI within 24 hours of the hold period ending. Thank you for your patience.">
+          Payout timeline
+        </option>
+        <option value="To list an item, go to your profile and tap Submit a Piece. Make sure your photos are clear and your description is accurate.">
+          How to list
+        </option>
+      </optgroup>
+      <optgroup label="General">
+        <option value="Thank you for reaching out! We've received your message and will get back to you within 24 hours.">
+          Acknowledgement
+        </option>
+        <option value="We're closing this ticket as the issue has been resolved. Feel free to open a new ticket if you need further help.">
+          Closing ticket
+        </option>
+      </optgroup>
+    </select>
+  </div>
+)}
                 {selectedTicket.status === "closed" ? (
                   <div className="flex items-center justify-between py-3 px-5 rounded-xl bg-[#2B0A0F]/04 border border-dashed border-[#2B0A0F]/10">
                     <p className="text-[9px] uppercase tracking-[0.3em] opacity-30">
@@ -669,27 +904,72 @@ export default function AdminSupportPage() {
                 ) : (
                   <div className="flex gap-3 items-end">
                     <div className="flex-1 relative">
-                      <textarea
-                        ref={inputRef}
-                        value={replyText}
-                        onChange={(e) => {
-  setReplyText(e.target.value);
-  broadcastTyping();
-}}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            sendReply();
-                          }
-                        }}
-                        placeholder="Write your reply… (Enter to send, Shift+Enter for new line)"
-                        rows={3}
-                        className="w-full bg-white border border-[#2B0A0F]/12 rounded-2xl px-5 py-4 text-sm outline-none focus:border-[#2B0A0F]/40 transition-colors placeholder:opacity-25 resize-none"
-                      />
-                      <span className="absolute bottom-3 right-4 text-[8px] uppercase tracking-[0.15em] opacity-20">
-                        {replyText.length > 0 ? `${replyText.length} chars` : "Shift+↵ new line"}
-                      </span>
-                    </div>
+
+  {/* Attachment preview */}
+  {attachmentPreview && (
+    <div className="mb-2 flex items-center gap-2">
+      <img
+        src={attachmentPreview}
+        alt="Attachment preview"
+        className="w-12 h-12 rounded-lg object-cover border border-[#2B0A0F]/08"
+      />
+      <button
+        onClick={() => {
+          setAttachment(null);
+          setAttachmentPreview(null);
+        }}
+        className="text-[9px] uppercase tracking-[0.15em] opacity-40 hover:opacity-80 transition-opacity"
+      >
+        Remove
+      </button>
+    </div>
+  )}
+
+  {/* File input trigger */}
+  <div className="absolute top-3 right-12 z-10">
+    <label className="cursor-pointer opacity-25 hover:opacity-60 transition-opacity">
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          setAttachment(file);
+          setAttachmentPreview(URL.createObjectURL(file));
+        }}
+      />
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <path d="M21 15l-5-5L5 21"/>
+      </svg>
+    </label>
+  </div>
+
+  <textarea
+    ref={inputRef}
+    value={replyText}
+    onChange={(e) => {
+      setReplyText(e.target.value);
+      broadcastTyping();
+    }}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendReply();
+      }
+    }}
+    placeholder="Write your reply… (Enter to send, Shift+Enter for new line)"
+    rows={3}
+    className="w-full bg-white border border-[#2B0A0F]/12 rounded-2xl px-5 py-4 text-sm outline-none focus:border-[#2B0A0F]/40 transition-colors placeholder:opacity-25 resize-none"
+  />
+  <span className="absolute bottom-3 right-4 text-[8px] uppercase tracking-[0.15em] opacity-20">
+    {replyText.length > 0 ? `${replyText.length} chars` : "Shift+↵ new line"}
+  </span>
+</div>
+                     
+                     
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={sendReply}

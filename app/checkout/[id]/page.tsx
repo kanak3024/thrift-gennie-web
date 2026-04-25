@@ -134,16 +134,18 @@ export default function CheckoutPage() {
   const handlePay = async (address: ShippingAddress) => {
     setPaying(true);
     try {
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount:     product.price,
-          productId:  product.id,
-          buyerId:    user.id,
-          buyerEmail: user.email,
-        }),
-      });
+      const shippingFee = product.shipping_price || 0;
+
+const res = await fetch("/api/create-order", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    amount:     product.price + shippingFee,
+    productId:  product.id,
+    buyerId:    user.id,
+    buyerEmail: user.email,
+  }),
+});
       const order = await res.json();
       if (!order.id) throw new Error("Order creation failed");
 
@@ -213,8 +215,8 @@ export default function CheckoutPage() {
   </main>
 );
 
-  const platformFee = 0;
-  const total       = product.price + platformFee;
+const shippingFee = product.shipping_price || 0;
+const total = product.price + shippingFee;
 
   return (
     <motion.main

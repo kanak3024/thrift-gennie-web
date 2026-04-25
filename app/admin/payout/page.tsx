@@ -53,7 +53,10 @@ export default function AdminPayoutsPage() {
     }
   };
 
-  const pendingOrders = orders.filter(o => o.payout_status === "pending" && o.status === "paid");
+  const pendingOrders = orders.filter(o => 
+  o.payout_status === "pending" && 
+  (o.status === "payment_held" || o.status === "released")
+);
   const paidOrders = orders.filter(o => o.payout_status === "paid");
   const displayOrders = activeTab === "pending" ? pendingOrders : paidOrders;
 

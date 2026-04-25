@@ -290,6 +290,8 @@ export default function SellPage() {
   const [price, setPrice]               = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
   const [negotiable, setNegotiable]     = useState(false);
+  const [shippingPrice, setShippingPrice] = useState<string>("0");
+  const [freeShipping, setFreeShipping] = useState(false);
   const [location, setLocation]         = useState("");
   const [description, setDescription]   = useState("");
   const [condition, setCondition]       = useState("");
@@ -382,6 +384,7 @@ export default function SellPage() {
         price: parseFloat(price),
         original_price: originalPrice ? parseFloat(originalPrice) : null,
         negotiable,
+        shipping_price: freeShipping ? 0 : Math.min(parseInt(shippingPrice) || 0, 60),
         location, description, condition, size, category, mood,
         colour: colour || null,
         image_url:    uploadedUrls[0],
@@ -560,6 +563,55 @@ export default function SellPage() {
                         </AnimatePresence>
                       </div>
                     </div>
+                    {/* Shipping */}
+<div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+  <div className="flex items-center justify-between mb-2">
+    <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">
+      Shipping Charge
+    </label>
+    <button
+      type="button"
+      onClick={() => {
+        setFreeShipping(!freeShipping);
+        if (!freeShipping) setShippingPrice("0");
+      }}
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[8px] uppercase tracking-[0.15em] transition-all ${
+        freeShipping
+          ? "bg-[#6B7E60] border-[#6B7E60] text-white"
+          : "border-[#2B0A0F]/15 opacity-40 hover:opacity-70"
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${freeShipping ? "bg-white" : "bg-[#2B0A0F]/40"}`} />
+      {freeShipping ? "Free Shipping" : "Set Free"}
+    </button>
+  </div>
+
+  {!freeShipping ? (
+    <>
+      <input
+        suppressHydrationWarning
+        type="number"
+        min="0"
+        max="60"
+        inputMode="numeric"
+        value={shippingPrice}
+        onChange={(e) => {
+          const val = Math.min(parseInt(e.target.value) || 0, 60);
+          setShippingPrice(val.toString());
+        }}
+        placeholder="0"
+        className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+      />
+      <p className="text-[9px] opacity-30 mb-2">
+        Max ₹60 · Buyer pays this on top of item price
+      </p>
+    </>
+  ) : (
+    <p className="text-[9px] text-[#6B7E60] pb-3">
+      ✦ Free shipping makes your listing stand out
+    </p>
+  )}
+</div>
 
                     {/* City */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">

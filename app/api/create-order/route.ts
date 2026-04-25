@@ -15,7 +15,7 @@ const ratelimit = new Ratelimit({
   prefix: "rl:create-order",
 });
 
-const BUYER_PROTECTION_FEE = 10;
+const BUYER_PROTECTION_FEE =0;
 const MAX_AMOUNT = 1_000_000; // ₹10,00,000
 
 export async function POST(req: Request) {
