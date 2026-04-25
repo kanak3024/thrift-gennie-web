@@ -10,12 +10,12 @@ import { motion, AnimatePresence } from "framer-motion";
 /* ─────────────────────────────
    CONSTANTS
 ───────────────────────────── */
-const STATUS_STEPS = ["pending", "paid", "shipped", "delivered"];
-
+const STATUS_STEPS = ["pending", "payment_held", "shipped", "delivered"];
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   pending:   { label: "Pending",   color: "#B48A5A", icon: "🕐" },
-  paid:      { label: "Paid",      color: "#457B9D", icon: "💳" },
-  shipped:   { label: "Shipped",   color: "#6B3FA0", icon: "📦" },
+  paid:          { label: "Paid",        color: "#457B9D", icon: "💳" },
+payment_held:  { label: "Processing",  color: "#457B9D", icon: "🔒" },
+   shipped:   { label: "Shipped",   color: "#6B3FA0", icon: "📦" },
   delivered: { label: "Delivered", color: "#6B7E60", icon: "✓"  },
   cancelled: { label: "Cancelled", color: "#A1123F", icon: "✕"  },
 };
