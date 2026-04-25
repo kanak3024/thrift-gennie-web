@@ -821,9 +821,17 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               {product.title}
             </h1>
 
-            <p className="text-2xl sm:text-3xl mb-5 sm:mb-6 text-[#A1123F]" style={{ fontFamily: "var(--font-playfair)" }}>
-              ₹{product.price?.toLocaleString("en-IN")}
-            </p>
+             <p className="text-2xl sm:text-3xl mb-2 text-[#A1123F]" style={{ fontFamily: "var(--font-playfair)" }}>
+  ₹{product.price?.toLocaleString("en-IN")}
+</p>
+
+{/* Shipping line */}
+<p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-5 sm:mb-6">
+  {Number(product.shipping_price) > 0
+    ? `+ ₹${Number(product.shipping_price)} shipping · Total ₹${(product.price + Number(product.shipping_price)).toLocaleString("en-IN")}`
+    : "Free shipping"
+  }
+</p>
 
             {/* Meta chips — scrollable on very small screens */}
             <div className="flex flex-wrap gap-2 mb-6 sm:mb-7">
