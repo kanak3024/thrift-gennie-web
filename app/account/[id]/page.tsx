@@ -222,8 +222,9 @@ export default function AccountPage() {
 
         const { data: sold } = await supabase
           .from("orders").select("*, products(title, image_url, price)")
-          .eq("seller_id", id).eq("status", "paid");
-        setSoldItems(sold || []);
+          .eq("seller_id", id)
+.in("status", ["payment_held", "released", "delivered"]);
+         setSoldItems(sold || []);
 
         const { data: purchased } = await supabase
           .from("orders").select("*, products(title, image_url, price)")

@@ -113,17 +113,37 @@ export async function POST(req: Request) {
     await logPaymentEvent("product_not_found", { productId, razorpay_payment_id });
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
+  // ── 6a. Prevent self-purchase ──────────────────────────────────────────
+if (product.seller_id === buyerId) {
+  await logPaymentEvent("self_purchase_attempt", { productId, buyerId });
+  return NextResponse.json(
+    { error: "You cannot purchase your own listing." },
+    { status: 400 }
+  );
+}
 
   // ── 6. Race condition guard ────────────────────────────────────────────
-  if (product.status === "sold") {
-    await logPaymentEvent("product_already_sold", {
-      productId, razorpay_payment_id, buyerId, needs_reconciliation: true,
-    });
-    return NextResponse.json(
-      { error: "This item has already been sold. Our team will process a refund." },
-      { status: 409 }
-    );
-  }
+   // ── 6. Race condition guard ────────────────────────────────────────────
+if (product.status === "sold") {
+  await logPaymentEvent("product_already_sold", {
+    productId, razorpay_payment_id, buyerId, needs_reconciliation: true,
+  });
+  return NextResponse.json(
+    { error: "This item has already been sold. Our team will process a refund." },
+    { status: 409 }
+  );
+}
+
+if (product.status !== "available") {
+  await logPaymentEvent("product_unavailable", {
+    productId, razorpay_payment_id, buyerId, 
+    status: product.status, needs_reconciliation: true,
+  });
+  return NextResponse.json(
+    { error: "This item is no longer available. Our team will process a refund." },
+    { status: 409 }
+  );
+}
 
   // ── 7. Fetch seller email ──────────────────────────────────────────────
   const { data: sellerProfile } = await supabase

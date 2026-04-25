@@ -12,8 +12,9 @@ import { motion, AnimatePresence } from "framer-motion";
 ───────────────────────────── */
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
   pending:   { label: "Pending",   bg: "#B48A5A/10", text: "#B48A5A", dot: "#B48A5A" },
-  paid:      { label: "Paid",      bg: "#457B9D/10", text: "#457B9D", dot: "#457B9D" },
-  shipped:   { label: "Shipped",   bg: "#6B3FA0/10", text: "#6B3FA0", dot: "#6B3FA0" },
+  paid:         { label: "Paid",       bg: "#457B9D/10", text: "#457B9D", dot: "#457B9D" },
+  payment_held: { label: "Processing", bg: "#457B9D/10", text: "#457B9D", dot: "#457B9D" },
+   shipped:   { label: "Shipped",   bg: "#6B3FA0/10", text: "#6B3FA0", dot: "#6B3FA0" },
   delivered: { label: "Delivered", bg: "#6B7E60/10", text: "#6B7E60", dot: "#6B7E60" },
   cancelled: { label: "Cancelled", bg: "#A1123F/10", text: "#A1123F", dot: "#A1123F" },
 };
