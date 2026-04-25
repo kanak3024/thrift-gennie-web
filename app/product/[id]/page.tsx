@@ -301,6 +301,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
   setAddressModalOpen(false);
   setPaymentLoading(true);
   try {
+    const shippingFee = Number(product.shipping_price ?? 0);
     const res = await fetch("/api/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
