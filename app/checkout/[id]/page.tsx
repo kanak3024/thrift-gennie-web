@@ -451,8 +451,10 @@ const total = product.price + shippingFee;
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs opacity-60">Shipping</span>
-                  <span className="text-sm opacity-50">By seller</span>
-                </div>
+                  <span className="text-sm">
+  {shippingFee > 0 ? `₹${shippingFee}` : "Free"}
+</span>
+                 </div>
               </div>
 
               <div className="w-full h-px bg-[#2B0A0F]/08 mb-5" />
