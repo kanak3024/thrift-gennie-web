@@ -305,7 +305,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        amount:          product.price,
+        amount:          product.price + shippingFee,
         productId:       product.id,
         buyerId:         user.id,
         buyerEmail:      user.email,
@@ -925,7 +925,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                       Opening Payment...
                     </>
                   ) : (
-                    `Buy Now — ₹${product.price?.toLocaleString("en-IN")}`
+                     `Buy Now — ₹${(product.price + Number(product.shipping_price ?? 0)).toLocaleString("en-IN")}`
                   )}
                 </motion.button>
 
