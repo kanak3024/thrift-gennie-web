@@ -305,9 +305,7 @@ export default function SupportChat() {
     <>
     
       {/* ── FLOATING BUTTON ── */}
-  <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6"
-    style={{ bottom: "max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom)))" }}
-  >
+  <div className="fixed bottom-24 right-4 md:bottom-6 md:right-6"  >
         <AnimatePresence>
           {pulse && !open && (
             <motion.div
@@ -370,7 +368,7 @@ export default function SupportChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed bottom-24 right-6 z-50 w-[360px] max-h-[min(600px,calc(100svh-8rem))] flex flex-col bg-[#F6F3EF] rounded-2xl shadow-2xl overflow-hidden border border-[#2B0A0F]/08"
+            className="fixed bottom-36 right-4 md:bottom-24 md:right-6 z-50 w-[calc(100vw-2rem)] md:w-[360px] max-h-[min(600px,calc(100svh-8rem))] flex flex-col bg-[#F6F3EF] rounded-2xl shadow-2xl overflow-hidden border border-[#2B0A0F]/08"
             style={{ boxShadow: "0 32px 80px rgba(43,10,15,0.22)" }}
           >
             {/* HEADER */}

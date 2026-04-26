@@ -285,6 +285,51 @@ function useLiveStats() {
   return stats;
 }
 
+function useSocialProof() {
+  const [events, setEvents] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function fetch() {
+      const [{ data: listings }, { data: orders }] = await Promise.all([
+        supabase
+          .from("products")
+          .select("title, location, profiles!products_seller_id_fkey(full_name)")
+          .eq("status", "available")
+          .order("created_at", { ascending: false })
+          .limit(6),
+        supabase
+          .from("orders")
+          .select("amount, products(title)")
+          .eq("status", "payment_held")
+          .order("created_at", { ascending: false })
+          .limit(4),
+      ]);
+
+      const listingEvents = (listings ?? []).map((l: any) => {
+        const name = l.profiles?.full_name?.split(" ")[0] || "Someone";
+        const city = l.location ? ` in ${l.location}` : "";
+        return `${name} just listed — ${l.title}${city}`;
+      });
+
+      const orderEvents = (orders ?? []).map((o: any) => {
+        return `Just sold — ${o.products?.title} · ₹${o.amount?.toLocaleString("en-IN")}`;
+      });
+
+      const all = [...listingEvents, ...orderEvents]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 8);
+
+      setEvents(all.length > 0 ? all : [
+        "First listings just dropped in Mumbai",
+        "Archive No. 001 is now live",
+        "New pieces added this week",
+      ]);
+    }
+    fetch();
+  }, []);
+
+  return events;
+}
 /* =========================
    MOOD PIECE PREVIEWS
 ========================= */
@@ -301,7 +346,7 @@ function useMoodPreviews(tag: string) {
     }
     async function doFetch() {
       const [{ data }, { count: total }] = await Promise.all([
-        supabase.from("products").select("id, image_url, title, price").eq("mood_tag", tag).order("created_at", { ascending: false }).limit(3),
+        supabase.from("products").select("id, image_url, title, price").eq("mood", tag).order("created_at", { ascending: false }).limit(3),
         supabase.from("products").select("*", { count: "exact", head: true }).eq("mood_tag", tag),
       ]);
       const result = { pieces: data ?? [], count: total ?? 0 };
@@ -554,6 +599,7 @@ export default function HomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [trendingSearches, setTrendingSearches] = useState<string[]>([]);
   const liveStats = useLiveStats();
+  const socialProof = useSocialProof();
 
   // Carousel drives the active mood. jumpTo() resets the auto-cycle timer.
   const { idx: activeMoodIdx, jumpTo } = useCarousel(MOODS.length);
@@ -605,8 +651,8 @@ export default function HomePage() {
                 <span className="relative inline-flex rounded-full h-[7px] w-[7px] bg-[#A1123F]" />
               </span>
               <span className="text-[10px] tracking-[0.3em] uppercase opacity-50" style={{ fontFamily: "var(--font-dm)" }}>
-                Live archive · {liveStats.pieces > 0 ? `${liveStats.pieces} pieces` : "247 pieces this week"}
-              </span>
+ Live archive · {liveStats.pieces > 0 ? `${liveStats.pieces} pieces` : "Loading..."}            
+   </span>
             </motion.div>
 
             {/* Headline — each line staggers in with blur clear */}
@@ -673,9 +719,9 @@ export default function HomePage() {
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.76 }}
               className="mt-8 md:mt-12 flex gap-6 md:gap-8 border-t border-[#2B0A0F]/08 pt-6 md:pt-8"
             >
-              <StatCard num={liveStats.pieces || 2400} label="Pieces Listed" suffix="+" />
-              <StatCard num={liveStats.avgPrice || 340} label="Avg Price" prefix="₹" />
-              <StatCard num={liveStats.cities || 5} label="Cities" suffix=" Cities" />
+              <StatCard num={liveStats.pieces} label="Pieces Listed" suffix="+" />
+              <StatCard num={liveStats.avgPrice} label="Avg Price" prefix="₹" />
+              <StatCard num={liveStats.cities} label="Cities" suffix=" Cities" />
             </motion.div>
           </div>
 
@@ -816,6 +862,32 @@ export default function HomePage() {
           </motion.div>
         </div>
       </section>
+
+      {/* ══════════════════════════
+    SOCIAL PROOF STRIP
+══════════════════════════ */}
+{socialProof.length > 0 && (
+  <div className="bg-[#F0EBE3] border-y border-[#2B0A0F]/06 py-2.5 overflow-hidden">
+    <div
+      className="flex whitespace-nowrap"
+      style={{ animation: "ticker 20s linear infinite" }}
+    >
+      {[...socialProof, ...socialProof].map((event, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-3 px-6 text-[10px] tracking-[0.2em] uppercase text-[#2B0A0F]/60"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+            style={{ background: i % 2 === 0 ? "#A1123F" : "#B48A5A" }}
+          />
+          {event}
+        </span>
+      ))}
+    </div>
+  </div>
+)}
 
       {/* ══════════════════════════
           TICKER — gold dot
