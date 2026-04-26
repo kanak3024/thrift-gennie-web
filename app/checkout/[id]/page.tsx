@@ -144,7 +144,7 @@ const res = await fetch("/api/create-order", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    amount: totalAmount,
+    amount:  Math.round(totalAmount),
     productId:  product.id,
     buyerId:    user.id,
     buyerEmail: user.email,
