@@ -482,15 +482,7 @@ export default function Navbar() {
                 <line x1="16.5" y1="16.5" x2="22" y2="22" />
               </svg>
             </button>
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="flex flex-col gap-[5px] p-1"
-              aria-label="Toggle menu"
-            >
-              <motion.span animate={menuOpen ? { rotate: 45, y: 7 } : { rotate: 0, y: 0 }} className="block w-5 h-[1.5px] bg-[#F6F3EF] origin-center transition-all" />
-              <motion.span animate={menuOpen ? { opacity: 0 } : { opacity: 1 }} className="block w-5 h-[1.5px] bg-[#F6F3EF]" />
-              <motion.span animate={menuOpen ? { rotate: -45, y: -7 } : { rotate: 0, y: 0 }} className="block w-5 h-[1.5px] bg-[#F6F3EF] origin-center transition-all" />
-            </button>
+            
           </div>
 
         </div>
@@ -705,42 +697,6 @@ export default function Navbar() {
                 </div>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MOBILE MENU OVERLAY */}
-      <AnimatePresence>
-        {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-40 bg-[#1A060B] flex flex-col pt-24 px-8 md:hidden"
-          >
-            <nav className="flex flex-col gap-6 mt-8">
-              {navLinks.map((link) => (
-                <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)}
-                  className="text-[#F6F3EF]/70 hover:text-[#B48A5A] uppercase tracking-[0.3em] text-sm border-b border-white/[0.08] pb-6 transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-            {user && (
-              <div className="mt-10 pt-6 border-t border-white/10">
-                <p className="text-[10px] opacity-40 tracking-wide capitalize mb-4">
-                  {userName ?? user.email}
-                </p>
-                <button
-                  onClick={handleLogout}
-                  className="border border-white/30 px-6 py-2 rounded-full text-xs tracking-[0.2em] uppercase hover:bg-white hover:text-black transition-all"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>

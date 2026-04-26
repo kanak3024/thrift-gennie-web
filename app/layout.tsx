@@ -3,6 +3,7 @@ import { Playfair_Display, Inter, Cormorant_Garamond, DM_Sans } from "next/font/
 import Navbar from "./components/Navbar";
 import SupportChat from "./components/SupportChat";
 import NotificationToast from "./components/NotificationToast";
+import BottomNav from "./components/BottomNav";
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
@@ -28,6 +29,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <Navbar />
         <NotificationToast />
+        <NotificationToast />
+<BottomNav />
         {children}
         <SupportChat />
       </body>
