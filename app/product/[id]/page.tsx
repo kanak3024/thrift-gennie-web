@@ -321,7 +321,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
     document.body.appendChild(script);
     script.onload = () => {
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim(),
         amount: order.amount,
         currency: "INR",
         name: "Thrift Gennie",
