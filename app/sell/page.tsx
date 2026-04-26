@@ -731,19 +731,12 @@ setHasUpi(!!profile?.bank_upi);
                       </p>
                     </div>
 
-                    {/* Submit */}
-                    <div className="pt-2 space-y-3">
-                      {!canProceedStep1 && missingFields().length > 0 && (
-                        <p className="text-[9px] text-[#A1123F] opacity-70 text-center">Still needed: {missingFields().join(" · ")}</p>
-                      )}
-
                       {/* Submit */}
 <div className="pt-2 space-y-3">
   {!canProceedStep1 && missingFields().length > 0 && (
     <p className="text-[9px] text-[#A1123F] opacity-70 text-center">Still needed: {missingFields().join(" · ")}</p>
   )}
 
-  {/* UPI Warning */}
   {!hasUpi && (
     <div className="p-4 rounded-2xl border border-[#B48A5A]/30 bg-[#B48A5A]/05">
       <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48A5A] mb-1">
@@ -759,17 +752,19 @@ setHasUpi(!!profile?.bank_upi);
       </Link>
     </div>
   )}
-                      <motion.button type="submit" disabled={loading || !canProceedStep1} whileTap={{ scale: 0.98 }}
-                        className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2">
-                        {loading ? (
-                          <><svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>Archiving your piece...</>
-                        ) : "Submit Piece to Archive ✦"}
-                      </motion.button>
-                      <button type="button" onClick={() => setStep(0)}
-                        className="w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-80 transition-opacity">
-                        ← Back to Photos
-                      </button>
-                    </div>
+
+  <motion.button type="submit" disabled={loading || !canProceedStep1} whileTap={{ scale: 0.98 }}
+    className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2">
+    {loading ? (
+      <><svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>Archiving your piece...</>
+    ) : "Submit Piece to Archive ✦"}
+  </motion.button>
+
+  <button type="button" onClick={() => setStep(0)}
+    className="w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-80 transition-opacity">
+    ← Back to Photos
+  </button>
+</div>
 
                     <p className="text-[9px] uppercase tracking-[0.15em] leading-relaxed opacity-30 text-center">Every piece is reviewed before appearing in the Archive.</p>
                   </div>
