@@ -31,8 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NotificationToast />
         <NotificationToast />
 <BottomNav />
-        {children}
-        <SupportChat />
+<div className="pb-20 md:pb-0">
+  {children}
+</div>
+         <SupportChat />
       </body>
     </html>
   );
