@@ -604,10 +604,10 @@ export default function AdminDashboardPage() {
     ] = await Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("buyer_id").gte("created_at", daysAgo(90)),
-      supabase.from("orders").select("amount").in("status", ["paid", "delivered", "shipped"])
-      supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
-      supabase.from("orders").select("id", { count: "exact", head: true })
-        .eq("payout_status", "pending").in("status", ["paid", "delivered", "shipped"])
+      supabase.from("orders").select("amount").in("status", ["paid", "payment_held", "delivered", "shipped"]),
+       supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+      supabase.from("orders").select("id", { count: "exact", head: true }),
+        .eq("payout_status", "pending").in("status", ["paid", "delivered", "shipped"]),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("kyc_status", "pending"),
       supabase.from("products").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo),
       supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo),
