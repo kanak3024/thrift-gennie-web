@@ -306,7 +306,7 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        amount:          Math.round(product.price + shippingFee)
+        amount:          Math.round(product.price + shippingFee),
         productId:       product.id,
         buyerId:         user.id,
         buyerEmail:      user.email,
