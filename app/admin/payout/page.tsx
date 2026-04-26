@@ -60,8 +60,7 @@ export default function AdminPayoutsPage() {
   const paidOrders = orders.filter(o => o.payout_status === "paid");
   const displayOrders = activeTab === "pending" ? pendingOrders : paidOrders;
 
-  const totalPending = pendingOrders.reduce((sum, o) => sum + o.amount, 0);
-
+ const totalPending = pendingOrders.reduce((sum, o) => sum + Number(o.amount), 0);
   if (loading) return (
     <div className="min-h-screen bg-[#F6F3EF] flex items-center justify-center">
       <p className="uppercase tracking-[0.5em] text-[10px] opacity-40 animate-pulse">Loading Payouts...</p>
