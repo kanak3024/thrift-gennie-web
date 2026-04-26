@@ -423,6 +423,7 @@ export default function AccountPage() {
   );
 
   const isOwner           = currentUser?.id === id;
+  const hasupi = !!user?.bank_upi;
   const displayName       = user.full_name || "Curator";
   const availableProducts = products.filter(p => p.status === "available");
   const hasReturnAddress  = user.address_line && user.city && user.state && user.pincode;
@@ -681,6 +682,25 @@ export default function AccountPage() {
       ══════════════════════════════ */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
         <AnimatePresence mode="wait">
+          {/* UPI Warning Banner */}
+{isOwner && !hasupi && (
+  <div className="mb-6 p-4 rounded-2xl border border-[#B48A5A]/30 bg-[#B48A5A]/05 flex items-center justify-between gap-4">
+    <div>
+      <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48A5A] font-medium mb-0.5">
+        ⚠️ Add UPI to receive payouts
+      </p>
+      <p className="text-[9px] opacity-50">
+        You won't receive payment for sales until you add your UPI ID.
+      </p>
+    </div>
+    <button
+      onClick={() => setShowBankForm(true)}
+      className="text-[9px] uppercase tracking-[0.15em] px-3 py-2 rounded-full border border-[#B48A5A]/40 text-[#B48A5A] hover:bg-[#B48A5A] hover:text-white transition-all flex-shrink-0"
+    >
+      Add Now →
+    </button>
+  </div>
+)}
 
           {/* COLLECTIONS */}
           {activeTab === "collections" && (

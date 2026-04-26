@@ -280,6 +280,7 @@ export default function SellPage() {
 
   const [step, setStep]                 = useState(0);
   const [userId, setUserId]             = useState<string | null>(null);
+  const [hasUpi, setHasUpi] = useState(true);
   const [loading, setLoading]           = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [toast, setToast]               = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -312,6 +313,12 @@ export default function SellPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
       setUserId(user.id);
+      const { data: profile } = await supabase
+  .from("profiles")
+  .select("bank_upi")
+  .eq("id", user.id)
+  .single();
+setHasUpi(!!profile?.bank_upi);
       setCheckingAuth(false);
     };
     checkUser();
@@ -729,6 +736,29 @@ export default function SellPage() {
                       {!canProceedStep1 && missingFields().length > 0 && (
                         <p className="text-[9px] text-[#A1123F] opacity-70 text-center">Still needed: {missingFields().join(" · ")}</p>
                       )}
+
+                      {/* Submit */}
+<div className="pt-2 space-y-3">
+  {!canProceedStep1 && missingFields().length > 0 && (
+    <p className="text-[9px] text-[#A1123F] opacity-70 text-center">Still needed: {missingFields().join(" · ")}</p>
+  )}
+
+  {/* UPI Warning */}
+  {!hasUpi && (
+    <div className="p-4 rounded-2xl border border-[#B48A5A]/30 bg-[#B48A5A]/05">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48A5A] mb-1">
+        ⚠️ Add UPI before listing
+      </p>
+      <p className="text-[9px] opacity-50 mb-3">
+        You need a UPI ID to receive payment when your piece sells.
+      </p>
+      <Link href={`/account/${userId}`}>
+        <button type="button" className="text-[9px] uppercase tracking-[0.15em] px-3 py-2 rounded-full border border-[#B48A5A]/40 text-[#B48A5A] hover:bg-[#B48A5A] hover:text-white transition-all">
+          Add UPI in Profile →
+        </button>
+      </Link>
+    </div>
+  )}
                       <motion.button type="submit" disabled={loading || !canProceedStep1} whileTap={{ scale: 0.98 }}
                         className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2">
                         {loading ? (
