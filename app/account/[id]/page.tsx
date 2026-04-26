@@ -228,8 +228,8 @@ export default function AccountPage() {
 
         const { data: purchased } = await supabase
           .from("orders").select("*, products(title, image_url, price)")
-          .eq("buyer_id", id).eq("status", "paid");
-        setPurchasedItems(purchased || []);
+          .eq("buyer_id", id).in("status", ["paid", "payment_held", "completed", "delivered"])
+         setPurchasedItems(purchased || []);
 
         const { data: ratingsData } = await supabase
           .from("ratings")
