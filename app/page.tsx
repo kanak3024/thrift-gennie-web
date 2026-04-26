@@ -137,11 +137,11 @@ const MOODS = [
 ];
 
 const MOOD_GRID = [
-  { title: "Y2K It Girl",    tag: "y2k",       sub: "Trend",     cls: "from-[#FFB3C6] to-[#C77DFF]" },
-  { title: "Old Money",      tag: "oldmoney",  sub: "Aesthetic", cls: "from-[#C9A96E] to-[#8B6914]" },
-  { title: "Indie Archive",  tag: "indie",     sub: "Vibe",      cls: "from-[#7B8B6F] to-[#3D4A35]" },
-  { title: "Bollywood Glam", tag: "bollywood", sub: "Statement", cls: "from-[#FF6B35] to-[#C41E3A]" },
-  { title: "90s Minimal",    tag: "90s",       sub: "Classic",   cls: "from-[#A8DADC] to-[#457B9D]" },
+  { title: "Y2K It Girl",    tag: "y2k",       sub: "Trend",     cls: "from-[#F7C5D5] via-[#DBA8E8] to-[#B48AE0]", mascot: "/y2k.png" },
+  { title: "Old Money",      tag: "oldmoney",  sub: "Aesthetic", cls: "from-[#E8D5B0] via-[#C9A96E] to-[#8B6914]", mascot: "/oldmoney.png" },
+  { title: "Indie Archive",  tag: "indie",     sub: "Vibe",      cls: "from-[#C8D5B8] via-[#8FA87A] to-[#4A6240]", mascot: "/streetstyle.png" },
+  { title: "Bollywood Glam", tag: "bollywood", sub: "Statement", cls: "from-[#F5C0A0] via-[#E8804A] to-[#B84028]", mascot: "/night.png" },
+  { title: "90s Minimal",    tag: "90s",       sub: "Classic",   cls: "from-[#C5D8E8] via-[#7AAFC8] to-[#3A6E8A]", mascot: "/y2k.png" },
 ];
 
 const TICKER_ITEMS = [
@@ -318,40 +318,107 @@ function useMoodPreviews(tag: string) {
 /* =========================
    MOOD GRID ITEM
 ========================= */
-function MoodGridItem({ mood, index }: { mood: typeof MOOD_GRID[0]; index: number }) {
-  const { pieces, count } = useMoodPreviews(mood.tag);
+ function MoodGridItem({ mood, index }: { mood: typeof MOOD_GRID[0]; index: number }) {
+  const [bgImage, setBgImage] = useState<string | null>(null);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    async function fetch() {
+      const [{ data }, { count: total }] = await Promise.all([
+        supabase
+          .from("products")
+          .select("image_url")
+          .eq("mood", mood.tag)
+          .eq("status", "available")
+          .order("created_at", { ascending: false })
+          .limit(1),
+        supabase
+          .from("products")
+          .select("*", { count: "exact", head: true })
+          .eq("mood", mood.tag)
+          .eq("status", "available"),
+      ]);
+      if (data?.[0]?.image_url) setBgImage(data[0].image_url);
+      setCount(total ?? 0);
+    }
+    fetch();
+  }, [mood.tag]);
+
+  const isWide = index === 4;
+
   return (
-    <Link href={`/buy?mood=${mood.tag}`} className={`group ${index === 4 ? "col-span-2 md:col-span-1" : ""}`}>
-      <div className="rounded-[18px] overflow-hidden aspect-[3/4] relative cursor-pointer">
-        <div className={`w-full h-full bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-500`} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <div className="absolute top-3 right-3 bg-white/15 backdrop-blur-md rounded-full px-2 py-1 text-[9px] text-white tracking-wide" style={{ fontFamily: "var(--font-dm)" }}>
-          {count > 0 ? count : "—"}
+    <Link
+      href={`/buy?mood=${mood.tag}`}
+      className={`group relative overflow-hidden rounded-[20px] cursor-pointer ${
+        isWide ? "col-span-2 md:col-span-2 aspect-[2/1] md:aspect-[3/1]" : "aspect-[3/4]"
+      }`}
+    >
+      {/* Background — real image or gradient */}
+      {bgImage ? (
+        <div className="absolute inset-0">
+          <Image
+            src={bgImage}
+            alt={mood.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-700"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
         </div>
-        {pieces.length > 0 && (
-          <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1 px-3">
-            {pieces.slice(0, 2).map((p, i) => (
-              <div
-                key={p.id}
-                className="w-10 h-12 rounded-lg overflow-hidden border border-white/20 shadow-sm"
-                style={{ transform: `rotate(${i === 0 ? "-4deg" : "3deg"}) translateY(${i * 4}px)` }}
-              >
-                <Image src={p.image_url} alt={p.title} width={40} height={48} className="object-cover w-full h-full" />
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="absolute bottom-4 left-4 right-4 text-white">
-          <p className="text-[8px] tracking-[0.25em] uppercase opacity-65" style={{ fontFamily: "var(--font-dm)" }}>{mood.sub}</p>
-          <h3 className="text-sm md:text-[1.1rem] mt-1 leading-tight" style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}>
-            {mood.title}
-          </h3>
+      ) : (
+        <div className={`absolute inset-0 bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-700`}>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
         </div>
+      )}
+
+      {/* Piece count badge */}
+      <div className="absolute top-3 left-3 z-20">
+        <span
+          className="text-[9px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/20"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
+          {count > 0 ? `${count} pieces` : "Coming soon"}
+        </span>
+      </div>
+
+      {/* Mascot — positioned differently for wide card */}
+      {mood.mascot && (
+        <div className={`absolute z-10 pointer-events-none ${
+          isWide
+            ? "right-8 bottom-0 h-[90%] w-auto"
+            : "right-0 bottom-0 h-[65%] w-auto"
+        }`}>
+          <img
+            src={mood.mascot}
+            alt=""
+            className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-2xl"
+          />
+        </div>
+      )}
+
+      {/* Text */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+        <p
+          className="text-[8px] uppercase tracking-[0.3em] text-white/60 mb-1"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
+          {mood.sub}
+        </p>
+        <h3
+          className={`text-white leading-tight ${isWide ? "text-2xl md:text-3xl" : "text-lg"}`}
+          style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}
+        >
+          {mood.title}
+        </h3>
+        <span
+          className="inline-block mt-2 text-[9px] uppercase tracking-[0.2em] text-white/50 group-hover:text-white/90 transition-colors"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
+          Shop now →
+        </span>
       </div>
     </Link>
   );
 }
-
 /* =========================
    STAT CARD
 ========================= */
@@ -780,8 +847,8 @@ export default function HomePage() {
               View All →
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-            {MOOD_GRID.map((mood, i) => <MoodGridItem key={mood.tag} mood={mood} index={i} />)}
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+             {MOOD_GRID.map((mood, i) => <MoodGridItem key={mood.tag} mood={mood} index={i} />)}
           </div>
         </div>
       </section>
