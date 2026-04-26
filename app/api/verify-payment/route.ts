@@ -192,6 +192,13 @@ if (product.status !== "available") {
       productId, orderId: order.id, error: updateError.message,
     });
   }
+  // ── 10. Create notification for seller ─────────────────────────
+await supabase.from("notifications").insert({
+  user_id:  product.seller_id,
+  actor_id: buyerId,
+  type:     "sale",
+  product_id: productId,
+});
 
   // ── 10. Email buyer ────────────────────────────────────────────────────
   if (buyerEmail) {
