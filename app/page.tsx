@@ -64,12 +64,14 @@ function useCountdown(targetDate: Date) {
 /* =========================
    ANIMATED COUNTER
 ========================= */
-function useCountUp(target: number, duration = 1400) {
+ function useCountUp(target: number, duration = 1400) {
   const [val, setVal] = useState(0);
   const startedRef = useRef(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!target || target === 0) return;
+    startedRef.current = false;
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver(
