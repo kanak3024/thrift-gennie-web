@@ -503,6 +503,7 @@ export default function ChatDetailPage() {
       </div>
         </div>
       </div>
+      </div>
 
       {/* ── SOLD BANNER ── */}
       <AnimatePresence>
