@@ -379,10 +379,6 @@ const [reportSubmitting, setReportSubmitting] = useState(false);
     setBlockLoading(false);
   };
 
-  /* ── REPORT USER ── */
-   const [showReportModal, setShowReportModal] = useState(false);
-const [reportReason, setReportReason] = useState("");
-const [reportSubmitting, setReportSubmitting] = useState(false);
 
 const handleReport = () => setShowReportModal(true);
 
