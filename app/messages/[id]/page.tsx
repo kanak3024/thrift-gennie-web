@@ -500,10 +500,10 @@ export default function ChatDetailPage() {
       >
         Report
       </button>
-    </div>
-  </div>
-
-</div>
+      </div>
+        </div>
+      </div>
+     
         </div>
       </div>
 
