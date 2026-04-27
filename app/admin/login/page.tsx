@@ -111,17 +111,17 @@ export default function AdminLoginPage() {
   const [timeLeft, setTimeLeft]     = useState(0);
 
   // Redirect if already logged in
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-      if (profile?.role === "admin") window.location.href = "/admin";
-    });
-  }, []);
+   useEffect(() => {
+  supabase.auth.getSession().then(async ({ data: { session } }) => {
+    if (!session) return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", session.user.id)
+      .single();
+    if (profile?.is_admin) window.location.href = "/admin";
+  });
+}, []);
 
   // Lockout countdown
   useEffect(() => {
@@ -223,11 +223,11 @@ export default function AdminLoginPage() {
     // Final role check — even if somehow wrong user got here
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("is_admin")
       .eq("id", data.session.user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+     if (!profile?.is_admin) {
       await supabase.auth.signOut();
       setLoading(false);
       setError("Access denied.");
