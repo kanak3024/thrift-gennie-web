@@ -196,7 +196,7 @@ export default function AdminLoginPage() {
   email: normalized,
   options: { 
     shouldCreateUser: false,
-    emailRedirectTo: `${window.location.origin}/admin/login`,
+     emailRedirectTo: `${window.location.origin}/admin/callback`,
   },
 });
     setLoading(false);
