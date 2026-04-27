@@ -23,8 +23,19 @@ export async function middleware(req: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession();
   const pathname = req.nextUrl.pathname;
 
-  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+   if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
     if (!session) return NextResponse.redirect(new URL("/admin/login", req.url));
+    
+    // Check is_admin flag
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", session.user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
   }
 
   const protectedRoutes = ["/orders", "/checkout", "/sell", "/settings", "/seller", "/messages", "/wishlist"];
