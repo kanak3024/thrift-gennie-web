@@ -111,15 +111,21 @@ export default function AdminLoginPage() {
   const [timeLeft, setTimeLeft]     = useState(0);
 
    useEffect(() => {
+  const hasRedirected = { current: false };
+
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    if (hasRedirected.current) return;
     if (!session) return;
+    
     if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_admin")
         .eq("id", session.user.id)
         .single();
+
       if (profile?.is_admin) {
+        hasRedirected.current = true;
         setStage("success");
         setTimeout(() => { window.location.href = "/admin"; }, 1200);
       } else {
@@ -128,6 +134,7 @@ export default function AdminLoginPage() {
       }
     }
   });
+
   return () => subscription.unsubscribe();
 }, []);
 
