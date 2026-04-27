@@ -657,12 +657,13 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
         >
           {followLoading ? "..." : isFollowing ? "Following ✦" : "Follow"}
         </motion.button>
+         )}
         <Link href={`/messages?with=${id}`}>
   <button className="px-4 py-2.5 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
     Message
   </button>
 </Link>
-         )}
+         
         <button
           onClick={handleShareProfile}
           className="px-3 py-2 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
