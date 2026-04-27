@@ -538,8 +538,8 @@ export default function ChatDetailPage() {
         className="flex-1 overflow-y-auto px-6"
         style={{
           paddingTop: isSold || isBlocked ? "168px" : "136px",
-          paddingBottom: `${Math.max(112, window.innerHeight - viewportHeight + 112)}px`,
-          maxWidth: "760px",
+          paddingBottom: `${Math.max(176, window.innerHeight - viewportHeight + 176)}px`,
+           maxWidth: "760px",
           margin: "0 auto",
           width: "100%"
         }}
@@ -704,7 +704,7 @@ export default function ChatDetailPage() {
       <div
         className="fixed left-0 right-0 bg-[#F6F3EF]/95 backdrop-blur-md border-t border-[#2B0A0F]/08 z-40 transition-transform duration-100"
         style={{
-          bottom: 0,
+          bottom: "64px",
           transform: `translateY(-${Math.max(0, window.innerHeight - viewportHeight)}px)`
         }}
       >
