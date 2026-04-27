@@ -146,7 +146,8 @@ export default function AccountPage() {
   const [addrPincode, setAddrPincode]         = useState("");
   const [addrPhone, setAddrPhone]             = useState("");
   const [savingAddress, setSavingAddress]     = useState(false);
-
+  const [sortBy, setSortBy] = useState<"newest" | "price_low" | "price_high">("newest");
+const [dashboardOpen, setDashboardOpen] = useState(false);
   const formatCurrency = (num: number) => new Intl.NumberFormat("en-IN").format(num || 0);
   const formatJoinedDate = (dateStr: string) => {
   if (!dateStr) return null;
@@ -228,7 +229,7 @@ export default function AccountPage() {
 
         const { data: purchased } = await supabase
           .from("orders").select("*, products(title, image_url, price)")
-          .eq("buyer_id", id).in("status", ["paid", "payment_held", "completed", "delivered"])
+          .eq("buyer_id", id).in("status", ["paid", "payment_held", "completed", "delivered"]);
          setPurchasedItems(purchased || []);
 
         const { data: ratingsData } = await supabase
@@ -278,6 +279,11 @@ export default function AccountPage() {
     };
     loadPageData();
   }, [id]);
+  useEffect(() => {
+  const handler = () => setOpenMenuId(null);
+  if (openMenuId) document.addEventListener("click", handler);
+  return () => document.removeEventListener("click", handler);
+}, [openMenuId]);
 
   /* ── FOLLOW ── */
   const handleFollow = async () => {
@@ -443,6 +449,101 @@ export default function AccountPage() {
           />
         )}
       </AnimatePresence>
+      {/* BANK FORM MODAL */}
+<AnimatePresence>
+  {showBankForm && (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+        onClick={() => setShowBankForm(false)}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+                   bg-[#F6F3EF] rounded-2xl p-6 sm:p-8
+                   w-[calc(100vw-2rem)] sm:w-[440px] shadow-2xl"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl" style={{ fontFamily: "var(--font-playfair)" }}>Payout Details</h3>
+            <p className="text-[9px] uppercase tracking-widest opacity-40 mt-0.5">Required to receive payments</p>
+          </div>
+          <button
+            onClick={() => setShowBankForm(false)}
+            className="w-8 h-8 rounded-full border border-[#2B0A0F]/15 flex items-center justify-center text-[11px] opacity-40 hover:opacity-100 transition-opacity"
+          >✕</button>
+        </div>
+
+        <div className="space-y-5">
+          {/* UPI — most important field */}
+          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+            <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">UPI ID *</label>
+            <input
+              type="text"
+              value={bankUpi}
+              onChange={(e) => setBankUpi(e.target.value)}
+              placeholder="yourname@upi"
+              className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+            />
+          </div>
+
+          {/* Bank name */}
+          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+            <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Account Holder Name</label>
+            <input
+              type="text"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+              placeholder="As on bank account"
+              className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+            />
+          </div>
+
+          {/* Account number */}
+          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+            <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Account Number</label>
+            <input
+              type="text"
+              value={bankAccount}
+              onChange={(e) => setBankAccount(e.target.value)}
+              placeholder="Bank account number"
+              className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+            />
+          </div>
+
+          {/* IFSC */}
+          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+            <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">IFSC Code</label>
+            <input
+              type="text"
+              value={bankIfsc}
+              onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
+              placeholder="e.g. HDFC0001234"
+              className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+            />
+          </div>
+        </div>
+
+        <p className="text-[9px] opacity-30 leading-relaxed mt-4 mb-6">
+          Your details are stored securely and only used for payouts when your pieces sell.
+        </p>
+
+        <button
+          onClick={handleSaveBankDetails}
+          disabled={savingBank || !bankUpi.trim()}
+          className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2"
+        >
+          {savingBank ? (
+            <><svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>Saving...</>
+          ) : "Save Payout Details ✦"}
+        </button>
+      </motion.div>
+    </>
+  )}
+</AnimatePresence>
 
       <div className="pt-20 sm:pt-32 pb-0 px-4 sm:px-6 max-w-4xl mx-auto">
 
@@ -570,9 +671,10 @@ export default function AccountPage() {
 </div>
 </div>
 {/* Stats row */}
-<div className="flex justify-center sm:justify-start gap-6 sm:gap-8 py-3 sm:py-4 border-y border-[#2B0A0F]/08 mb-4 sm:mb-5">
+ <div className="flex justify-center sm:justify-start gap-6 sm:gap-8 py-3 sm:py-4 border-y border-[#2B0A0F]/08 mb-4 sm:mb-5 flex-wrap">
   {[
     { value: availableProducts.length, label: "Items" },
+    { value: soldItems.length,         label: "Sales" },
     { value: followerCount,            label: "Followers" },
     { value: followingCount,           label: "Following" },
   ].map((stat) => (
@@ -585,20 +687,14 @@ export default function AccountPage() {
       </div>
     </div>
   ))}
-
-  {/* Joined date — live from DB */}
   {user.created_at && (
     <div className="text-center sm:text-left">
       <div className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
         {formatJoinedDate(user.created_at)}
       </div>
-      <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">
-        Joined
-      </div>
+      <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] opacity-40 mt-0.5">Joined</div>
     </div>
   )}
-
-  {/* Ratings — only show if reviews exist */}
   {sellerRatings.length > 0 && (
     <div className="text-center sm:text-left">
       <div className="text-lg sm:text-xl font-semibold flex items-center justify-center sm:justify-start gap-1" style={{ fontFamily: "var(--font-playfair)" }}>
@@ -643,7 +739,13 @@ export default function AccountPage() {
   >
     + Add a bio to tell buyers your style...
   </button>
+  
 ) : null}
+{(user.city || user.state) && !isEditing && (
+  <p className="text-[9px] uppercase tracking-[0.2em] opacity-35 mt-2">
+    📍 {[user.city, user.state].filter(Boolean).join(", ")}
+  </p>
+)}
                 </>
               )}
             </div>
@@ -719,9 +821,89 @@ export default function AccountPage() {
                     </Link>
                   )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-5">
-                  {products.map((product) => (
+               ) : (
+  <>
+    {/* Sort bar */}
+    <div className="flex gap-2 mb-5 flex-wrap">
+      {[
+        { key: "newest",     label: "Newest" },
+        { key: "price_low",  label: "Price ↑" },
+        { key: "price_high", label: "Price ↓" },
+      ].map((s) => (
+        <button key={s.key}
+          onClick={() => setSortBy(s.key as any)}
+          className={`px-3 py-1.5 rounded-full text-[10px] uppercase tracking-[0.15em] border transition-all ${
+            sortBy === s.key
+              ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
+              : "border-[#2B0A0F]/15 opacity-50 hover:opacity-100"
+          }`}
+        >{s.label}</button>
+      ))}
+    </div>
+
+    {/* Seller dashboard — owner only */}
+    {isOwner && (
+      <div className="mb-6 rounded-2xl border border-[#2B0A0F]/08 overflow-hidden">
+        <button
+          onClick={() => setDashboardOpen(prev => !prev)}
+          className="w-full flex items-center justify-between px-5 py-4 text-[10px] uppercase tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity"
+        >
+          Seller Dashboard
+          <span>{dashboardOpen ? "↑" : "↓"}</span>
+        </button>
+        <AnimatePresence>
+          {dashboardOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden border-t border-[#2B0A0F]/08"
+            >
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Total Earned", value: animatedTotal },
+                    { label: "Pending",      value: animatedPending },
+                    { label: "Released",     value: animatedReleased },
+                  ].map((stat) => (
+                    <div key={stat.label} className="bg-[#F6F3EF] rounded-xl p-3 text-center">
+                      <p className="text-[8px] uppercase tracking-[0.2em] opacity-35 mb-1">{stat.label}</p>
+                      <p className="text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
+                        ₹{formatCurrency(stat.value)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {miniChartData.length > 1 && (
+                  <ResponsiveContainer width="100%" height={50}>
+                    <LineChart data={miniChartData}>
+                      <Line type="monotone" dataKey="earnings" stroke="#B48A5A" strokeWidth={1.5} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => setShowBankForm(true)}
+                    className="px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
+                    {user.bank_upi ? "Edit Payout Details" : "Add Payout Details"} →
+                  </button>
+                  <button onClick={() => setShowAddressForm(true)}
+                    className="px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
+                    {hasReturnAddress ? "Edit Return Address" : "Add Return Address"} →
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    )}
+
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-5">
+      {[...products].sort((a, b) => {
+        if (sortBy === "price_low")  return a.price - b.price;
+        if (sortBy === "price_high") return b.price - a.price;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }).map((product) => (
                     <motion.div key={product.id} layout className="group relative">
                       <Link href={`/product/${product.id}`}>
                         <div className={`relative aspect-square bg-[#EAE3DB] overflow-hidden rounded-xl ${product.status !== "available" ? "opacity-50" : ""}`}>
@@ -797,6 +979,7 @@ export default function AccountPage() {
                     </motion.div>
                   ))}
                 </div>
+                </>
               )}
             </motion.div>
           )}
@@ -823,13 +1006,13 @@ export default function AccountPage() {
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
-                          ₹{order.amount?.toLocaleString("en-IN")}
-                        </p>
-                        <span className="text-[8px] uppercase tracking-[0.2em] text-[#6B7E60] bg-[#6B7E60]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
-                          Sold
-                        </span>
-                      </div>
+                         <p className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
+  ₹{(order.payout_amount || order.products?.price)?.toLocaleString("en-IN")}
+</p>
+<span className="text-[8px] uppercase tracking-[0.2em] text-[#6B7E60] bg-[#6B7E60]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+  Sold
+</span>
+</div>
                     </div>
                   ))}
                 </div>
@@ -867,7 +1050,7 @@ export default function AccountPage() {
                         <div className="text-right flex-shrink-0 flex items-center gap-2 sm:gap-3">
                           <div>
                             <p className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
-                              ₹{order.amount?.toLocaleString("en-IN")}
+                               ₹{(order.payout_amount || order.products?.price)?.toLocaleString("en-IN")}
                             </p>
                             <span className="text-[8px] uppercase tracking-[0.2em] text-[#B48A5A] bg-[#B48A5A]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
                               Purchased
