@@ -177,14 +177,31 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
     if (!id) return;
     const loadPageData = async () => {
       setLoading(true);
-      try {
+       try {
         const { data: { session } } = await supabase.auth.getSession();
         const loggedInUser = session?.user ?? null;
         if (loggedInUser) setCurrentUser(loggedInUser);
 
-        // Added kyc_status to the select
-        const { data: profileData } = await supabase
-          .from("profiles").select("*, kyc_status").eq("id", id).maybeSingle();
+        const [
+          { data: profileData },
+          { data: productData },
+          { count: followers },
+          { count: following },
+          { data: sold },
+          { data: purchased },
+          { data: ratingsData },
+        ] = await Promise.all([
+          supabase.from("profiles").select("*, kyc_status").eq("id", id).maybeSingle(),
+          supabase.from("products").select("*").eq("seller_id", id),
+          supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", id),
+          supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", id),
+          supabase.from("orders").select("*, products(title, image_url, price)")
+            .eq("seller_id", id).in("status", ["payment_held", "released", "delivered"]),
+          supabase.from("orders").select("*, products(title, image_url, price)")
+            .eq("buyer_id", id).in("status", ["paid", "payment_held", "completed", "delivered"]),
+          supabase.from("ratings").select("rating, review, created_at, reviewer_id")
+            .eq("seller_id", id).order("created_at", { ascending: false }),
+        ]);
 
         if (profileData) {
           setUser(profileData);
@@ -202,17 +219,17 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
           setAddrPhone(profileData.phone || "");
         }
 
-        const { data: productData } = await supabase
-          .from("products").select("*").eq("seller_id", id);
         setProducts(productData || []);
-
-        const { count: followers } = await supabase
-          .from("follows").select("*", { count: "exact", head: true }).eq("following_id", id);
         setFollowerCount(followers || 0);
-
-        const { count: following } = await supabase
-          .from("follows").select("*", { count: "exact", head: true }).eq("follower_id", id);
         setFollowingCount(following || 0);
+        setSoldItems(sold || []);
+        setPurchasedItems(purchased || []);
+
+        const ratings = ratingsData || [];
+        const avgRating = ratings.length > 0
+          ? ratings.reduce((sum: number, r: any) => sum + r.rating, 0) / ratings.length : 0;
+        setSellerRatings(ratings);
+        setAverageRating(avgRating);
 
         if (loggedInUser && loggedInUser.id !== id) {
           const { data: followData } = await supabase
@@ -221,34 +238,11 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
           setIsFollowing(!!followData);
         }
 
-        const { data: sold } = await supabase
-          .from("orders").select("*, products(title, image_url, price)")
-          .eq("seller_id", id)
-.in("status", ["payment_held", "released", "delivered"]);
-         setSoldItems(sold || []);
-
-        const { data: purchased } = await supabase
-          .from("orders").select("*, products(title, image_url, price)")
-          .eq("buyer_id", id).in("status", ["paid", "payment_held", "completed", "delivered"]);
-         setPurchasedItems(purchased || []);
-
-        const { data: ratingsData } = await supabase
-          .from("ratings")
-          .select("rating, review, created_at, reviewer_id")
-          .eq("seller_id", id)
-          .order("created_at", { ascending: false });
-        const ratings = ratingsData || [];
-        const avgRating = ratings.length > 0
-          ? ratings.reduce((sum: number, r: any) => sum + r.rating, 0) / ratings.length : 0;
-        setSellerRatings(ratings);
-        setAverageRating(avgRating);
-
       } catch (err: any) {
         console.error("Error loading account:", err.message);
       } finally {
         setLoading(false);
       }
-
       const { data: ordersData } = await supabase
         .from("orders").select("*").eq("seller_id", id);
 
