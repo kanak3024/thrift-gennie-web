@@ -177,10 +177,13 @@ export default function AdminLoginPage() {
     }
 
     setLoading(true);
-    const { error: supaError } = await supabase.auth.signInWithOtp({
-      email: normalized,
-      options: { shouldCreateUser: false }, // Never create new users via this flow
-    });
+     const { error: supaError } = await supabase.auth.signInWithOtp({
+  email: normalized,
+  options: { 
+    shouldCreateUser: false,
+    emailRedirectTo: `${window.location.origin}/admin/login`,
+  },
+});
     setLoading(false);
 
     if (supaError) {
