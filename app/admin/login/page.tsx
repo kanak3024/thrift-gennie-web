@@ -123,6 +123,38 @@ export default function AdminLoginPage() {
   });
 }, []);
 
+// Handle magic link redirect
+useEffect(() => {
+  const handleAuthCallback = async () => {
+    const hash = window.location.hash;
+    if (!hash) return;
+
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", data.session.user.id)
+      .single();
+
+    if (profile?.is_admin) {
+      await supabase.from("admin_audit_logs").insert({
+        action: "admin_login",
+        target: data.session.user.email,
+        admin_email: data.session.user.email,
+      });
+      setStage("success");
+      setTimeout(() => { window.location.href = "/admin"; }, 1200);
+    } else {
+      await supabase.auth.signOut();
+      setError("Access denied.");
+    }
+  };
+
+  handleAuthCallback();
+}, []);
+
   // Lockout countdown
   useEffect(() => {
     if (!lockedUntil) return;
