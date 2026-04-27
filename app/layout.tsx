@@ -4,7 +4,8 @@ import Navbar from "./components/Navbar";
 import SupportChat from "./components/SupportChat";
 import NotificationToast from "./components/NotificationToast";
 import BottomNav from "./components/BottomNav";
-import { Analytics } from "@vercel/analytics/react"; // 👈 add this
+import { Analytics } from "@vercel/analytics/react";
+import ClientLayout from "./components/ClientLayout";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -29,14 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           text-[#2B0A0F]
         `}
       >
-        <Navbar />
-        <NotificationToast />
-        <BottomNav />
-        <div className="pb-20 md:pb-0">
+        <ClientLayout>
           {children}
-        </div>
-        <SupportChat />
-        <Analytics /> {/* 👈 add this */}
+        </ClientLayout>
+        <Analytics />
       </body>
     </html>
   );
