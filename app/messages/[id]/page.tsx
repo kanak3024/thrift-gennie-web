@@ -409,113 +409,101 @@ export default function ChatDetailPage() {
 
       {/* ── HEADER ── */}
       <div className="fixed top-[64px] left-0 right-0 z-40 bg-[#F6F3EF]/95 backdrop-blur-md border-b border-[#2B0A0F]/08">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-3 sm:gap-5">
+         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
 
-          {/* Back */}
-          <Link
-            href="/messages"
-            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity flex-shrink-0"
-          >
-            ← Inbox
-          </Link>
+  {/* Back */}
+  <Link
+    href="/messages"
+    className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity flex-shrink-0"
+  >
+    ← <span className="hidden sm:inline">Inbox</span>
+  </Link>
 
-          <span className="w-px h-5 bg-[#2B0A0F]/10 flex-shrink-0" />
+  <span className="w-px h-5 bg-[#2B0A0F]/10 flex-shrink-0" />
 
-          {/* Product thumbnail + info */}
-          {product && (
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="relative w-9 h-11 flex-shrink-0 overflow-hidden rounded-sm bg-[#EAE3DB]">
-                <Image
-                  src={product.image_url || "/final.png"}
-                  alt={product.title}
-                  fill
-                  className="object-cover"
-                />
-                {isSold && (
-                  <div className="absolute inset-0 bg-[#2B0A0F]/50" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p
-                  className="text-sm font-medium truncate leading-tight"
-                  style={{ fontFamily: "var(--font-playfair)" }}
-                >
-                  {product.title}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] opacity-50" style={{ fontFamily: "var(--font-playfair)" }}>
-                    ₹{product.price}
-                  </span>
-                  {product.size && (
-                    <>
-                      <span className="w-px h-2.5 bg-[#2B0A0F]/15" />
-                      <span className="text-[9px] uppercase tracking-[0.15em] opacity-40">
-                        Size {product.size}
-                      </span>
-                    </>
-                  )}
-                  {product.location && (
-                    <>
-                      <span className="w-px h-2.5 bg-[#2B0A0F]/15" />
-                      <span className="text-[9px] uppercase tracking-[0.15em] opacity-40">
-                        {product.location}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+  {/* Product info */}
+  {product && (
+    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+      <div className="relative w-8 h-10 flex-shrink-0 overflow-hidden rounded-sm bg-[#EAE3DB]">
+        <Image
+          src={product.image_url || "/final.png"}
+          alt={product.title}
+          fill
+          className="object-cover"
+        />
+        {isSold && <div className="absolute inset-0 bg-[#2B0A0F]/50" />}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium truncate leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
+          {product.title}
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span className="text-[10px] opacity-50" style={{ fontFamily: "var(--font-playfair)" }}>
+            ₹{product.price}
+          </span>
+          {product.size && (
+            <span className="text-[9px] uppercase tracking-[0.15em] opacity-35">· {product.size}</span>
           )}
-
-          {/* Other person's name */}
-          {otherProfile && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-7 h-7 rounded-full bg-[#EAE3DB] flex items-center justify-center text-[10px] font-medium overflow-hidden">
-                {otherProfile.avatar_url ? (
-                  <Image src={otherProfile.avatar_url} alt="" width={28} height={28} className="object-cover" />
-                ) : (
-                  <span>{(otherProfile.full_name || "?")[0].toUpperCase()}</span>
-                )}
-              </div>
-              <span className="hidden sm:inline text-[10px] uppercase tracking-[0.15em] opacity-50">
-                {otherProfile.full_name || "Curator"}
-              </span>
-            </div>
+          {product.location && (
+            <span className="text-[9px] uppercase tracking-[0.15em] opacity-35 hidden sm:inline">· {product.location}</span>
           )}
+        </div>
+      </div>
+    </div>
+  )}
 
-          {/* Seller: Mark as sold */}
-          {isSeller && !isSold && (
-            <button
-              onClick={markAsSold}
-              className="flex-shrink-0 text-[9px] uppercase tracking-[0.18em] border border-[#2B0A0F]/25 px-3 py-1.5 rounded-full hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all"
-            >
-              Mark Sold
-            </button>
-          )}
+  {/* Other person avatar only on mobile, name on desktop */}
+  {otherProfile && (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="w-7 h-7 rounded-full bg-[#EAE3DB] flex items-center justify-center text-[10px] font-medium overflow-hidden flex-shrink-0">
+        {otherProfile.avatar_url ? (
+          <Image src={otherProfile.avatar_url} alt="" width={28} height={28} className="object-cover" />
+        ) : (
+          <span>{(otherProfile.full_name || "?")[0].toUpperCase()}</span>
+        )}
+      </div>
+      <span className="hidden sm:inline text-[10px] uppercase tracking-[0.15em] opacity-50 truncate max-w-[80px]">
+        {otherProfile.full_name}
+      </span>
+    </div>
+  )}
 
-          {/* Block button — only shown to non-seller */}
-          {!isSeller && (
-            <button
-              onClick={handleBlock}
-              disabled={blockLoading}
-              className={`flex-shrink-0 text-[9px] uppercase tracking-[0.18em] border px-3 py-1.5 rounded-full transition-all disabled:opacity-40 ${
-                isBlocked
-                  ? "border-red-300 text-red-400 hover:bg-red-400 hover:text-white hover:border-red-400"
-                  : "border-[#2B0A0F]/25 hover:bg-red-400 hover:text-white hover:border-red-400"
-              }`}
-            >
-              {blockLoading ? "..." : isBlocked ? "Unblock" : "Block"}
-            </button>
-          )}
+  {/* Mark sold — text on desktop, icon on mobile */}
+  {isSeller && !isSold && (
+    <button
+      onClick={markAsSold}
+      className="flex-shrink-0 text-[9px] uppercase tracking-[0.15em] border border-[#2B0A0F]/25 px-2.5 sm:px-3 py-1.5 rounded-full hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all whitespace-nowrap"
+    >
+      <span className="hidden sm:inline">Mark Sold</span>
+      <span className="sm:hidden">Sold</span>
+    </button>
+  )}
 
-          {/* Report button */}
-          <button
-            onClick={handleReport}
-            className="flex-shrink-0 text-[9px] uppercase tracking-[0.18em] border border-[#2B0A0F]/25 px-3 py-1.5 rounded-full hover:bg-[#A1123F] hover:text-white hover:border-[#A1123F] transition-all"
-          >
-            Report
-          </button>
+  {/* ⋮ menu for block + report */}
+  <div className="relative flex-shrink-0 group">
+    <button className="w-8 h-8 rounded-full border border-[#2B0A0F]/20 flex items-center justify-center text-[#2B0A0F]/40 hover:text-[#2B0A0F] hover:border-[#2B0A0F]/40 transition-all text-base leading-none">
+      ⋮
+    </button>
+    <div className="absolute right-0 top-10 w-36 bg-white rounded-xl border border-[#2B0A0F]/08 shadow-xl overflow-hidden text-[10px] uppercase tracking-[0.15em] z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all">
+      {!isSeller && (
+        <button
+          onClick={handleBlock}
+          disabled={blockLoading}
+          className="block w-full text-left px-4 py-3 hover:bg-[#F6F3EF] transition-colors border-b border-[#2B0A0F]/05 disabled:opacity-40"
+        >
+          {blockLoading ? "..." : isBlocked ? "Unblock" : "Block"}
+        </button>
+      )}
+      <button
+        onClick={handleReport}
+        className="block w-full text-left px-4 py-3 text-[#A1123F] hover:bg-[#A1123F]/05 transition-colors"
+      >
+        Report
+      </button>
+    </div>
+  </div>
 
+</div>
         </div>
       </div>
 
