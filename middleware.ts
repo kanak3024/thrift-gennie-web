@@ -1,31 +1,33 @@
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
-  const { data: { session } } = await supabase.auth.getSession();
+  let res = NextResponse.next({ request: req });
 
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll(); },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            req.cookies.set(name, value);
+            res.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
   const pathname = req.nextUrl.pathname;
 
-  // Admin routes — must be logged in + admin role (we'll add role check in Fix 2)
   if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
-    if (!session) {
-      return NextResponse.redirect(new URL("/admin/login", req.url));
-    }
+    if (!session) return NextResponse.redirect(new URL("/admin/login", req.url));
   }
 
-  // Protected user routes
-  const protectedRoutes = [
-    "/orders",
-    "/checkout",
-    "/sell",
-    "/settings",
-    "/seller",
-    "/messages",
-    "/wishlist",
-  ];
-
+  const protectedRoutes = ["/orders", "/checkout", "/sell", "/settings", "/seller", "/messages", "/wishlist"];
   if (protectedRoutes.some(r => pathname.startsWith(r))) {
     if (!session) {
       const loginUrl = new URL("/login", req.url);
