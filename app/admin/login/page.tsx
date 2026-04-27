@@ -110,49 +110,25 @@ export default function AdminLoginPage() {
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [timeLeft, setTimeLeft]     = useState(0);
 
-  // Redirect if already logged in
    useEffect(() => {
-  supabase.auth.getSession().then(async ({ data: { session } }) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (!session) return;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", session.user.id)
-      .single();
-    if (profile?.is_admin) window.location.href = "/admin";
-  });
-}, []);
-
-// Handle magic link redirect
-useEffect(() => {
-  const handleAuthCallback = async () => {
-    const hash = window.location.hash;
-    if (!hash) return;
-
-    const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", data.session.user.id)
-      .single();
-
-    if (profile?.is_admin) {
-      await supabase.from("admin_audit_logs").insert({
-        action: "admin_login",
-        target: data.session.user.email,
-        admin_email: data.session.user.email,
-      });
-      setStage("success");
-      setTimeout(() => { window.location.href = "/admin"; }, 1200);
-    } else {
-      await supabase.auth.signOut();
-      setError("Access denied.");
+    if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", session.user.id)
+        .single();
+      if (profile?.is_admin) {
+        setStage("success");
+        setTimeout(() => { window.location.href = "/admin"; }, 1200);
+      } else {
+        await supabase.auth.signOut();
+        setError("Access denied.");
+      }
     }
-  };
-
-  handleAuthCallback();
+  });
+  return () => subscription.unsubscribe();
 }, []);
 
   // Lockout countdown
