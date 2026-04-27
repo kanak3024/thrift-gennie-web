@@ -657,6 +657,11 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
         >
           {followLoading ? "..." : isFollowing ? "Following ✦" : "Follow"}
         </motion.button>
+        <Link href={`/messages?with=${id}`}>
+  <button className="px-4 py-2.5 rounded-full border border-[#2B0A0F]/20 text-[10px] uppercase tracking-[0.18em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
+    Message
+  </button>
+</Link>
          )}
         <button
           onClick={handleShareProfile}
@@ -823,7 +828,6 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
                 </div>
                ) : (
   <>
-    {/* Sort bar */}
     <div className="flex gap-2 mb-5 flex-wrap">
       {[
         { key: "newest",     label: "Newest" },
@@ -840,63 +844,6 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
         >{s.label}</button>
       ))}
     </div>
-
-    {/* Seller dashboard — owner only */}
-    {isOwner && (
-      <div className="mb-6 rounded-2xl border border-[#2B0A0F]/08 overflow-hidden">
-        <button
-          onClick={() => setDashboardOpen(prev => !prev)}
-          className="w-full flex items-center justify-between px-5 py-4 text-[10px] uppercase tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity"
-        >
-          Seller Dashboard
-          <span>{dashboardOpen ? "↑" : "↓"}</span>
-        </button>
-        <AnimatePresence>
-          {dashboardOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden border-t border-[#2B0A0F]/08"
-            >
-              <div className="p-5 space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: "Total Earned", value: animatedTotal },
-                    { label: "Pending",      value: animatedPending },
-                    { label: "Released",     value: animatedReleased },
-                  ].map((stat) => (
-                    <div key={stat.label} className="bg-[#F6F3EF] rounded-xl p-3 text-center">
-                      <p className="text-[8px] uppercase tracking-[0.2em] opacity-35 mb-1">{stat.label}</p>
-                      <p className="text-base font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
-                        ₹{formatCurrency(stat.value)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                {miniChartData.length > 1 && (
-                  <ResponsiveContainer width="100%" height={50}>
-                    <LineChart data={miniChartData}>
-                      <Line type="monotone" dataKey="earnings" stroke="#B48A5A" strokeWidth={1.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => setShowBankForm(true)}
-                    className="px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
-                    {user.bank_upi ? "Edit Payout Details" : "Add Payout Details"} →
-                  </button>
-                  <button onClick={() => setShowAddressForm(true)}
-                    className="px-4 py-2 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all">
-                    {hasReturnAddress ? "Edit Return Address" : "Add Return Address"} →
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    )}
 
     <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-5">
       {[...products].sort((a, b) => {
@@ -981,7 +928,30 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
                 </div>
                 </>
               )}
+              {sellerRatings.length > 0 && (
+  <div className="mt-10">
+    <p className="text-[9px] uppercase tracking-[0.3em] opacity-40 mb-4">Reviews</p>
+    <div className="space-y-3">
+      {sellerRatings.map((r, i) => (
+        <div key={i} className="bg-white rounded-2xl p-4 border border-[#2B0A0F]/06">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex gap-0.5">
+              {[1,2,3,4,5].map((star) => (
+                <span key={star} className={star <= r.rating ? "text-[#B48A5A]" : "text-[#2B0A0F]/15"}>★</span>
+              ))}
+            </div>
+            <span className="text-[9px] opacity-30">
+              {new Date(r.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
+            </span>
+          </div>
+          {r.review && <p className="text-sm opacity-60 italic leading-relaxed">"{r.review}"</p>}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
             </motion.div>
+            
           )}
 
           {/* SOLD */}
@@ -1068,6 +1038,17 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
 
         </AnimatePresence>
       </div>
+      {isOwner && (
+  <Link href="/sell">
+    <motion.button
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      className="fixed bottom-6 right-6 z-40 bg-[#2B0A0F] text-[#F6F3EF] px-5 py-3.5 rounded-full text-[10px] uppercase tracking-[0.2em] shadow-xl flex items-center gap-2"
+    >
+      <span className="text-base leading-none">+</span> New Piece
+    </motion.button>
+  </Link>
+)}
     </main>
   );
 }

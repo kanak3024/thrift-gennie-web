@@ -4,6 +4,8 @@ import Navbar from "./components/Navbar";
 import SupportChat from "./components/SupportChat";
 import NotificationToast from "./components/NotificationToast";
 import BottomNav from "./components/BottomNav";
+import { Analytics } from "@vercel/analytics/react"; // 👈 add this
+
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
@@ -29,12 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <Navbar />
         <NotificationToast />
-        <NotificationToast />
-<BottomNav />
-<div className="pb-20 md:pb-0">
-  {children}
-</div>
-         <SupportChat />
+        <BottomNav />
+        <div className="pb-20 md:pb-0">
+          {children}
+        </div>
+        <SupportChat />
+        <Analytics /> {/* 👈 add this */}
       </body>
     </html>
   );
