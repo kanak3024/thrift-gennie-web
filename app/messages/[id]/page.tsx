@@ -36,6 +36,9 @@ export default function ChatDetailPage() {
   const [offset, setOffset] = useState(0);
   const [otherIsTyping, setOtherIsTyping] = useState(false);
   const viewportHeight = useVisualViewport();
+  const [showReportModal, setShowReportModal] = useState(false);
+const [reportReason, setReportReason] = useState("");
+const [reportSubmitting, setReportSubmitting] = useState(false);
   const PAGE_SIZE = 50;
 
   /* ── Effect 1: init data once when page loads ── */
@@ -377,18 +380,25 @@ export default function ChatDetailPage() {
   };
 
   /* ── REPORT USER ── */
-  const handleReport = async () => {
-    if (!userId) return;
-    const otherId = sellerId === userId ? buyerId : sellerId;
-    const reason = window.prompt("Reason for report (spam, harassment, scam, other):");
-    if (!reason) return;
-    await supabase.from("reports").insert({
-      reporter_id: userId,
-      reported_id: otherId,
-      reason,
-    });
-    alert("Report submitted. We'll review it shortly.");
-  };
+   const [showReportModal, setShowReportModal] = useState(false);
+const [reportReason, setReportReason] = useState("");
+const [reportSubmitting, setReportSubmitting] = useState(false);
+
+const handleReport = () => setShowReportModal(true);
+
+const submitReport = async () => {
+  if (!userId || !reportReason.trim()) return;
+  setReportSubmitting(true);
+  const otherId = sellerId === userId ? buyerId : sellerId;
+  await supabase.from("reports").insert({
+    reporter_id: userId,
+    reported_id: otherId,
+    reason: reportReason,
+  });
+  setReportSubmitting(false);
+  setShowReportModal(false);
+  setReportReason("");
+};
 
   const isSold = productStatus === "sold";
   const isSeller = userId === sellerId;
@@ -807,7 +817,72 @@ export default function ChatDetailPage() {
           )}
         </div>
       </div>
+      {/* ── REPORT MODAL ── */}
+<AnimatePresence>
+  {showReportModal && (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+        onClick={() => setShowReportModal(false)}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+                   bg-[#F6F3EF] rounded-2xl p-6 w-[calc(100vw-2rem)] sm:w-[380px] shadow-2xl"
+      >
+        <h3 className="text-lg mb-1" style={{ fontFamily: "var(--font-playfair)" }}>
+          Report User
+        </h3>
+        <p className="text-[9px] uppercase tracking-widest opacity-40 mb-5">
+          We'll review this within 24 hours
+        </p>
 
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {["Spam", "Harassment", "Scam", "Fake listing", "Inappropriate", "Other"].map((reason) => (
+            <button
+              key={reason}
+              onClick={() => setReportReason(reason)}
+              className={`py-2.5 rounded-full text-[10px] uppercase tracking-[0.15em] border transition-all ${
+                reportReason === reason
+                  ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
+                  : "border-[#2B0A0F]/15 hover:border-[#2B0A0F]/40"
+              }`}
+            >
+              {reason}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          className="w-full bg-white border border-[#2B0A0F]/12 rounded-xl p-3 text-sm outline-none resize-none focus:border-[#2B0A0F]/30 transition-colors placeholder:opacity-30 mb-4"
+          rows={3}
+          placeholder="Additional details (optional)..."
+          value={reportReason}
+          onChange={(e) => setReportReason(e.target.value)}
+        />
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => { setShowReportModal(false); setReportReason(""); }}
+            className="flex-1 py-3 rounded-full border border-[#2B0A0F]/15 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F]/05 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submitReport}
+            disabled={reportSubmitting || !reportReason.trim()}
+            className="flex-1 py-3 rounded-full bg-[#A1123F] text-white text-[10px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity disabled:opacity-30"
+          >
+            {reportSubmitting ? "Submitting..." : "Submit Report"}
+          </button>
+        </div>
+      </motion.div>
+    </>
+  )}
+</AnimatePresence>
     </main>
   );
 }
