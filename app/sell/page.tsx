@@ -21,6 +21,11 @@ const MOODS      = [
   { tag: "indie",     label: "Indie",       color: "#6B7E60" },
   { tag: "bollywood", label: "Bollywood",   color: "#C41E3A" },
   { tag: "90s",       label: "90s Minimal", color: "#457B9D" },
+  { tag: "streetwear", label: "Streetwear", color: "#2B2B2B" },
+{ tag: "boho",       label: "Boho",       color: "#C9A96E" },
+{ tag: "minimalist", label: "Minimalist", color: "#888888" },
+{ tag: "ethnic",     label: "Ethnic",     color: "#8B1A3A" },
+{ tag: "cottagecore",label: "Cottagecore",color: "#6B7E60" },
 ];
 const CITIES = ["Mumbai", "Pune", "Delhi", "Bengaluru", "Jaipur", "Hyderabad", "Chennai", "Kolkata", "Other"];
 const COLOURS = [
@@ -42,13 +47,17 @@ const MAX_PHOTOS = 4;
 const MAX_DESC   = 500;
 const MAX_TITLE  = 80;
 
-const SIZE_GUIDE: Record<string, { chest: string; waist: string; hips: string }> = {
-  XS:  { chest: "80–84",   waist: "60–64",  hips: "86–90"   },
-  S:   { chest: "84–88",   waist: "64–68",  hips: "90–94"   },
-  M:   { chest: "88–92",   waist: "68–72",  hips: "94–98"   },
-  L:   { chest: "92–96",   waist: "72–76",  hips: "98–102"  },
-  XL:  { chest: "96–100",  waist: "76–80",  hips: "102–106" },
-  XXL: { chest: "100–104", waist: "80–84",  hips: "106–110" },
+ const SIZE_GUIDE: Record<string, {
+  chest_cm: string; waist_cm: string; hips_cm: string;
+  chest_in: string; waist_in: string; hips_in: string;
+  fit: string;
+}> = {
+  XS:  { chest_cm: "80–84",   waist_cm: "60–64",  hips_cm: "86–90",   chest_in: "31–33", waist_in: "23–25", hips_in: "34–35", fit: "Petite / very slim" },
+  S:   { chest_cm: "84–88",   waist_cm: "64–68",  hips_cm: "90–94",   chest_in: "33–34", waist_in: "25–27", hips_in: "35–37", fit: "Slim / lean build" },
+  M:   { chest_cm: "88–92",   waist_cm: "68–72",  hips_cm: "94–98",   chest_in: "34–36", waist_in: "27–28", hips_in: "37–38", fit: "Average / regular" },
+  L:   { chest_cm: "92–96",   waist_cm: "72–76",  hips_cm: "98–102",  chest_in: "36–38", waist_in: "28–30", hips_in: "38–40", fit: "Relaxed / fuller" },
+  XL:  { chest_cm: "96–100",  waist_cm: "76–80",  hips_cm: "102–106", chest_in: "38–39", waist_in: "30–31", hips_in: "40–42", fit: "Oversized on M" },
+  XXL: { chest_cm: "100–104", waist_cm: "80–84",  hips_cm: "106–110", chest_in: "39–41", waist_in: "31–33", hips_in: "42–43", fit: "Oversized / plus" },
 };
 
 const PRICE_RANGES: Record<string, [number, number]> = {
@@ -113,10 +122,14 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
     >{message}</motion.div>
   );
 }
+function PhotoSlot({ index, preview, onRemove, onFileSelected, onMultiSelected, isMain }: {
+  index: number; preview?: string; onRemove: () => void;
+  onFileSelected: (file: File) => void;
+  onMultiSelected: (files: File[]) => void;  // ← add this
+  isMain: boolean;
+})
 
-function PhotoSlot({ index, preview, onRemove, onFileSelected, isMain }: {
-  index: number; preview?: string; onRemove: () => void; onFileSelected: (file: File) => void; isMain: boolean;
-}) {
+  {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <motion.div layout
@@ -125,9 +138,17 @@ function PhotoSlot({ index, preview, onRemove, onFileSelected, isMain }: {
       }`}
       onClick={() => !preview && inputRef.current?.click()}
     >
-      <input ref={inputRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelected(f); if (inputRef.current) inputRef.current.value = ""; }}
-      />
+       <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
+  onChange={(e) => {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length === 1) {
+      onFileSelected(selected[0]);
+    } else if (selected.length > 1) {
+      onMultiSelected(selected);
+    }
+    if (inputRef.current) inputRef.current.value = "";
+  }}
+/>
       {preview ? (
         <>
           <Image src={preview} alt={`Photo ${index + 1}`} fill className="object-cover" />
@@ -204,23 +225,38 @@ function SizeGuideModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#2B0A0F]/10">
-                {["Size", "Chest", "Waist", "Hips"].map(h => (
-                  <th key={h} className="text-left text-[9px] uppercase tracking-[0.2em] opacity-40 pb-3 pr-4">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(SIZE_GUIDE).map(([s, m], i) => (
-                <tr key={s} className={`border-b border-[#2B0A0F]/05 ${i % 2 === 0 ? "bg-[#2B0A0F]/02" : ""}`}>
-                  <td className="py-3 pr-4 font-medium text-[10px] uppercase tracking-widest">{s}</td>
-                  <td className="py-3 pr-4 text-[11px] opacity-60">{m.chest} cm</td>
-                  <td className="py-3 pr-4 text-[11px] opacity-60">{m.waist} cm</td>
-                  <td className="py-3 text-[11px] opacity-60">{m.hips} cm</td>
-                </tr>
-              ))}
-            </tbody>
+            // Replace thead:
+<thead>
+  <tr className="border-b border-[#2B0A0F]/10">
+    {["Size", "Chest", "Waist", "Hips", "Fits like"].map(h => (
+      <th key={h} className="text-left text-[9px] uppercase tracking-[0.2em] opacity-40 pb-3 pr-4">{h}</th>
+    ))}
+  </tr>
+</thead>
+
+// Replace tbody:
+<tbody>
+  {Object.entries(SIZE_GUIDE).map(([s, m], i) => (
+    <tr key={s} className={`border-b border-[#2B0A0F]/05 ${i % 2 === 0 ? "bg-[#2B0A0F]/02" : ""}`}>
+      <td className="py-3 pr-4 font-medium text-[10px] uppercase tracking-widest">{s}</td>
+      <td className="py-3 pr-4">
+        <p className="text-[11px] opacity-60">{m.chest_cm} cm</p>
+        <p className="text-[10px] opacity-35">{m.chest_in} in</p>
+      </td>
+      <td className="py-3 pr-4">
+        <p className="text-[11px] opacity-60">{m.waist_cm} cm</p>
+        <p className="text-[10px] opacity-35">{m.waist_in} in</p>
+      </td>
+      <td className="py-3 pr-4">
+        <p className="text-[11px] opacity-60">{m.hips_cm} cm</p>
+        <p className="text-[10px] opacity-35">{m.hips_in} in</p>
+      </td>
+      <td className="py-3 text-[10px] opacity-40 italic">{m.fit}</td>
+    </tr>
+  ))}
+</tbody>
+             
+             
           </table>
         </div>
         <div className="mt-5 pt-4 border-t border-[#2B0A0F]/08">
@@ -286,7 +322,7 @@ export default function SellPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [toast, setToast]               = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
-
+  const [keywords, setKeywords] = useState("");
   const [title, setTitle]               = useState("");
   const [brand, setBrand]               = useState("");
   const [price, setPrice]               = useState("");
@@ -399,6 +435,7 @@ setHasUpi(!!profile?.bank_upi);
         extra_images: uploadedUrls.slice(1),
         seller_id:    userId,
         status:       "available",
+        keywords: keywords || null,
       }]);
       if (dbError) throw dbError;
       showToast("Piece added to the Archive ✦");
@@ -437,20 +474,91 @@ setHasUpi(!!profile?.bank_upi);
                   <h2 className="text-2xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>First, the visuals.</h2>
                   <p className="text-sm opacity-50">Add up to {MAX_PHOTOS} photos. Natural light works best.</p>
                 </div>
-                <div className="grid grid-cols-3 gap-2 sm:hidden">
-                  <div className="col-span-3"><PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)} isMain={true} /></div>
-                  {[1, 2, 3].map((i) => <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)} isMain={false} />)}
-                </div>
+                 <div className="grid grid-cols-3 gap-2 sm:hidden">
+  <div className="col-span-3">
+    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)}
+      onMultiSelected={(newFiles) => {
+        const combined = [...files];
+        newFiles.forEach((f, offset) => {
+          const targetIndex = 0 + offset;
+          if (targetIndex < MAX_PHOTOS) {
+            if (targetIndex < combined.length) combined[targetIndex] = f;
+            else combined.push(f);
+          }
+        });
+        const sliced = combined.slice(0, MAX_PHOTOS);
+        setFiles(sliced);
+        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+      }}
+      isMain={true} />
+  </div>
+  {[1, 2, 3].map((i) => (
+    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)}
+      onMultiSelected={(newFiles) => {
+        const combined = [...files];
+        newFiles.forEach((f, offset) => {
+          const targetIndex = i + offset;
+          if (targetIndex < MAX_PHOTOS) {
+            if (targetIndex < combined.length) combined[targetIndex] = f;
+            else combined.push(f);
+          }
+        });
+        const sliced = combined.slice(0, MAX_PHOTOS);
+        setFiles(sliced);
+        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+      }}
+      isMain={false} />
+  ))}
+</div>
                 <div className="hidden sm:grid grid-cols-3 gap-3">
-                  <div className="row-span-2"><PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)} isMain={true} /></div>
-                  {[1, 2, 3].map((i) => <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)} isMain={false} />)}
-                </div>
+  <div className="row-span-2">
+    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)}
+      onMultiSelected={(newFiles) => {
+        const combined = [...files];
+        newFiles.forEach((f, offset) => {
+          const targetIndex = 0 + offset;
+          if (targetIndex < MAX_PHOTOS) {
+            if (targetIndex < combined.length) combined[targetIndex] = f;
+            else combined.push(f);
+          }
+        });
+        const sliced = combined.slice(0, MAX_PHOTOS);
+        setFiles(sliced);
+        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+      }}
+      isMain={true} />
+  </div>
+  {[1, 2, 3].map((i) => (
+    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)}
+      onMultiSelected={(newFiles) => {
+        const combined = [...files];
+        newFiles.forEach((f, offset) => {
+          const targetIndex = i + offset;
+          if (targetIndex < MAX_PHOTOS) {
+            if (targetIndex < combined.length) combined[targetIndex] = f;
+            else combined.push(f);
+          }
+        });
+        const sliced = combined.slice(0, MAX_PHOTOS);
+        setFiles(sliced);
+        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+      }}
+      isMain={false} />
+  ))}
+</div>
                 <div className="flex gap-3">
                   <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Upload
                     <input type="file" accept="image/*" multiple className="hidden" disabled={files.length >= MAX_PHOTOS}
-                      onChange={(e) => { const s = Array.from(e.target.files || []); const c = [...files, ...s].slice(0, MAX_PHOTOS); setFiles(c); setPreviewUrls(c.map(f => URL.createObjectURL(f))); e.target.value = ""; }} />
+                      // Replace the Upload label's onChange in step === 0:
+onChange={(e) => {
+  const selected = Array.from(e.target.files || []);
+  const combined = [...files, ...selected].slice(0, MAX_PHOTOS);
+  setFiles(combined);
+  setPreviewUrls(combined.map(f => URL.createObjectURL(f)));
+  e.target.value = "";
+}}  />
                   </label>
                   <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -716,6 +824,20 @@ setHasUpi(!!profile?.bank_upi);
                         ))}
                       </div>
                     </div>
+
+                    <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+  <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
+    Keywords
+  </label>
+  <input
+    type="text"
+    value={keywords}
+    onChange={(e) => setKeywords(e.target.value)}
+    placeholder="e.g. floral, summer, beach, printed, gift"
+    className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+  />
+  <p className="text-[9px] opacity-25 mb-2">Helps buyers find your piece · separate with commas</p>
+</div>
 
                     {/* Description */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
