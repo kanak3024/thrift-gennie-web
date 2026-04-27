@@ -3,6 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });
+  const pathname = req.nextUrl.pathname;
+
+  // Don't run middleware on these paths at all
+  if (
+    pathname.startsWith("/admin/login") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.includes(".")
+  ) {
+    return res;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,21 +32,12 @@ export async function middleware(req: NextRequest) {
   );
 
   const { data: { session } } = await supabase.auth.getSession();
-  const pathname = req.nextUrl.pathname;
 
-   if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+  if (pathname.startsWith("/admin")) {
     if (!session) return NextResponse.redirect(new URL("/admin/login", req.url));
-    
-    // Check is_admin flag
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", session.user.id)
-      .single();
-
-    if (!profile?.is_admin) {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
+      .from("profiles").select("is_admin").eq("id", session.user.id).single();
+    if (!profile?.is_admin) return NextResponse.redirect(new URL("/", req.url));
   }
 
   const protectedRoutes = ["/orders", "/checkout", "/sell", "/settings", "/seller", "/messages", "/wishlist"];
