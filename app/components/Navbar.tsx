@@ -12,7 +12,11 @@ type Piece = {
   id: string;
   title: string;
   price: number;
-  vibe?: string;
+  mood?: string;        // was "vibe"
+  category?: string;
+  brand?: string;
+  size?: string;
+  condition?: string;
   seller_id?: string;
   seller_name?: string;
   image_url?: string;
@@ -199,39 +203,57 @@ export default function Navbar() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const runSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults({ pieces: [], sellers: [] });
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-
-    const [piecesRes, sellersRes] = await Promise.all([
-      supabase
-        .from("listings")
-        .select("id, title, price, vibe, image_url, seller_id")
-        .or(`title.ilike.%${q}%,vibe.ilike.%${q}%`)
-        .limit(12),
-      supabase
-        .from("profiles")
-        .select("id, full_name, username, avatar_url")
-        .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
-        .limit(6),
-    ]);
-
-    setResults({
-      pieces: piecesRes.data ?? [],
-      sellers: sellersRes.data ?? [],
-    });
-
-    if ((sellersRes.data ?? []).length > 0) {
-      setSuggestedSellers(sellersRes.data ?? []);
-    }
-
+   const runSearch = useCallback(async (q: string) => {
+  if (!q.trim()) {
+    setResults({ pieces: [], sellers: [] });
     setLoading(false);
-  }, []);
+    return;
+  }
+  setLoading(true);
 
+  const [piecesRes, sellersRes] = await Promise.all([
+    supabase
+      .from("products")                          // ← was "listings"
+      .select(`
+        id, title, price, mood, category, brand,
+        size, condition, image_url, seller_id,
+        profiles(full_name)
+      `)
+      .or(
+        `title.ilike.%${q}%,` +
+        `description.ilike.%${q}%,` +
+        `category.ilike.%${q}%,` +
+        `mood.ilike.%${q}%,` +
+        `brand.ilike.%${q}%,` +
+        `colour.ilike.%${q}%,` +
+        `size.ilike.%${q}%,` +
+        `condition.ilike.%${q}%,` +
+        `location.ilike.%${q}%`
+      )
+      .eq("status", "available")                 // ← only show live listings
+      .limit(12),
+
+    supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar_url")
+      .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
+      .limit(6),
+  ]);
+
+  // map seller name from the join
+  const pieces = (piecesRes.data ?? []).map((p: any) => ({
+    ...p,
+    seller_name: p.profiles?.full_name ?? null,
+  }));
+
+  setResults({ pieces, sellers: sellersRes.data ?? [] });
+
+  if ((sellersRes.data ?? []).length > 0) {
+    setSuggestedSellers(sellersRes.data ?? []);
+  }
+
+  setLoading(false);
+}, []);
   const handleQueryChange = (val: string) => {
     setQuery(val);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -601,7 +623,7 @@ export default function Navbar() {
                       </div>
                       {(activeVibes.length > 0 || activeSize || activeBudget) && (
                         <button
-                          onClick={() => { router.push(`/buy?vibes=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`); setSearchOpen(false); }}
+                          onClick={() => { router.push(`/buy?mood=${activeVibes.join(",")}&size=${activeSize ?? ""}&budget=${activeBudget ?? ""}`); setSearchOpen(false); }}
                           className="mb-6 bg-[#2d1a0e] text-[#e8d5b0] text-[11px] tracking-[2px] uppercase px-5 py-2.5 rounded-full hover:bg-[#B48A5A] hover:text-black transition-all"
                         >Browse filtered archive →</button>
                       )}
@@ -643,7 +665,7 @@ export default function Navbar() {
                               </div>
                               <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                 <span className="text-[13px] font-medium text-[#2d1a0e]">₹{p.price}</span>
-                                {p.vibe && <span className="text-[9px] tracking-wide px-2 py-0.5 rounded-full bg-[#f0e8d8] text-[#7a5a38] border border-[#d4c4a0]">{p.vibe}</span>}
+                                {p.mood && <span className="text-[9px] tracking-wide px-2 py-0.5 rounded-full bg-[#f0e8d8] text-[#7a5a38] border border-[#d4c4a0]">{p.mood}</span>}
                               </div>
                             </Link>
                           ))}
