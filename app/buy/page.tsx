@@ -340,8 +340,8 @@ function BuyContent() {
   const [quickViewProduct, setQuickViewProduct] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
-  const { toggleWishlist, isWishlisted } = useWishlist();
-
+  const { toggleWishlist, isWishlisted } = useWishlist(() => setShowLoginModal(true));
+   const [showLoginModal, setShowLoginModal] = useState(false);
   /* ── DETECT MOBILE ── */
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -437,6 +437,51 @@ function BuyContent() {
           />
         )}
       </AnimatePresence>
+      <AnimatePresence>
+  {showLoginModal && (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+      onClick={() => setShowLoginModal(false)}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-[320px] bg-[#1a1520] border border-[#3d3245] text-center px-9 py-9 overflow-hidden"
+        style={{ borderRadius: "2px" }}
+      >
+        {/* Gold top line */}
+        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #c9a96e 0%, #e8c99a 40%, #c9a96e 100%)" }} />
+
+        <p className="text-[9px] uppercase tracking-[0.25em] text-[#8a7a6a] mb-5">Archive Access</p>
+
+        <h2 className="text-[#e8d8c0] leading-tight mb-4" style={{ fontFamily: "var(--font-playfair)", fontSize: "1.6rem" }}>
+          Save the piece,<br />claim the story.
+        </h2>
+
+        <div className="w-7 h-px bg-[#c9a96e] opacity-60 mx-auto mb-5" />
+
+        <p className="text-[12px] text-[#8a7a6a] leading-relaxed mb-7">
+          Your wishlist lives behind a login.<br />Log in before it's gone.
+        </p>
+
+        <Link href="/login" className="block w-full mb-3">
+          <button className="w-full py-3 text-[11px] uppercase tracking-[0.18em] text-[#f0dcd8] transition-opacity hover:opacity-80" style={{ background: "#6b1a2a", borderRadius: "1px" }}>
+            Log in to save
+          </button>
+        </Link>
+
+        <button
+          onClick={() => setShowLoginModal(false)}
+          className="w-full py-2.5 text-[10px] uppercase tracking-[0.15em] text-[#6a5e6e] border border-[#3d3245] hover:border-[#8a7a6a] hover:text-[#a09098] transition-all"
+          style={{ borderRadius: "1px", background: "transparent" }}
+        >
+          Keep browsing
+        </button>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-8 pt-20 sm:pt-28 pb-20 flex gap-6 md:gap-8">
 
