@@ -202,7 +202,8 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
             .eq("buyer_id", id).in("status", ["paid", "payment_held", "completed", "delivered"]),
           supabase.from("ratings").select("rating, review, created_at, reviewer_id")
             .eq("seller_id", id).order("created_at", { ascending: false }),
-        ]);
+          supabase.from("payout_details").select("*").eq("user_id", id as string).maybeSingle(),
+]);
 
         if (profileData) {
           setUser(profileData);
