@@ -21,10 +21,13 @@ async function logPaymentEvent(event: string, payload: Record<string, unknown>) 
   }
 }
 
-async function sendEmail(type: string, to: string, data: Record<string, unknown>) {
+ async function sendEmail(type: string, to: string, data: Record<string, unknown>) {
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "x-internal-secret": process.env.INTERNAL_API_SECRET!,
+    },
     body: JSON.stringify({ type, to, data }),
   });
   if (!res.ok) throw new Error(`send-email responded with ${res.status}`);

@@ -218,11 +218,14 @@ await supabase.from("notifications").insert({
   // ── 10. Email buyer ────────────────────────────────────────────────────
   if (buyerEmail) {
     try {
-      const emailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "order_confirmed",
+       const emailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+  method: "POST",
+  headers: { 
+    "Content-Type": "application/json",
+    "x-internal-secret": process.env.INTERNAL_API_SECRET!,
+  },
+  body: JSON.stringify({
+    type: "order_confirmed",
           to: buyerEmail,
           data: {
             productTitle:    product.title,
@@ -243,11 +246,14 @@ await supabase.from("notifications").insert({
   // ── 11. Email seller ───────────────────────────────────────────────────
   if (sellerEmail) {
     try {
-      const sellerEmailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "order_sold",
+       const sellerEmailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+  method: "POST",
+  headers: { 
+    "Content-Type": "application/json",
+    "x-internal-secret": process.env.INTERNAL_API_SECRET!,
+  },
+  body: JSON.stringify({
+    type: "order_sold",
           to: sellerEmail,
           data: {
             sellerName:      sellerProfile?.full_name,
