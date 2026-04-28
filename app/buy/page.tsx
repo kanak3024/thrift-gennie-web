@@ -216,7 +216,6 @@ function ProductCard({
 
   // On mobile, never span 2 cols/rows — it breaks a 2-col grid badly
   const effectiveLarge = isLarge && !isMobile;
-
   return (
     <motion.div
       layout
@@ -225,24 +224,21 @@ function ProductCard({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.35 }}
       className={`group relative flex flex-col ${effectiveLarge ? "col-span-2 row-span-2" : ""}`}
+      onMouseEnter={() => setImgHovered(true)}
+      onMouseLeave={() => setImgHovered(false)}
     >
-      {/* Image container */}
-       <Link href={`/product/${product.id}`} className="relative overflow-hidden rounded-2xl bg-[#EAE3DB] flex-1 block"
-  style={{ minHeight: effectiveLarge ? "420px" : isMobile ? "180px" : "220px" }}
-  onMouseEnter={() => setImgHovered(true)}
-  onMouseLeave={() => setImgHovered(false)}
->
+      <Link
+        href={`/product/${product.id}`}
+        className="relative overflow-hidden rounded-2xl bg-[#EAE3DB] flex-1 block"
+        style={{ minHeight: effectiveLarge ? "420px" : isMobile ? "180px" : "220px" }}
+      >
         <Image
           src={product.image_url || "/final.png"}
           alt={product.title}
           fill
           className="object-cover"
         />
-
-        {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/05 to-transparent" />
-
-        {/* Condition badge — top left */}
         {product.condition && (
           <div className="absolute top-3 left-3">
             <span className="text-[8px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-white">
@@ -250,32 +246,6 @@ function ProductCard({
             </span>
           </div>
         )}
-
-        {/* Wishlist — top right; always visible on mobile, hover on desktop */}
-        <motion.button
-          initial={false}
-          animate={{
-            opacity: isMobile ? 1 : imgHovered ? 1 : 0,
-            scale: isMobile ? 1 : imgHovered ? 1 : 0.8,
-          }}
-          transition={{ duration: 0.15 }}
-          onClick={(e) => { e.preventDefault(); toggleWishlist(product.id); }}
-           className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center"
-        >
-           <svg
-  width="18" height="18" viewBox="0 0 24 24"
-  fill={isWishlisted(product.id) ? "#A1123F" : "none"}
-  stroke={isWishlisted(product.id) ? "#A1123F" : "white"}
-  strokeWidth="1.8"
-  strokeLinecap="round"
-  strokeLinejoin="round"
-  style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }}
->
-  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-</svg>
-        </motion.button>
-
-        {/* Quick view — hidden on mobile (use the card link instead) */}
         {!isMobile && (
           <motion.button
             initial={false}
@@ -287,9 +257,7 @@ function ProductCard({
             Quick View
           </motion.button>
         )}
-
-        {/* Product info — always visible at bottom */}
-        <Link href={`/product/${product.id}`} className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
           <p className="text-[8px] uppercase tracking-[0.2em] text-white/60 mb-0.5">
             {product.location || "Archive"}
           </p>
@@ -312,12 +280,35 @@ function ProductCard({
               </span>
             )}
           </div>
-        </Link>
-      </div>
+        </div>
+      </Link>
+      <motion.button
+        initial={false}
+        animate={{
+          opacity: isMobile ? 1 : imgHovered ? 1 : 0,
+          scale: isMobile ? 1 : imgHovered ? 1 : 0.8,
+        }}
+        transition={{ duration: 0.15 }}
+        onClick={() => toggleWishlist(product.id)}
+        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center"
+      >
+        <svg
+          width="18" height="18" viewBox="0 0 24 24"
+          fill={isWishlisted(product.id) ? "#A1123F" : "none"}
+          stroke={isWishlisted(product.id) ? "#A1123F" : "white"}
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }}
+        >
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+      </motion.button>
     </motion.div>
   );
 }
 
+   
 /* ─────────────────────────────
    SKELETON CARD
 ───────────────────────────── */
