@@ -190,6 +190,7 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
           { data: sold },
           { data: purchased },
           { data: ratingsData },
+          { data: payoutData },
         ] = await Promise.all([
           supabase.from("profiles").select("*, kyc_status").eq("id", id).maybeSingle(),
           supabase.from("products").select("*").eq("seller_id", id),
@@ -208,10 +209,10 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
           setEditName(profileData.full_name || "");
           setEditBio(profileData.bio || "");
           setEditRole(profileData.role || "Archive Curator");
-          setBankName(profileData.bank_account_name || "");
-          setBankAccount(profileData.bank_account_number || "");
-          setBankIfsc(profileData.bank_ifsc || "");
-          setBankUpi(profileData.bank_upi || "");
+           setBankName(payoutData?.bank_account_name || "");
+setBankAccount(payoutData?.bank_account_number || "");
+setBankIfsc(payoutData?.bank_ifsc || "");
+setBankUpi(payoutData?.bank_upi || "");
           setAddrLine(profileData.address_line || "");
           setAddrCity(profileData.city || "");
           setAddrState(profileData.state || "");
@@ -333,12 +334,17 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
   const handleSaveBankDetails = async () => {
     if (!currentUser) return;
     setSavingBank(true);
-    const { error } = await supabase.from("profiles").update({
-      bank_account_name: bankName, bank_account_number: bankAccount,
-      bank_ifsc: bankIfsc,         bank_upi: bankUpi,
-    }).eq("id", currentUser.id);
-    if (!error) {
-      setUser({ ...user, bank_account_name: bankName, bank_account_number: bankAccount, bank_ifsc: bankIfsc, bank_upi: bankUpi });
+     const { error } = await supabase.from("payout_details").upsert({
+  id: currentUser.id,
+  user_id: currentUser.id,
+  bank_account_name: bankName,
+  bank_account_number: bankAccount,
+  bank_ifsc: bankIfsc,
+  bank_upi: bankUpi,
+  updated_at: new Date().toISOString(),
+}, { onConflict: "user_id" });
+if (!error) {
+  setUser({ ...user });
       setShowBankForm(false);
       showToast("Payout details saved ✦");
     } else showToast("Save failed", "error");
@@ -423,7 +429,7 @@ const [dashboardOpen, setDashboardOpen] = useState(false);
   );
 
   const isOwner           = currentUser?.id === id;
-  const hasupi = !!user?.bank_upi;
+   const hasupi = !!bankUpi;
   const displayName       = user.full_name || "Curator";
   const availableProducts = products.filter(p => p.status === "available");
   const hasReturnAddress  = user.address_line && user.city && user.state && user.pincode;

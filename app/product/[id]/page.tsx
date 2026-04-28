@@ -66,6 +66,9 @@ export default function ProductPage() {
   const [activeImage, setActiveImage]           = useState<string>("");
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [pendingAddress, setPendingAddress]     = useState<ShippingAddress | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   // Chat
   const [chatOpen, setChatOpen]             = useState(false);
@@ -127,6 +130,16 @@ export default function ProductPage() {
         .or(`mood.eq.${productData.mood},category.eq.${productData.category}`)
         .limit(4);
       if (similar) setSimilarItems(similar);
+
+      // Increment view count
+await supabase.rpc("increment_views", { product_id: id });
+
+// Fetch wishlist count
+const { count } = await supabase
+  .from("wishlists")
+  .select("*", { count: "exact", head: true })
+  .eq("product_id", id);
+setWishlistCount(count || 0);
     };
     fetchAll();
   }, [id]);
@@ -721,92 +734,153 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
         <div className="grid md:grid-cols-[1fr_1fr] gap-8 lg:gap-20">
 
           {/* ── LEFT: IMAGE GALLERY ── */}
-          <div className="flex flex-col gap-3">
-            <div className={`relative aspect-[4/5] bg-[#EAE3DB] overflow-hidden rounded-2xl ${isSold ? "opacity-70" : ""}`}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeImage}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute inset-0"
-                >
-                  <Image
-                    src={activeImage}
-                    alt={product.title}
-                    fill
-                    className={`object-cover ${isSold ? "grayscale" : ""}`}
-                    priority
-                  />
-                </motion.div>
-              </AnimatePresence>
+           <div className="flex flex-col gap-3">
+  <div
+    className={`relative aspect-[4/5] bg-[#EAE3DB] overflow-hidden rounded-2xl ${isSold ? "opacity-70" : ""}`}
+    onMouseDown={(e) => setDragStartX(e.clientX)}
+    onMouseUp={(e) => {
+      if (dragStartX === null) return;
+      const diff = dragStartX - e.clientX;
+      if (diff > 50) setCurrentImageIndex((i) => Math.min(i + 1, allImages.length - 1));
+      else if (diff < -50) setCurrentImageIndex((i) => Math.max(i - 1, 0));
+      setDragStartX(null);
+    }}
+    onTouchStart={(e) => setDragStartX(e.touches[0].clientX)}
+    onTouchEnd={(e) => {
+      if (dragStartX === null) return;
+      const diff = dragStartX - e.changedTouches[0].clientX;
+      if (diff > 50) setCurrentImageIndex((i) => Math.min(i + 1, allImages.length - 1));
+      else if (diff < -50) setCurrentImageIndex((i) => Math.max(i - 1, 0));
+      setDragStartX(null);
+    }}
+  >
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={currentImageIndex}
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 0, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.25 }}
+        className="absolute inset-0"
+      >
+        <Image
+          src={allImages[currentImageIndex]}
+          alt={product.title}
+          fill
+          className={`object-cover select-none ${isSold ? "grayscale" : ""}`}
+          priority
+          draggable={false}
+        />
+      </motion.div>
+    </AnimatePresence>
 
-              {isSold && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl">
-                  <span className="bg-[#2B0A0F]/90 text-[#F6F3EF] text-[9px] uppercase tracking-[0.5em] px-8 py-3 rounded-full">
-                    Sold
-                  </span>
-                </div>
-              )}
+    {/* Dot indicators */}
+    {allImages.length > 1 && (
+      <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+        {allImages.map((_: string, i: number) => (
+          <button
+            key={i}
+            onClick={() => setCurrentImageIndex(i)}
+            className="transition-all"
+            style={{
+              width: i === currentImageIndex ? "16px" : "6px",
+              height: "6px",
+              borderRadius: "9999px",
+              background: i === currentImageIndex ? "white" : "rgba(255,255,255,0.45)",
+            }}
+          />
+        ))}
+      </div>
+    )}
 
-              {!isMine && (
-                <button
-                  onClick={() => toggleWishlist(product.id)}
-                  className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24"
-                    fill={isWishlisted(product.id) ? "#A1123F" : "none"}
-                    stroke="#A1123F" strokeWidth="2"
-                  >
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                  </svg>
-                </button>
-              )}
+    {/* Left / Right arrows — desktop only */}
+    {allImages.length > 1 && currentImageIndex > 0 && (
+      <button
+        onClick={() => setCurrentImageIndex((i) => i - 1)}
+        className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+    )}
+    {allImages.length > 1 && currentImageIndex < allImages.length - 1 && (
+      <button
+        onClick={() => setCurrentImageIndex((i) => i + 1)}
+        className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </button>
+    )}
 
-              {/* Share + Report */}
-              <div className="absolute bottom-4 left-4 flex gap-2">
-                <button
-                  onClick={() => setShareOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                  </svg>
-                  Share
-                </button>
+    {isSold && (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl">
+        <span className="bg-[#2B0A0F]/90 text-[#F6F3EF] text-[9px] uppercase tracking-[0.5em] px-8 py-3 rounded-full">
+          Sold
+        </span>
+      </div>
+    )}
 
-                {!isMine && user && (
-                  <button
-                    onClick={() => setReportOpen(true)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm text-[#A1123F]"
-                  >
-                    🚩 Report
-                  </button>
-                )}
-              </div>
-            </div>
+    {!isMine && (
+      <button
+        onClick={() => toggleWishlist(product.id)}
+        className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center hover:scale-110 transition-transform z-10"
+      >
+        <svg
+          width="22" height="22" viewBox="0 0 24 24"
+          fill={isWishlisted(product.id) ? "#A1123F" : "none"}
+          stroke={isWishlisted(product.id) ? "#A1123F" : "white"}
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+          style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }}
+        >
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+      </button>
+    )}
 
-            {/* Thumbnail strip */}
-            {allImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {allImages.map((img: string, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveImage(img)}
-                    className={`relative w-14 sm:w-16 h-[72px] sm:h-20 flex-shrink-0 overflow-hidden rounded-lg transition-all ${
-                      activeImage === img
-                        ? "ring-2 ring-[#2B0A0F] opacity-100"
-                        : "opacity-40 hover:opacity-80"
-                    }`}
-                  >
-                    <Image src={img} alt={`View ${i + 1}`} fill className="object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+    <div className="absolute bottom-4 left-4 flex gap-2 z-10">
+      <button
+        onClick={() => setShareOpen(true)}
+        className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+        Share
+      </button>
+      {!isMine && user && (
+        <button
+          onClick={() => setReportOpen(true)}
+          className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm text-[#A1123F]"
+        >
+          🚩 Report
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* Thumbnail strip — synced to current index */}
+  {allImages.length > 1 && (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {allImages.map((img: string, i: number) => (
+        <button
+          key={i}
+          onClick={() => setCurrentImageIndex(i)}
+          className={`relative w-14 sm:w-16 h-[72px] sm:h-20 flex-shrink-0 overflow-hidden rounded-lg transition-all ${
+            currentImageIndex === i
+              ? "ring-2 ring-[#2B0A0F] opacity-100"
+              : "opacity-40 hover:opacity-80"
+          }`}
+        >
+          <Image src={img} alt={`View ${i + 1}`} fill className="object-cover" />
+        </button>
+      ))}
+    </div>
+  )}
+</div>
 
           {/* ── RIGHT: PRODUCT DETAILS ── */}
           <div className="flex flex-col">
