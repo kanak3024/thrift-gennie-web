@@ -15,8 +15,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       {!isAdmin && <Navbar />}
       {!isAdmin && <NotificationToast />}
       {!isAdmin && <BottomNav />}
-       // AFTER
-<div className={!isAdmin ? "min-h-screen" : ""}>
+       
+<div className={!isAdmin ? "min-h-screen bg-[#1A060B]" : ""}>
   {children}
 </div>
       {!isAdmin && <SupportChat />}
