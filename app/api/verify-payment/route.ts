@@ -48,6 +48,16 @@ export async function POST(req: Request) {
       }
     );
   }
+  // ── Auth check ──
+const authHeader = req.headers.get("authorization");
+const token = authHeader?.replace("Bearer ", "");
+if (!token) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+if (authError || !user) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
 
   const {
     razorpay_order_id,
@@ -58,6 +68,11 @@ export async function POST(req: Request) {
     buyerEmail,
     shippingAddress,
   } = await req.json();
+
+  // Make sure buyer matches logged in user
+if (buyerId !== user.id) {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
 
   // ── 1. Presence check ──────────────────────────────────────────────────
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !productId || !buyerId) {
