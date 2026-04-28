@@ -10,11 +10,13 @@ export default function BottomNav() {
   const pathname = usePathname();
   const { wishlist } = useWishlist();
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true); // ← add this
   const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
+      setLoading(false); // ← mark auth check done
       if (data.user) {
         supabase
           .from("messages")
@@ -24,7 +26,26 @@ export default function BottomNav() {
           .then(({ count }) => setUnreadMessages(count || 0));
       }
     });
+
+    // Also listen for auth state changes (e.g. logout from another tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const lastTab = {
+    href: user ? `/account/${user.id}` : "/login",
+    label: user ? "Account" : "Login", // ← "Account" not "Profile" to match desktop
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? "2" : "1.5"}>
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    ),
+  };
 
   const tabs = [
     {
@@ -71,35 +92,25 @@ export default function BottomNav() {
         </svg>
       ),
     },
-    {
-      href: user ? `/account/${user.id}` : "/login",
-      label: user ? "Profile" : "Login",
-      icon: (active: boolean) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? "2" : "1.5"}>
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-          <circle cx="12" cy="7" r="4"/>
-        </svg>
-      ),
-    },
+    lastTab, // ← dynamic last tab
   ];
 
   return (
-   
-<nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#1A060B] backdrop-blur-md border-t border-white/08" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="flex items-center justify-around px-2 py-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#1A060B] backdrop-blur-md border-t border-white/08" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="flex items-center justify-around px-2 py-2">
         {tabs.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
           return (
             <Link
               key={tab.href}
-              href={tab.href}
+              href={loading ? "#" : tab.href} // ← don't navigate during auth check
               className="relative flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all"
             >
               <div className="relative">
                 <span style={{ color: active ? "#B48A5A" : "rgba(246,243,239,0.45)" }}>
                   {tab.icon(active)}
                 </span>
-                {tab.badge && tab.badge > 0 ? (
+                {"badge" in tab && tab.badge && tab.badge > 0 ? (
                   <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-[#A1123F] text-white text-[8px] font-bold rounded-full flex items-center justify-center px-1">
                     {tab.badge > 9 ? "9+" : tab.badge}
                   </span>
@@ -109,7 +120,8 @@ export default function BottomNav() {
                 className="text-[9px] uppercase tracking-[0.15em]"
                 style={{ color: active ? "#B48A5A" : "rgba(246,243,239,0.35)" }}
               >
-                {tab.label}
+                {/* Show nothing while loading to avoid the Login flash */}
+                {loading && tab === lastTab ? "" : tab.label}
               </span>
             </Link>
           );
