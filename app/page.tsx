@@ -624,8 +624,8 @@ export default function HomePage() {
   }, [searchOpen]);
 
   return (
-    <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F] pb-20 md:pb-0">
- 
+    <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F] ">
+  
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} trendingSearches={trendingSearches} />
       <Navbar />
 
