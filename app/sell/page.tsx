@@ -284,11 +284,17 @@ function AIDescriptionButton({ photos, title, category, condition, size, mood, o
         reader.onerror = rej;
         reader.readAsDataURL(blob);
       });
-      const response = await fetch("/api/generate-description", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64, mediaType: blob.type || "image/jpeg", title, category, condition, size, mood }),
-      });
+       const { data: { session } } = await supabase.auth.getSession();
+const token = session?.access_token;
+
+const response = await fetch("/api/generate-description", {
+  method: "POST",
+  headers: { 
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
+  },
+  body: JSON.stringify({ base64, mediaType: blob.type || "image/jpeg", title, category, condition, size, mood }),
+});
       const data = await response.json();
       if (data.text) { onGenerated(data.text); setState("done"); setTimeout(() => setState("idle"), 3000); }
       else setState("idle");
