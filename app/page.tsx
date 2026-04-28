@@ -624,8 +624,8 @@ export default function HomePage() {
   }, [searchOpen]);
 
   return (
-    <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F]">
-
+    <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F] pb-20 md:pb-0">
+ 
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} trendingSearches={trendingSearches} />
       <Navbar />
 
@@ -1029,7 +1029,7 @@ export default function HomePage() {
       {/* ══════════════════════════
           FOOTER
       ══════════════════════════ */}
-      <footer className="bg-[#1A060B] text-[#F6F3EF]">
+      <footer className="bg-[#1A060B] text-[#F6F3EF] pb-20 md:pb-0">
         <div className="border-b border-[#F6F3EF]/08 py-10 px-5 md:px-8">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
