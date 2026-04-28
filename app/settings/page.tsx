@@ -67,18 +67,17 @@ export default function SettingsPage() {
       if (!session?.user) { router.replace("/login"); return; }
       setUser(session.user);
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .maybeSingle();
+       const [{ data: profileData }, { data: payoutData }] = await Promise.all([
+  supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
+  supabase.from("payout_details").select("*").eq("user_id", session.user.id).maybeSingle(),
+]);
 
-      if (profileData) {
-        setProfile(profileData);
-        setBankName(profileData.bank_account_name || "");
-        setBankAccount(profileData.bank_account_number || "");
-        setBankIfsc(profileData.bank_ifsc || "");
-        setBankUpi(profileData.bank_upi || "");
+if (profileData) {
+  setProfile(profileData);
+  setBankName(payoutData?.bank_account_name || "");
+  setBankAccount(payoutData?.bank_account_number || "");
+  setBankIfsc(payoutData?.bank_ifsc || "");
+  setBankUpi(payoutData?.bank_upi || "");
         setAddrLine(profileData.address_line || "");
         setAddrCity(profileData.city || "");
         setAddrState(profileData.state || "");
@@ -94,14 +93,17 @@ export default function SettingsPage() {
   const handleSaveBankDetails = async () => {
     if (!user) return;
     setSavingBank(true);
-    const { error } = await supabase.from("profiles").update({
-      bank_account_name: bankName,
-      bank_account_number: bankAccount,
-      bank_ifsc: bankIfsc,
-      bank_upi: bankUpi,
-    }).eq("id", user.id);
-    if (!error) {
-      setProfile({ ...profile, bank_account_name: bankName, bank_account_number: bankAccount, bank_ifsc: bankIfsc, bank_upi: bankUpi });
+     const { error } = await supabase.from("payout_details").upsert({
+  id: user.id,
+  user_id: user.id,
+  bank_account_name: bankName,
+  bank_account_number: bankAccount,
+  bank_ifsc: bankIfsc,
+  bank_upi: bankUpi,
+  updated_at: new Date().toISOString(),
+}, { onConflict: "user_id" });
+if (!error) {
+  setProfile({ ...profile });
       setShowBankForm(false);
       showToast("Payout details saved ✦");
     } else showToast("Save failed", "error");
@@ -209,9 +211,9 @@ export default function SettingsPage() {
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.25em] font-semibold mb-1">Payout Details</p>
                 <p className="text-[9px] opacity-40 uppercase tracking-widest truncate">
-                  {profile?.bank_account_number
-                    ? `Account ••••${profile.bank_account_number.slice(-4)}${profile.bank_upi ? ` · UPI: ${profile.bank_upi}` : ""}`
-                    : "No payout details added yet"}
+                   {bankAccount
+  ? `Account ••••${bankAccount.slice(-4)}${bankUpi ? ` · UPI: ${bankUpi}` : ""}`
+  : "No payout details added yet"}
                 </p>
               </div>
               <button

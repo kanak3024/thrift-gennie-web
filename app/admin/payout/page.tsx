@@ -21,12 +21,14 @@ export default function AdminPayoutsPage() {
         *,
         products (title, image_url, price),
         profiles!orders_seller_id_fkey (
-          full_name,
-          bank_account_name,
-          bank_account_number,
-          bank_ifsc,
-          bank_upi
-        )
+  full_name
+),
+payout_details!orders_seller_id_fkey (
+  bank_account_name,
+  bank_account_number,
+  bank_ifsc,
+  bank_upi
+)
       `)
       .order("created_at", { ascending: false });
 
@@ -135,7 +137,7 @@ export default function AdminPayoutsPage() {
         ) : (
           <div className="space-y-4">
             {displayOrders.map((order) => {
-              const seller = order.profiles;
+              const seller = { ...order.profiles, ...order.payout_details };
               const hasBankDetails = seller?.bank_account_number || seller?.bank_upi;
 
               return (

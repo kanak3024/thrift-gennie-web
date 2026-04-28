@@ -227,14 +227,11 @@ function ProductCard({
       className={`group relative flex flex-col ${effectiveLarge ? "col-span-2 row-span-2" : ""}`}
     >
       {/* Image container */}
-      <div
-        className="relative overflow-hidden rounded-2xl bg-[#EAE3DB] flex-1"
-        style={{ minHeight: effectiveLarge ? "420px" : isMobile ? "180px" : "220px" }}
-        onMouseEnter={() => setImgHovered(true)}
-        onMouseLeave={() => setImgHovered(false)}
-        onTouchStart={() => setImgHovered(true)}
-        onTouchEnd={() => setImgHovered(false)}
-      >
+       <Link href={`/product/${product.id}`} className="relative overflow-hidden rounded-2xl bg-[#EAE3DB] flex-1 block"
+  style={{ minHeight: effectiveLarge ? "420px" : isMobile ? "180px" : "220px" }}
+  onMouseEnter={() => setImgHovered(true)}
+  onMouseLeave={() => setImgHovered(false)}
+>
         <Image
           src={product.image_url || "/final.png"}
           alt={product.title}
@@ -263,11 +260,19 @@ function ProductCard({
           }}
           transition={{ duration: 0.15 }}
           onClick={(e) => { e.preventDefault(); toggleWishlist(product.id); }}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm"
+           className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center"
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill={isWishlisted(product.id) ? "#A1123F" : "none"} stroke="#A1123F" strokeWidth="2.5">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
+           <svg
+  width="18" height="18" viewBox="0 0 24 24"
+  fill={isWishlisted(product.id) ? "#A1123F" : "none"}
+  stroke={isWishlisted(product.id) ? "#A1123F" : "white"}
+  strokeWidth="1.8"
+  strokeLinecap="round"
+  strokeLinejoin="round"
+  style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }}
+>
+  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+</svg>
         </motion.button>
 
         {/* Quick view — hidden on mobile (use the card link instead) */}
