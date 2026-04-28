@@ -959,15 +959,15 @@ export default function HomePage() {
               Next drop in {countdown}
             </span>
           </div>
+          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 md:mx-0 md:px-0 items-stretch">
 
-          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 md:mx-0 md:px-0">
-            {products.length === 0 && <p className="opacity-40 text-sm" style={{ fontFamily: "var(--font-dm)" }}>Loading archive...</p>}
+             {products.length === 0 && <p className="opacity-40 text-sm" style={{ fontFamily: "var(--font-dm)" }}>Loading archive...</p>}
             {products.map((item) => {
               const badge = getProductBadge(item);
               return (
-                <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] group flex-shrink-0">
-                  <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden border border-[#F6F3EF]/08 hover:border-[#F6F3EF]/20 transition-all hover:-translate-y-1">
-                    <div className="relative aspect-[3/4]">
+                 <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] w-[200px] md:w-[260px] group flex-shrink-0">
+    <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden h-full ...">
+      <div className="relative aspect-[3/4]">
                       <Image src={item.image_url} alt={item.title} fill className="object-cover group-hover:scale-105 transition duration-700" />
                       {badge && (
                         <div className={`absolute top-3 left-3 text-[9px] px-3 py-1 rounded-full uppercase tracking-wide font-medium ${badge.cls}`} style={{ fontFamily: "var(--font-dm)" }}>
