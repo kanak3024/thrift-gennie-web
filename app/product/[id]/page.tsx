@@ -343,10 +343,15 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
         image: product.image_url || "/final.png",
         prefill: { email: user.email, contact: address.phone, name: address.fullName },
         theme: { color: "#2B0A0F" },
-        handler: async (response: any) => {
-          const verifyRes = await fetch("/api/verify-payment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+         handler: async (response: any) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const verifyRes = await fetch("/api/verify-payment", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
             body: JSON.stringify({
               razorpay_order_id:   response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,

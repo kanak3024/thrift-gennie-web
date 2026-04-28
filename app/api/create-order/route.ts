@@ -36,9 +36,29 @@ export async function POST(req: Request) {
         }
       );
     }
+    // ── Auth check ──
+const authHeader = req.headers.get("authorization");
+const token = authHeader?.replace("Bearer ", "");
+if (!token) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+const { createClient } = await import("@supabase/supabase-js");
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
+const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+if (authError || !user) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
 
-    const body = await req.json();
-    const { amount: rawAmount, productId, buyerId, buyerEmail, shippingAddress } = body;
+const body = await req.json();
+const { amount: rawAmount, productId, buyerId, buyerEmail, shippingAddress } = body;
+
+// Make sure the buyer is the logged in user
+if (buyerId !== user.id) {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
 
     if (typeof rawAmount !== "number") {
       return NextResponse.json({ error: "Invalid amount: must be a number" }, { status: 400 });
