@@ -172,13 +172,13 @@ export default function SupportChat() {
     if (data) setMessages(data);
   };
 
-   const startTicket = async () => {
-  if (!user) return;  // ← use state directly
+    const startTicket = async () => {
+  if (!user) return;
   setLoading(true);
 
   const { data, error } = await supabase
     .from("support_tickets")
-    .insert({ user_id: user.id, subject: selectedSubject })  // ← user.id directly
+    .insert({ user_id: user.id, subject: selectedSubject })
     .select()
     .single();
   
