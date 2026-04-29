@@ -6,7 +6,8 @@ import NotificationToast from "./components/NotificationToast";
 import BottomNav from "./components/BottomNav";
 import { Analytics } from "@vercel/analytics/react";
 import ClientLayout from "./components/ClientLayout";
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import type { Metadata } from "next";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -18,9 +19,20 @@ const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
+export const metadata: Metadata = {
+  other: {
+    // tells browser to fetch this before anything else
+    "link:preload:y2k": "</y2k.png>; rel=preload; as=image",
+  },
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Preload the first carousel image so LCP renders immediately */}
+        <link rel="preload" as="image" href="/y2k.png" />
+      </head>
       <body
         className={`
           ${playfair.variable}
@@ -35,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </ClientLayout>
         <Analytics />
-         <SpeedInsights />
+        <SpeedInsights />
       </body>
     </html>
   );

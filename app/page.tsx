@@ -266,24 +266,34 @@ function SearchOverlay({
 /* =========================
    LIVE STATS
 ========================= */
-function useLiveStats() {
+ function useLiveStats() {
   const [stats, setStats] = useState({ pieces: 0, avgPrice: 0, cities: 0 });
+
   useEffect(() => {
     async function fetchStats() {
-      const [{ count: pieces }, { data: priceData }] = await Promise.all([
-        supabase.from("products").select("*", { count: "exact", head: true }),
-        supabase.from("products").select("price"),
-      ]);
-      const prices = (priceData ?? []).map((p: any) => p.price).filter(Boolean);
+      // ONE query gets everything ✅
+      const { data } = await supabase
+        .from("products")
+        .select("price, location");
+
+      if (!data) return;
+
+      const pieces = data.length;
+
+      const prices = data.map((p: any) => p.price).filter(Boolean);
       const avgPrice = prices.length
         ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length)
         : 0;
-      const { data: locationData } = await supabase.from("products").select("location");
-      const cities = new Set((locationData ?? []).map((p: any) => p.location).filter(Boolean)).size;
-      setStats({ pieces: pieces ?? 0, avgPrice, cities });
+
+      const cities = new Set(
+        data.map((p: any) => p.location).filter(Boolean)
+      ).size;
+
+      setStats({ pieces, avgPrice, cities });
     }
     fetchStats();
   }, []);
+
   return stats;
 }
 
