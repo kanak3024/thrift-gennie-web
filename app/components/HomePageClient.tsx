@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import Navbar from "./components/Navbar";
-import { supabase } from "../lib/supabase";
+import Navbar from "./Navbar";
+import { supabase } from "../../lib/supabase";
 
 /* =========================
    FONT SETUP — add to layout.tsx
