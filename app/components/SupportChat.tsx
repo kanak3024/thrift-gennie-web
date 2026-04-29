@@ -52,30 +52,47 @@ export default function SupportChat() {
   const ticketIdRef = useRef<string | null>(null);
   useEffect(() => { ticketIdRef.current = ticketId; }, [ticketId]);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
-      if (!u) return;
+   useEffect(() => {
+  // Check session immediately (fast, no network call)
+  supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const u = session?.user;
+    if (!u) return;
 
-      // Fetch role to decide whether to show the widget
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", u.id)
-        .single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", u.id)
+      .single();
 
-      const role = profile?.role ?? null;
-      setUserRole(role);
+    const role = profile?.role ?? null;
+    setUserRole(role);
+    if (role === "admin") return;
+    setUser(u);
+  });
 
-      // FIX: Admins should not use the user-facing support widget.
-      // They have /admin/support for that. Don't set user → widget won't render.
-      if (role === "admin") return;
+  // Also listen for auth changes (login/logout)
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const u = session?.user;
+    if (!u) { setUser(null); setUserRole(null); return; }
 
-      setUser(u);
-    });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", u.id)
+      .single();
 
-    const t = setTimeout(() => setPulse(false), 8000);
-    return () => clearTimeout(t);
-  }, []);
+    const role = profile?.role ?? null;
+    setUserRole(role);
+    if (role === "admin") return;
+    setUser(u);
+  });
+
+  const t = setTimeout(() => setPulse(false), 8000);
+  return () => {
+    subscription.unsubscribe();
+    clearTimeout(t);
+  };
+}, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
