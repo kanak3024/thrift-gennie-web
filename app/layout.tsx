@@ -6,6 +6,7 @@ import NotificationToast from "./components/NotificationToast";
 import BottomNav from "./components/BottomNav";
 import { Analytics } from "@vercel/analytics/react";
 import ClientLayout from "./components/ClientLayout";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
