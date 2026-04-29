@@ -172,16 +172,17 @@ export default function SupportChat() {
     if (data) setMessages(data);
   };
 
-  const startTicket = async () => {
-    const { data: { user: freshUser } } = await supabase.auth.getUser();
-    if (!freshUser) return;
-    setLoading(true);
+   const startTicket = async () => {
+  if (!user) return;  // ← use state directly
+  setLoading(true);
 
-    const { data, error } = await supabase
-      .from("support_tickets")
-      .insert({ user_id: freshUser.id, subject: selectedSubject })
-      .select()
-      .single();
+  const { data, error } = await supabase
+    .from("support_tickets")
+    .insert({ user_id: user.id, subject: selectedSubject })  // ← user.id directly
+    .select()
+    .single();
+  
+  // rest stays the same...
 
     if (error) {
       console.error("startTicket:", error.message);
