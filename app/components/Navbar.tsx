@@ -523,14 +523,14 @@ export default function Navbar() {
 >
       <div
         className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]"
-        onClick={(e) => e.stopPropagation()}  {/* ← #2 on the header */}
+         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
         <button onClick={() => setNotifOpen(false)} className="text-[#B0A090] text-lg leading-none">✕</button>
       </div>
       <div
         className="px-4 pt-2 pb-8"
-        onClick={(e) => e.stopPropagation()}  {/* ← #3 on the content */}
+         onClick={(e) => e.stopPropagation()}
       >
         <ActivityFeed />
       </div>
