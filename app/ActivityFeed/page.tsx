@@ -470,11 +470,12 @@ export default function ActivityFeed() {
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-all duration-150 flex items-center gap-1.5
-                ${filter === f.key
-                  ? 'bg-[#1A0A0A] text-[#F5F0EA] border-[#1A0A0A]'
-                  : 'border-[#D4C8BC] text-[#6B5A52] hover:bg-[#F0EBE4]'
-                }`}
+               // Change the filter button className — increase tap target
+className={`text-xs font-semibold px-4 py-2 rounded-full border transition-all duration-150 flex items-center gap-1.5
+  ${filter === f.key
+    ? 'bg-[#1A0A0A] text-[#F5F0EA] border-[#1A0A0A]'
+    : 'border-[#D4C8BC] text-[#6B5A52] hover:bg-[#F0EBE4]'
+  }`}
             >
               {f.label}
               {counts[f.key] > 0 && (
