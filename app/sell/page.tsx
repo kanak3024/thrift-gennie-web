@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { PhotoGuidelines } from "@/components/PhotoGuidelines";
+import { PhotoGuidelines } from "../components/PhotoGuidelines";
 
 const CONDITIONS = [
   { value: "New with Tags", desc: "Never worn, tags still on" },
