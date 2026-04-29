@@ -513,14 +513,14 @@ export default function Navbar() {
       {/* MOBILE ACTIVITY PANEL — full screen sheet */}
        <AnimatePresence>
   {notifOpen && (
-    <motion.div
-      initial={{ opacity: 0, y: "100%" }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: "100%" }}
-      transition={{ type: "spring", damping: 28, stiffness: 300 }}
-      className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
-      onClick={(e) => e.stopPropagation()}  {/* ← #1 on the panel itself */}
-    >
+     <motion.div
+  initial={{ opacity: 0, y: "100%" }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: "100%" }}
+  transition={{ type: "spring", damping: 28, stiffness: 300 }}
+  className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
+  onClick={(e) => e.stopPropagation()}
+>
       <div
         className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]"
         onClick={(e) => e.stopPropagation()}  {/* ← #2 on the header */}
