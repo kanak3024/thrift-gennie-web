@@ -6,12 +6,14 @@ import { supabase } from "../../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { PhotoGuidelines } from "@/components/PhotoGuidelines";
 
 const CONDITIONS = [
+  { value: "New with Tags", desc: "Never worn, tags still on" },
   { value: "Like New",   desc: "Worn once or never" },
   { value: "Good",       desc: "Minimal signs of wear" },
   { value: "Fair",       desc: "Visible wear, still great" },
-  { value: "Well Loved", desc: "Loved to the max" },
+  { value: "Pre Loved", desc: "Loved to the max" },
 ];
 const SIZES      = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "Custom"];
 const CATEGORIES = ["Tops", "Bottoms", "Dresses", "Outerwear", "Accessories", "Footwear", "Bags", "Jewellery", "Other"];
@@ -72,10 +74,11 @@ const PRICE_RANGES: Record<string, [number, number]> = {
   Other:       [200, 1500],
 };
 const CONDITION_MULTIPLIER: Record<string, number> = {
+  "New with Tags": 1.2,
   "Like New":   1.0,
   "Good":       0.8,
   "Fair":       0.6,
-  "Well Loved": 0.4,
+  "Pre Loved": 0.4,
 };
 
 function getPriceRange(category: string, condition: string): [number, number] | null {
@@ -552,6 +555,7 @@ setHasUpi(!!profile?.bank_upi);
       isMain={false} />
   ))}
 </div>
+ 
                 <div className="flex gap-3">
                   <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -578,6 +582,7 @@ onChange={(e) => {
                   ))}
                   <span className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex-shrink-0">{files.length}/{MAX_PHOTOS}</span>
                 </div>
+                <PhotoGuidelines />
                 <p className="text-[9px] uppercase tracking-[0.2em] opacity-35 leading-relaxed">Tip — Lay flat or hang. Photograph the label, any flaws, and the full garment. More photos = faster sale.</p>
                 <button type="button" onClick={() => setStep(1)} disabled={!canProceedStep0}
                   className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-25">
