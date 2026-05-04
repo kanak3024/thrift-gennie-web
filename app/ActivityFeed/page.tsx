@@ -311,9 +311,13 @@ export default function ActivityFeed() {
     const init = async () => {
       // 1. Resolve current user
       const {
-        data: { user },
+        data: { session },
         error: authError,
-      } = await supabase.auth.getUser()
+      } = await supabase.auth.getSession()
+      console.log('[debug] session:', session)
+      console.log('[debug] authError:', authError)
+
+      const user = session?.user;
 
       if (!isMounted) return
       if (authError || !user) {
@@ -323,6 +327,7 @@ export default function ActivityFeed() {
       }
 
       // 2. Fetch initial data
+      console.log('[debug] user.id:', user.id)
       await fetchActivity(user.id)
       if (!isMounted) return
       setLoading(false)
