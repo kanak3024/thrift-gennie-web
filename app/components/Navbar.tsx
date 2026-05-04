@@ -511,34 +511,32 @@ export default function Navbar() {
       </motion.header>
 
       {/* MOBILE ACTIVITY PANEL — full screen sheet */}
-       <AnimatePresence>
+        <AnimatePresence>
   {notifOpen && (
-     <motion.div
-  initial={{ opacity: 0, y: "100%" }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: "100%" }}
-  transition={{ type: "spring", damping: 28, stiffness: 300 }}
-  className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
-  onClick={(e) => e.stopPropagation()}
->
-      <div
-        className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]"
-         onClick={(e) => e.stopPropagation()}
-      >
+    <motion.div
+      initial={{ opacity: 0, y: "100%" }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: "100%" }}
+      transition={{ type: "spring", damping: 28, stiffness: 300 }}
+      className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
+      onClickCapture={(e) => e.stopPropagation()}  // ← capture phase, not bubble
+    >
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]">
         <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
-        <button onClick={() => setNotifOpen(false)} className="text-[#B0A090] text-lg leading-none">✕</button>
+        <button
+          onClick={() => setNotifOpen(false)}
+          className="text-[#B0A090] text-lg leading-none"
+        >
+          ✕
+        </button>
       </div>
-      <div
-        className="px-4 pt-2 pb-8"
-         onClick={(e) => e.stopPropagation()}
-      >
+      <div className="px-4 pt-2 pb-8">
         <ActivityFeed />
       </div>
     </motion.div>
   )}
 </AnimatePresence>
       {/* Mobile activity backdrop */}
-       {/* Mobile activity backdrop */}
 <AnimatePresence>
   {notifOpen && (
     <motion.div
