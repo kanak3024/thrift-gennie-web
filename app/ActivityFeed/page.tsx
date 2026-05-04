@@ -253,7 +253,6 @@ export default function ActivityFeed() {
   const [loading, setLoading]                   = useState(true)
   const [realtimeStatus, setRealtimeStatus]     = useState<SubscriptionStatus | null>(null)
 
-  // ── Fetch initial activity ───────────────────────────────────
   const fetchActivity = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from('notifications')
@@ -271,11 +270,9 @@ export default function ActivityFeed() {
       console.error('[ActivityFeed] fetchActivity error:', error.message)
       return
     }
-
     if (data) setActivities(data as Activity[])
   }, [])
 
-  // ── Mark all read ────────────────────────────────────────────
   const markAllRead = useCallback(async (userId: string) => {
     const { error } = await supabase.rpc('mark_notifications_read', {
       p_user_id: userId,
@@ -283,7 +280,6 @@ export default function ActivityFeed() {
     if (error) console.error('[ActivityFeed] markAllRead error:', error.message)
   }, [])
 
-  // ── Fetch a single notification row with joins ───────────────
   const fetchSingleActivity = useCallback(async (id: string): Promise<Activity | null> => {
     const { data, error } = await supabase
       .from('notifications')
@@ -302,86 +298,67 @@ export default function ActivityFeed() {
     return data as Activity
   }, [])
 
-  // ── Core effect: auth → fetch → realtime → cleanup ──────────
+  // ── Core effect ───────────────────────────────────────────────
   useEffect(() => {
-    // Abort flag — prevents setState after unmount during in-flight async work
     let isMounted = true
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let feedStarted = false
 
-    const init = async () => {
-      // 1. Resolve current user
-      const {
-        data: { session },
-        error: authError,
-      } = await supabase.auth.getSession()
-      console.log('[debug] session:', session)
-      console.log('[debug] authError:', authError)
+    const startFeed = async (userId: string) => {
+      if (feedStarted || !isMounted) return
+      feedStarted = true
 
-      const user = session?.user;
-
-      if (!isMounted) return
-      if (authError || !user) {
-        console.error('[ActivityFeed] Auth error:', authError?.message ?? 'No user')
-        setLoading(false)
-        return
-      }
-
-      // 2. Fetch initial data
-      console.log('[debug] user.id:', user.id)
-      await fetchActivity(user.id)
+      await fetchActivity(userId)
       if (!isMounted) return
       setLoading(false)
+      await markAllRead(userId)
 
-      // 3. Mark all existing as read — only after data is loaded
-      await markAllRead(user.id)
-
-      // 4. Subscribe to realtime inserts for this user
       channel = supabase
-        .channel(`notifications_feed:${user.id}`)    // namespaced per user — safe with multiple tabs
+        .channel(`notifications_feed:${userId}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
             table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
+            filter: `user_id=eq.${userId}`,
           },
           async (payload) => {
             if (!isMounted) return
-
-            const newActivity = await fetchSingleActivity(payload.new.id)
-            if (!isMounted || !newActivity) return
-
-            setActivities((prev) => {
-              // Deduplicate — React 18 StrictMode mounts effects twice in dev
-              if (prev.some((a) => a.id === newActivity.id)) return prev
-              return [newActivity, ...prev]
-            })
+            const a = await fetchSingleActivity(payload.new.id)
+            if (!isMounted || !a) return
+            setActivities(prev =>
+              prev.some(x => x.id === a.id) ? prev : [a, ...prev]
+            )
           }
         )
         .subscribe((status: SubscriptionStatus) => {
           if (isMounted) setRealtimeStatus(status)
-          if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-            console.warn('[ActivityFeed] Realtime issue:', status)
-          }
         })
     }
 
-    init()
+    // Try immediately
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) startFeed(session.user.id)
+      else if (isMounted) setLoading(false)
+    })
 
-    // ── Cleanup: fires reliably on unmount ─────────────────────
+    // Fallback for late session
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) startFeed(session.user.id)
+      })
+
     return () => {
       isMounted = false
+      subscription.unsubscribe()
       if (channel) {
-        supabase.removeChannel(channel).catch((err) =>
-          console.error('[ActivityFeed] removeChannel error:', err)
-        )
+        supabase.removeChannel(channel).catch(console.error)
         channel = null
       }
     }
-  }, [fetchActivity, markAllRead, fetchSingleActivity]) // stable useCallback refs — no infinite loop
+  }, [fetchActivity, markAllRead, fetchSingleActivity])
 
-  // ── Memoised derived state ───────────────────────────────────
   const filtered = useMemo(
     () => (filter === 'all' ? activities : activities.filter((a) => a.type === filter)),
     [activities, filter]
@@ -390,28 +367,25 @@ export default function ActivityFeed() {
   const counts = useMemo(
     () =>
       FILTERS.reduce((acc, f) => {
-        acc[f.key] =
-          f.key === 'all'
-            ? activities.length
-            : activities.filter((a) => a.type === f.key).length
+        acc[f.key] = f.key === 'all'
+          ? activities.length
+          : activities.filter((a) => a.type === f.key).length
         return acc
       }, {} as Record<string, number>),
     [activities]
   )
 
-  // ── Toast helper ─────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
   }, [])
 
-  // ── Offer actions ────────────────────────────────────────────
   const handleOfferAction = useCallback(
     async (offerId: string, activityId: string, action: 'accept' | 'decline') => {
       const { error } = await supabase
         .from('offers')
         .update({ status: action === 'accept' ? 'accepted' : 'declined' })
-        .eq('id', offerId)                           // ← offer_id, not product title
+        .eq('id', offerId)
 
       if (error) {
         console.error('[ActivityFeed] offerAction error:', error.message)
@@ -419,7 +393,7 @@ export default function ActivityFeed() {
         return
       }
 
-      setActivities((prev) => prev.filter((a) => a.id !== activityId))
+      setActivities(prev => prev.filter(a => a.id !== activityId))
       showToast(
         action === 'accept'
           ? "Offer accepted! We'll notify the buyer."
@@ -435,19 +409,14 @@ export default function ActivityFeed() {
       const discountedPrice = Math.round(
         Number(activity.product!.price) * (1 - discount / 100)
       )
-      // TODO: insert into your offers table with buyer_id, product_id, amount
-      // await supabase.from('offers').insert({ ... })
       showToast(`Offer sent to @${activity.actor?.username} — ₹${discountedPrice}`)
     },
     [showToast]
   )
 
-  // ── Render ───────────────────────────────────────────────────
   return (
     <>
       <div className="max-w-[600px] mx-auto px-4 pb-16">
-
-        {/* Header */}
         <div className="flex items-baseline justify-between mb-5 pb-4 border-b-2 border-[#1A0A0A]">
           <div>
             <h1 className="font-serif text-2xl font-bold text-[#1A0A0A] tracking-tight">
@@ -469,18 +438,16 @@ export default function ActivityFeed() {
           </div>
         </div>
 
-        {/* Filter tabs */}
         <div className="flex gap-1.5 mb-5 flex-wrap">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-               // Change the filter button className — increase tap target
-className={`text-xs font-semibold px-4 py-2 rounded-full border transition-all duration-150 flex items-center gap-1.5
-  ${filter === f.key
-    ? 'bg-[#1A0A0A] text-[#F5F0EA] border-[#1A0A0A]'
-    : 'border-[#D4C8BC] text-[#6B5A52] hover:bg-[#F0EBE4]'
-  }`}
+              className={`text-xs font-semibold px-4 py-2 rounded-full border transition-all duration-150 flex items-center gap-1.5
+                ${filter === f.key
+                  ? 'bg-[#1A0A0A] text-[#F5F0EA] border-[#1A0A0A]'
+                  : 'border-[#D4C8BC] text-[#6B5A52] hover:bg-[#F0EBE4]'
+                }`}
             >
               {f.label}
               {counts[f.key] > 0 && (
@@ -498,7 +465,6 @@ className={`text-xs font-semibold px-4 py-2 rounded-full border transition-all d
           ))}
         </div>
 
-        {/* Feed */}
         {loading ? (
           <div className="space-y-4 py-4">
             {[...Array(4)].map((_, i) => (
