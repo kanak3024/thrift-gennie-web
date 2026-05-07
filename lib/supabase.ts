@@ -1,6 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      storageKey: "thrift-gennie-auth", // unique key prevents conflicts
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      lock: undefined, // disables the lock mechanism causing the AbortError
+    },
+  }
+);
