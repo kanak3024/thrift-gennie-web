@@ -271,7 +271,7 @@ function SearchOverlay({
 
   useEffect(() => {
     async function fetchStats() {
-      const { data } = await supabase.from("products").select("price, location");
+      const { data } = await supabase.from("products").select("price, location").eq("status", "available");
       if (!data) return;
       const pieces = data.length;
       const prices = data.map((p: any) => p.price).filter(Boolean);
