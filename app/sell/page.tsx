@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { PhotoGuidelines } from "../components/PhotoGuidelines";
+import ImageCropper from "../components/ImageCropper";
 
 const CONDITIONS = [
   { value: "New with Tags", desc: "Never worn, tags still on" },
@@ -348,6 +349,8 @@ export default function SellPage() {
   const [colour, setColour]             = useState("");
   const [files, setFiles]               = useState<File[]>([]);
   const [previewUrls, setPreviewUrls]   = useState<string[]>([]);
+  const [cropSrc, setCropSrc]         = useState<string | null>(null);
+const [cropSlotIndex, setCropSlotIndex] = useState<number>(0);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -371,23 +374,47 @@ setHasUpi(!!profile?.bank_upi);
   }, [router]);
 
   const handleSlotFile = (slotIndex: number, newFile: File) => {
-    setFiles(prev => {
-      const updated = [...prev];
-      if (slotIndex < updated.length) updated[slotIndex] = newFile;
-      else if (updated.length < MAX_PHOTOS) updated.push(newFile);
-      setPreviewUrls(updated.map(f => URL.createObjectURL(f)));
-      return updated;
-    });
-  };
+  openCropper(newFile, slotIndex);
+};
 
-  const handleCameraFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || files.length >= MAX_PHOTOS) return;
-    const updated = [...files, file];
-    setFiles(updated);
-    setPreviewUrls(updated.map(f => URL.createObjectURL(f)));
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
-  };
+   const handleCameraFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+
+  if (!file || files.length >= MAX_PHOTOS) return;
+
+  openCropper(file, files.length);
+
+  if (cameraInputRef.current) {
+    cameraInputRef.current.value = "";
+  }
+};
+
+  const openCropper = (file: File, slotIndex: number) => {
+  setCropSlotIndex(slotIndex);
+  setCropSrc(URL.createObjectURL(file));
+};
+
+const handleCropDone = (croppedFile: File) => {
+  setFiles(prev => {
+    const updated = [...prev];
+
+    if (cropSlotIndex < updated.length) {
+      updated[cropSlotIndex] = croppedFile;
+    } else {
+      updated.push(croppedFile);
+    }
+
+    const sliced = updated.slice(0, MAX_PHOTOS);
+
+    setPreviewUrls(
+      sliced.map(f => URL.createObjectURL(f))
+    );
+
+    return sliced;
+  });
+
+  setCropSrc(null);
+};
 
   const removeImage = (index: number) => {
     URL.revokeObjectURL(previewUrls[index]);
@@ -460,6 +487,14 @@ setHasUpi(!!profile?.bank_upi);
 
   return (
     <main className="min-h-screen bg-[#F6F3EF] text-[#2B0A0F]">
+      {cropSrc && (
+  <ImageCropper
+    imageSrc={cropSrc}
+    onCropDone={handleCropDone}
+    onCancel={() => setCropSrc(null)}
+    aspectRatio={3 / 4}
+  />
+)}
       <AnimatePresence>
         {toast && <Toast message={toast.message} type={toast.type} />}
         {sizeGuideOpen && <SizeGuideModal onClose={() => setSizeGuideOpen(false)} />}
