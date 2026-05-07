@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
 import ShippingAddressModal, { ShippingAddress } from "../../components/ShippingAddressModal";
+import ImageLightbox from "../../components/ImageLightbox";
 
 /* ─────────────────────────────
    CONDITION STYLING
@@ -69,6 +70,7 @@ export default function ProductPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [wishlistCount, setWishlistCount] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // Chat
   const [chatOpen, setChatOpen]             = useState(false);
@@ -741,7 +743,8 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
           {/* ── LEFT: IMAGE GALLERY ── */}
            <div className="flex flex-col gap-3">
   <div
-    className={`relative aspect-[4/5] bg-[#EAE3DB] overflow-hidden rounded-2xl ${isSold ? "opacity-70" : ""}`}
+     className={`relative aspect-[4/5] bg-[#EAE3DB] overflow-hidden rounded-2xl cursor-zoom-in ${isSold ? "opacity-70" : ""}`}
+onClick={() => setLightboxOpen(true)}
     onMouseDown={(e) => setDragStartX(e.clientX)}
     onMouseUp={(e) => {
       if (dragStartX === null) return;
@@ -856,6 +859,16 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
         </svg>
         Share
       </button>
+      <button
+    onClick={() => setLightboxOpen(true)}
+    className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
+  >
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+    </svg>
+    View
+  </button>
+
       {!isMine && user && (
         <button
           onClick={() => setReportOpen(true)}
@@ -1281,6 +1294,14 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
         onClose={() => setAddressModalOpen(false)}
         onConfirm={handleAddressConfirmed}
         loading={paymentLoading}
+      />
+
+      <ImageLightbox
+        images={allImages}
+        initialIndex={currentImageIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        productTitle={product?.title}
       />
     </motion.main>
   );
