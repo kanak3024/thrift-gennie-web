@@ -1,4 +1,4 @@
-'use client'
+o'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -338,10 +338,10 @@ export default function ActivityFeed() {
     }
 
     // Try immediately
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) startFeed(session.user.id)
-      else if (isMounted) setLoading(false)
-    })
+    supabase.auth.getUser().then(({ data: { user } }) => {
+  if (user) startFeed(user.id)
+  else if (isMounted) setLoading(false)
+})
 
     // Fallback for late session
     const { data: { subscription } } =
