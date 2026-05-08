@@ -178,9 +178,9 @@ function ActivityRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="text-[13.5px] leading-snug">
-            {activity.actor && (
-              <span className="font-semibold text-[#1A0A0A]">@{activity.actor.username} </span>
-            )}
+             {activity.actor && activity.type !== 'save' && (
+  <span className="font-semibold text-[#1A0A0A]">@{activity.actor.username} </span>
+)}
             <span className="text-[#6B5A52]">{cfg.verb}</span>
             {!isFollow && activity.product && (
               <span className="font-semibold text-[#1A0A0A]"> {activity.product.title}</span>
@@ -229,14 +229,9 @@ function ActivityRow({
               </div>
             )}
 
-            {isSave && (
-              <button
-                onClick={() => onWarmLead(activity)}
-                className="text-[11.5px] font-semibold px-3 py-1.5 rounded-full border border-[#8B1A3A]/25 bg-[#FBF0F3] text-[#8B1A3A] flex-shrink-0 whitespace-nowrap"
-              >
-                Send offer
-              </button>
-            )}
+             {isSave && (
+  <span className="text-[11px] text-[#B0A090] flex-shrink-0">wishlisted</span>
+)}
           </div>
         )}
       </div>
