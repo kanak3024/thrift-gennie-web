@@ -351,15 +351,23 @@ function BuyContent() {
   }, []);
 
   /* ── FETCH ── */
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      const { data, error } = await supabase.from("products").select("*");
-      if (!error && data) setProducts(data);
-      setLoading(false);
-    };
-    fetchProducts();
-  }, []);
+   useEffect(() => {
+  const fetchProducts = async () => {
+    setLoading(true);
+
+    let query = supabase
+      .from("products")
+      .select("id, title, price, image_url, condition, size, category, mood, location, created_at")
+      .eq("status", "available")  // only fetch active listings
+      .order("created_at", { ascending: false })
+      .limit(100) // never fetch more than 100 at once
+
+    const { data, error } = await query
+    if (!error && data) setProducts(data)
+    setLoading(false)
+  }
+  fetchProducts()
+}, [])
 
   /* ── FILTER + SORT ── */
   const filtered = useMemo(() => {
