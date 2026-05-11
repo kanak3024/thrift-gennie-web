@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
+import { useEffect, useState, useMemo, Suspense, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,6 +11,7 @@ import { useSearchParams } from "next/navigation";
 /* ─────────────────────────────
    CONSTANTS
 ───────────────────────────── */
+const PAGE_SIZE  = 20;
 const CATEGORIES = ["Tops", "Bottoms", "Dresses", "Ethnic", "Accessories"];
 const SIZES      = ["XS", "S", "M", "L", "XL", "XXL", "Free Size"];
 const CONDITIONS = ["Like New", "Good", "Fair", "Well Loved"];
@@ -90,6 +91,7 @@ function QuickViewDrawer({
             src={product.image_url || "/final.png"}
             alt={product.title}
             fill
+            sizes="(max-width: 640px) 100vw, 420px"
             className="object-cover"
           />
           {/* Wishlist on image */}
@@ -216,6 +218,7 @@ function ProductCard({
 
   // On mobile, never span 2 cols/rows — it breaks a 2-col grid badly
   const effectiveLarge = isLarge && !isMobile;
+
   return (
     <motion.div
       layout
@@ -236,7 +239,9 @@ function ProductCard({
           src={product.image_url || "/final.png"}
           alt={product.title}
           fill
+          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
           className="object-cover"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/05 to-transparent" />
         {product.condition && (
@@ -308,7 +313,6 @@ function ProductCard({
   );
 }
 
-   
 /* ─────────────────────────────
    SKELETON CARD
 ───────────────────────────── */
@@ -328,20 +332,25 @@ function SkeletonCard({ isLarge, isMobile }: { isLarge: boolean; isMobile: boole
 function BuyContent() {
   const searchParams = useSearchParams();
 
-  const [products, setProducts]         = useState<any[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [maxPrice, setMaxPrice]         = useState(100000);
-  const [sortBy, setSortBy]             = useState("newest");
-  const [mood, setMood]                 = useState(searchParams.get("mood") || "all");
-  const [search, setSearch]             = useState("");
-  const [selectedSizes, setSelectedSizes]       = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
-  const [quickViewProduct, setQuickViewProduct] = useState<any>(null);
-  const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [isMobile, setIsMobile]         = useState(false);
-  const { toggleWishlist, isWishlisted } = useWishlist(() => setShowLoginModal(true));
-   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [products, setProducts]             = useState<any[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [loadingMore, setLoadingMore]       = useState(false);
+  const [hasMore, setHasMore]               = useState(true);
+  const [page, setPage]                     = useState(0);
+  const [maxPrice, setMaxPrice]             = useState(100000);
+  const [sortBy, setSortBy]                 = useState("newest");
+  const [mood, setMood]                     = useState(searchParams.get("mood") || "all");
+  const [search, setSearch]                 = useState("");
+  const [selectedSizes, setSelectedSizes]               = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories]     = useState<string[]>([]);
+  const [selectedConditions, setSelectedConditions]     = useState<string[]>([]);
+  const [quickViewProduct, setQuickViewProduct]         = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen]       = useState(false);
+  const [isMobile, setIsMobile]             = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const { toggleWishlist, isWishlisted }    = useWishlist(() => setShowLoginModal(true));
+  const loaderRef                           = useRef<HTMLDivElement>(null);
+
   /* ── DETECT MOBILE ── */
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -350,24 +359,46 @@ function BuyContent() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  /* ── FETCH ── */
-   useEffect(() => {
-  const fetchProducts = async () => {
-    setLoading(true);
+  /* ── FETCH WITH PAGINATION ── */
+  const fetchProducts = useCallback(async (pageNum: number, replace = false) => {
+    if (pageNum === 0) setLoading(true);
+    else setLoadingMore(true);
 
-    let query = supabase
+    const { data, error } = await supabase
       .from("products")
       .select("id, title, price, image_url, condition, size, category, mood, location, created_at")
-      .eq("status", "available")  // only fetch active listings
       .order("created_at", { ascending: false })
-      .limit(100) // never fetch more than 100 at once
+      .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
-    const { data, error } = await query
-    if (!error && data) setProducts(data)
-    setLoading(false)
-  }
-  fetchProducts()
-}, [])
+    if (!error && data) {
+      setProducts(prev => replace ? data : [...prev, ...data]);
+      setHasMore(data.length === PAGE_SIZE);
+    }
+
+    if (pageNum === 0) setLoading(false);
+    else setLoadingMore(false);
+  }, []);
+
+  /* ── INITIAL LOAD ── */
+  useEffect(() => {
+    fetchProducts(0, true);
+  }, [fetchProducts]);
+
+  /* ── INFINITE SCROLL OBSERVER ── */
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchProducts(nextPage);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    if (loaderRef.current) observer.observe(loaderRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, page, fetchProducts]);
 
   /* ── FILTER + SORT ── */
   const filtered = useMemo(() => {
@@ -397,8 +428,8 @@ function BuyContent() {
     if (selectedConditions.length)
       temp = temp.filter((p) => selectedConditions.includes(p.condition));
 
-    if (sortBy === "low")    temp.sort((a, b) => a.price - b.price);
-    else if (sortBy === "high") temp.sort((a, b) => b.price - a.price);
+    if (sortBy === "low")         temp.sort((a, b) => a.price - b.price);
+    else if (sortBy === "high")   temp.sort((a, b) => b.price - a.price);
     else temp.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return temp;
@@ -445,51 +476,53 @@ function BuyContent() {
           />
         )}
       </AnimatePresence>
+
+      {/* Login modal */}
       <AnimatePresence>
-  {showLoginModal && (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
-      onClick={() => setShowLoginModal(false)}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-[320px] bg-[#1a1520] border border-[#3d3245] text-center px-9 py-9 overflow-hidden"
-        style={{ borderRadius: "2px" }}
-      >
-        {/* Gold top line */}
-        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #c9a96e 0%, #e8c99a 40%, #c9a96e 100%)" }} />
+        {showLoginModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+            onClick={() => setShowLoginModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-[320px] bg-[#1a1520] border border-[#3d3245] text-center px-9 py-9 overflow-hidden"
+              style={{ borderRadius: "2px" }}
+            >
+              {/* Gold top line */}
+              <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #c9a96e 0%, #e8c99a 40%, #c9a96e 100%)" }} />
 
-        <p className="text-[9px] uppercase tracking-[0.25em] text-[#8a7a6a] mb-5">Archive Access</p>
+              <p className="text-[9px] uppercase tracking-[0.25em] text-[#8a7a6a] mb-5">Archive Access</p>
 
-        <h2 className="text-[#e8d8c0] leading-tight mb-4" style={{ fontFamily: "var(--font-playfair)", fontSize: "1.6rem" }}>
-          Save the piece,<br />claim the story.
-        </h2>
+              <h2 className="text-[#e8d8c0] leading-tight mb-4" style={{ fontFamily: "var(--font-playfair)", fontSize: "1.6rem" }}>
+                Save the piece,<br />claim the story.
+              </h2>
 
-        <div className="w-7 h-px bg-[#c9a96e] opacity-60 mx-auto mb-5" />
+              <div className="w-7 h-px bg-[#c9a96e] opacity-60 mx-auto mb-5" />
 
-        <p className="text-[12px] text-[#8a7a6a] leading-relaxed mb-7">
-          Your wishlist lives behind a login.<br />Log in before it's gone.
-        </p>
+              <p className="text-[12px] text-[#8a7a6a] leading-relaxed mb-7">
+                Your wishlist lives behind a login.<br />Log in before it&apos;s gone.
+              </p>
 
-        <Link href="/login" className="block w-full mb-3">
-          <button className="w-full py-3 text-[11px] uppercase tracking-[0.18em] text-[#f0dcd8] transition-opacity hover:opacity-80" style={{ background: "#6b1a2a", borderRadius: "1px" }}>
-            Log in to save
-          </button>
-        </Link>
+              <Link href="/login" className="block w-full mb-3">
+                <button className="w-full py-3 text-[11px] uppercase tracking-[0.18em] text-[#f0dcd8] transition-opacity hover:opacity-80" style={{ background: "#6b1a2a", borderRadius: "1px" }}>
+                  Log in to save
+                </button>
+              </Link>
 
-        <button
-          onClick={() => setShowLoginModal(false)}
-          className="w-full py-2.5 text-[10px] uppercase tracking-[0.15em] text-[#6a5e6e] border border-[#3d3245] hover:border-[#8a7a6a] hover:text-[#a09098] transition-all"
-          style={{ borderRadius: "1px", background: "transparent" }}
-        >
-          Keep browsing
-        </button>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="w-full py-2.5 text-[10px] uppercase tracking-[0.15em] text-[#6a5e6e] border border-[#3d3245] hover:border-[#8a7a6a] hover:text-[#a09098] transition-all"
+                style={{ borderRadius: "1px", background: "transparent" }}
+              >
+                Keep browsing
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-8 pt-20 sm:pt-28 pb-20 flex gap-6 md:gap-8">
 
@@ -656,7 +689,7 @@ function BuyContent() {
           {/* ── PAGE HEADER ── */}
           <div className="flex flex-col gap-4 sm:gap-5 mb-6 sm:mb-8">
 
-            {/* Title row — always horizontal, controls wrap below on mobile */}
+            {/* Title row */}
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="uppercase text-[10px] tracking-[0.4em] opacity-40 mb-1 sm:mb-2">
@@ -671,7 +704,7 @@ function BuyContent() {
                 </h1>
               </div>
 
-              {/* Mobile filter button — sits top-right */}
+              {/* Mobile filter button */}
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="md:hidden flex-shrink-0 mt-1 flex items-center gap-2 border border-[#2B0A0F]/15 rounded-full px-3 py-2 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
@@ -683,9 +716,8 @@ function BuyContent() {
               </button>
             </div>
 
-            {/* Search + Sort row — full width on mobile */}
+            {/* Search + Sort row */}
             <div className="flex items-center gap-2 sm:gap-3 w-full md:justify-end">
-              {/* Search — full width on mobile */}
               <div className="relative flex-1 md:flex-none">
                 <svg className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" width="12" height="12" viewBox="0 0 16 16" fill="none">
                   <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
@@ -700,7 +732,6 @@ function BuyContent() {
                 />
               </div>
 
-              {/* Sort */}
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -781,6 +812,24 @@ function BuyContent() {
                   ))}
             </AnimatePresence>
           </motion.div>
+
+          {/* ── INFINITE SCROLL TRIGGER ── */}
+          {!loading && (
+            <div ref={loaderRef} className="col-span-full flex justify-center py-10">
+              {loadingMore && (
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              )}
+              {!hasMore && products.length > 0 && filtered.length > 0 && (
+                <p className="text-[10px] uppercase tracking-[0.3em] opacity-30">
+                  You&apos;ve seen it all ✦
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── EMPTY STATE ── */}
           <AnimatePresence>
