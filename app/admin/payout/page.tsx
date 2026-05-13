@@ -12,7 +12,7 @@ export default function AdminPayoutsPage() {
     fetchOrders();
   }, []);
 
-  const fetchOrders = async () => {
+   const fetchOrders = async () => {
     setLoading(true);
 
     const { data, error } = await supabase
@@ -21,18 +21,34 @@ export default function AdminPayoutsPage() {
         *,
         products (title, image_url, price),
         profiles!orders_seller_id_fkey (
-  full_name
-),
-payout_details!orders_seller_id_fkey (
-  bank_account_name,
-  bank_account_number,
-  bank_ifsc,
-  bank_upi
-)
+          full_name
+        )
       `)
       .order("created_at", { ascending: false });
 
-    if (!error && data) setOrders(data);
+    if (error || !data) {
+      console.error("Orders fetch error:", error?.message);
+      setLoading(false);
+      return;
+    }
+
+    const sellerIds = [...new Set(data.map(o => o.seller_id))];
+
+    const { data: payoutData, error: payoutError } = await supabase
+      .from("payout_details")
+      .select("*")
+      .in("seller_id", sellerIds);
+
+    if (payoutError) {
+      console.error("Payout details fetch error:", payoutError.message);
+    }
+
+    const merged = data.map(order => ({
+      ...order,
+      payout_details: payoutData?.find(p => p.seller_id === order.seller_id) ?? null,
+    }));
+
+    setOrders(merged);
     setLoading(false);
   };
 
