@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense, useRef, useCallback } from "react";
+import { useEffect, useState, Suspense, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
@@ -57,7 +57,6 @@ function QuickViewDrawer({
 
   return (
     <>
-      {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -65,8 +64,6 @@ function QuickViewDrawer({
         className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
         onClick={onClose}
       />
-
-      {/* Drawer — full width on mobile, 420px cap on desktop */}
       <motion.div
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
@@ -74,7 +71,6 @@ function QuickViewDrawer({
         transition={{ type: "spring", damping: 28, stiffness: 260 }}
         className="fixed right-0 top-0 bottom-0 z-50 w-full sm:max-w-[420px] bg-[#F6F3EF] flex flex-col shadow-2xl"
       >
-        {/* Close */}
         <div className="flex items-center justify-between px-5 sm:px-7 py-5 border-b border-[#2B0A0F]/08">
           <span className="text-[9px] uppercase tracking-[0.35em] opacity-40">Quick View</span>
           <button
@@ -85,7 +81,6 @@ function QuickViewDrawer({
           </button>
         </div>
 
-        {/* Image */}
         <div className="relative w-full aspect-[4/5] flex-shrink-0 bg-[#EAE3DB] overflow-hidden">
           <Image
             src={product.image_url || "/final.png"}
@@ -94,7 +89,6 @@ function QuickViewDrawer({
             sizes="(max-width: 640px) 100vw, 420px"
             className="object-cover"
           />
-          {/* Wishlist on image */}
           <button
             onClick={() => toggleWishlist(product.id)}
             className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
@@ -105,7 +99,6 @@ function QuickViewDrawer({
           </button>
         </div>
 
-        {/* Info */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-6 space-y-5">
           <div>
             <p className="text-[9px] uppercase tracking-[0.3em] opacity-40 mb-1">
@@ -125,7 +118,6 @@ function QuickViewDrawer({
             </p>
           </div>
 
-          {/* Meta chips */}
           <div className="flex flex-wrap gap-2">
             {product.size && (
               <span className="text-[10px] uppercase tracking-[0.15em] px-3 py-1.5 rounded-full bg-[#2B0A0F]/06 text-[#2B0A0F]/70">
@@ -150,7 +142,6 @@ function QuickViewDrawer({
             )}
           </div>
 
-          {/* Description */}
           {product.description && (
             <p className="text-sm leading-relaxed text-[#2B0A0F]/65">
               {product.description}
@@ -158,7 +149,6 @@ function QuickViewDrawer({
           )}
         </div>
 
-        {/* CTA */}
         <div className="px-5 sm:px-7 py-5 border-t border-[#2B0A0F]/08 flex gap-3">
           <Link href={`/product/${product.id}`} className="flex-1">
             <button className="w-full py-3.5 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[11px] uppercase tracking-[0.2em] hover:opacity-80 transition-opacity">
@@ -202,6 +192,7 @@ function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => 
 function ProductCard({
   product,
   isLarge,
+  index,           // ← NEW: used for priority on first image
   onQuickView,
   isWishlisted,
   toggleWishlist,
@@ -209,15 +200,16 @@ function ProductCard({
 }: {
   product: any;
   isLarge: boolean;
+  index: number;   // ← NEW
   onQuickView: (p: any) => void;
   isWishlisted: (id: string) => boolean;
   toggleWishlist: (p: any) => void;
   isMobile: boolean;
 }) {
   const [imgHovered, setImgHovered] = useState(false);
-
-  // On mobile, never span 2 cols/rows — it breaks a 2-col grid badly
   const effectiveLarge = isLarge && !isMobile;
+  // FIX 3: first 4 cards load eagerly, rest lazy
+  const isAboveFold = index < 4;
 
   return (
     <motion.div
@@ -241,7 +233,9 @@ function ProductCard({
           fill
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
           className="object-cover"
-          loading="lazy"
+          // FIX 3: priority + eager loading for above-fold images
+          priority={isAboveFold}
+          loading={isAboveFold ? "eager" : "lazy"}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/05 to-transparent" />
         {product.condition && (
@@ -327,7 +321,7 @@ function SkeletonCard({ isLarge, isMobile }: { isLarge: boolean; isMobile: boole
 }
 
 /* ─────────────────────────────
-   BUY CONTENT (uses useSearchParams)
+   BUY CONTENT
 ───────────────────────────── */
 function BuyContent() {
   const searchParams = useSearchParams();
@@ -340,7 +334,11 @@ function BuyContent() {
   const [maxPrice, setMaxPrice]             = useState(100000);
   const [sortBy, setSortBy]                 = useState("newest");
   const [mood, setMood]                     = useState(searchParams.get("mood") || "all");
+
+  // FIX 4: split input state from debounced search state
+  const [searchInput, setSearchInput]       = useState("");
   const [search, setSearch]                 = useState("");
+
   const [selectedSizes, setSelectedSizes]               = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories]     = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions]     = useState<string[]>([]);
@@ -351,6 +349,12 @@ function BuyContent() {
   const { toggleWishlist, isWishlisted }    = useWishlist(() => setShowLoginModal(true));
   const loaderRef                           = useRef<HTMLDivElement>(null);
 
+  // FIX 4: debounce search — only update `search` 400ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   /* ── DETECT MOBILE ── */
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -359,16 +363,39 @@ function BuyContent() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  /* ── FETCH WITH PAGINATION ── */
+  /* ── FIX 1: FETCH WITH SERVER-SIDE FILTERS ── */
   const fetchProducts = useCallback(async (pageNum: number, replace = false) => {
     if (pageNum === 0) setLoading(true);
     else setLoadingMore(true);
 
-    const { data, error } = await supabase
+    // Build query with all filters applied on Supabase, not in JS
+    let query = supabase
       .from("products")
       .select("id, title, price, image_url, condition, size, category, mood, location, created_at")
-      .order("created_at", { ascending: false })
+      .lte("price", maxPrice)
       .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+
+    // Apply mood filter server-side
+    if (mood !== "all") query = query.eq("mood", mood);
+
+    // Apply size filter server-side
+    if (selectedSizes.length) query = query.in("size", selectedSizes);
+
+    // Apply category filter server-side
+    if (selectedCategories.length) query = query.in("category", selectedCategories);
+
+    // Apply condition filter server-side
+    if (selectedConditions.length) query = query.in("condition", selectedConditions);
+
+    // Apply search server-side
+    if (search.trim()) query = query.ilike("title", `%${search.trim()}%`);
+
+    // Apply sort server-side
+    if (sortBy === "low")        query = query.order("price", { ascending: true });
+    else if (sortBy === "high")  query = query.order("price", { ascending: false });
+    else                         query = query.order("created_at", { ascending: false });
+
+    const { data, error } = await query;
 
     if (!error && data) {
       setProducts(prev => replace ? data : [...prev, ...data]);
@@ -377,10 +404,12 @@ function BuyContent() {
 
     if (pageNum === 0) setLoading(false);
     else setLoadingMore(false);
-  }, []);
+  }, [maxPrice, mood, selectedSizes, selectedCategories, selectedConditions, search, sortBy]);
 
-  /* ── INITIAL LOAD ── */
+  /* ── FIX 1: RESET + REFETCH WHENEVER FILTERS CHANGE ── */
   useEffect(() => {
+    setPage(0);
+    setProducts([]);
     fetchProducts(0, true);
   }, [fetchProducts]);
 
@@ -400,41 +429,6 @@ function BuyContent() {
     return () => observer.disconnect();
   }, [hasMore, loadingMore, loading, page, fetchProducts]);
 
-  /* ── FILTER + SORT ── */
-  const filtered = useMemo(() => {
-    let temp = [...products];
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      temp = temp.filter(
-        (p) =>
-          p.title?.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q) ||
-          p.location?.toLowerCase().includes(q) ||
-          p.category?.toLowerCase().includes(q)
-      );
-    }
-
-    temp = temp.filter((p) => p.price <= maxPrice);
-
-    if (mood !== "all") temp = temp.filter((p) => p.mood === mood);
-
-    if (selectedSizes.length)
-      temp = temp.filter((p) => selectedSizes.includes(p.size));
-
-    if (selectedCategories.length)
-      temp = temp.filter((p) => selectedCategories.includes(p.category));
-
-    if (selectedConditions.length)
-      temp = temp.filter((p) => selectedConditions.includes(p.condition));
-
-    if (sortBy === "low")         temp.sort((a, b) => a.price - b.price);
-    else if (sortBy === "high")   temp.sort((a, b) => b.price - a.price);
-    else temp.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    return temp;
-  }, [products, search, maxPrice, mood, selectedSizes, selectedCategories, selectedConditions, sortBy]);
-
   /* ── TOGGLE HELPERS ── */
   const toggleArr = (arr: string[], val: string, setArr: (a: string[]) => void) => {
     setArr(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
@@ -446,6 +440,7 @@ function BuyContent() {
     setSelectedSizes([]);
     setSelectedCategories([]);
     setSelectedConditions([]);
+    setSearchInput("");
     setSearch("");
   };
 
@@ -491,27 +486,20 @@ function BuyContent() {
               className="relative w-[320px] bg-[#1a1520] border border-[#3d3245] text-center px-9 py-9 overflow-hidden"
               style={{ borderRadius: "2px" }}
             >
-              {/* Gold top line */}
               <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #c9a96e 0%, #e8c99a 40%, #c9a96e 100%)" }} />
-
               <p className="text-[9px] uppercase tracking-[0.25em] text-[#8a7a6a] mb-5">Archive Access</p>
-
               <h2 className="text-[#e8d8c0] leading-tight mb-4" style={{ fontFamily: "var(--font-playfair)", fontSize: "1.6rem" }}>
                 Save the piece,<br />claim the story.
               </h2>
-
               <div className="w-7 h-px bg-[#c9a96e] opacity-60 mx-auto mb-5" />
-
               <p className="text-[12px] text-[#8a7a6a] leading-relaxed mb-7">
                 Your wishlist lives behind a login.<br />Log in before it&apos;s gone.
               </p>
-
               <Link href="/login" className="block w-full mb-3">
                 <button className="w-full py-3 text-[11px] uppercase tracking-[0.18em] text-[#f0dcd8] transition-opacity hover:opacity-80" style={{ background: "#6b1a2a", borderRadius: "1px" }}>
                   Log in to save
                 </button>
               </Link>
-
               <button
                 onClick={() => setShowLoginModal(false)}
                 className="w-full py-2.5 text-[10px] uppercase tracking-[0.15em] text-[#6a5e6e] border border-[#3d3245] hover:border-[#8a7a6a] hover:text-[#a09098] transition-all"
@@ -530,7 +518,6 @@ function BuyContent() {
             SIDEBAR
         ══════════════════════ */}
         <>
-          {/* Mobile backdrop */}
           <AnimatePresence>
             {sidebarOpen && (
               <motion.div
@@ -560,7 +547,6 @@ function BuyContent() {
               >✕</button>
             </div>
 
-            {/* Clear all */}
             <AnimatePresence>
               {hasActiveFilters && (
                 <motion.button
@@ -689,7 +675,6 @@ function BuyContent() {
           {/* ── PAGE HEADER ── */}
           <div className="flex flex-col gap-4 sm:gap-5 mb-6 sm:mb-8">
 
-            {/* Title row */}
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="uppercase text-[10px] tracking-[0.4em] opacity-40 mb-1 sm:mb-2">
@@ -704,7 +689,6 @@ function BuyContent() {
                 </h1>
               </div>
 
-              {/* Mobile filter button */}
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="md:hidden flex-shrink-0 mt-1 flex items-center gap-2 border border-[#2B0A0F]/15 rounded-full px-3 py-2 text-[10px] uppercase tracking-[0.15em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] transition-all"
@@ -723,11 +707,12 @@ function BuyContent() {
                   <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
                   <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
+                {/* FIX 4: onChange updates searchInput (debounced → search) */}
                 <input
                   type="text"
                   placeholder="Search pieces..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="w-full md:w-[220px] pl-9 pr-4 py-2.5 text-xs bg-white/60 border border-[#2B0A0F]/10 rounded-full outline-none focus:border-[#2B0A0F]/30 focus:bg-white transition-all"
                 />
               </div>
@@ -743,10 +728,10 @@ function BuyContent() {
               </select>
             </div>
 
-            {/* ── ACTIVE FILTER CHIPS + RESULT COUNT ── */}
+            {/* Active filter chips + result count */}
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <span className="text-[10px] uppercase tracking-[0.2em] opacity-40">
-                {loading ? "Loading..." : `${filtered.length} piece${filtered.length !== 1 ? "s" : ""} found`}
+                {loading ? "Loading..." : `${products.length} piece${products.length !== 1 ? "s" : ""} found`}
               </span>
 
               <AnimatePresence>
@@ -799,11 +784,12 @@ function BuyContent() {
                 ? Array.from({ length: 8 }).map((_, i) => (
                     <SkeletonCard key={i} isLarge={i === 0} isMobile={isMobile} />
                   ))
-                : filtered.map((product, index) => (
+                : products.map((product, index) => (
                     <ProductCard
                       key={product.id}
                       product={product}
                       isLarge={index % 7 === 0}
+                      index={index}        // ← FIX 3: pass index for priority
                       onQuickView={setQuickViewProduct}
                       isWishlisted={isWishlisted}
                       toggleWishlist={toggleWishlist}
@@ -823,7 +809,7 @@ function BuyContent() {
                   <div className="w-1.5 h-1.5 rounded-full bg-[#2B0A0F]/30 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               )}
-              {!hasMore && products.length > 0 && filtered.length > 0 && (
+              {!hasMore && products.length > 0 && (
                 <p className="text-[10px] uppercase tracking-[0.3em] opacity-30">
                   You&apos;ve seen it all ✦
                 </p>
@@ -833,7 +819,7 @@ function BuyContent() {
 
           {/* ── EMPTY STATE ── */}
           <AnimatePresence>
-            {!loading && filtered.length === 0 && (
+            {!loading && products.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -865,7 +851,7 @@ function BuyContent() {
 }
 
 /* ─────────────────────────────
-   MAIN PAGE (with Suspense wrapper)
+   MAIN PAGE
 ───────────────────────────── */
 export default function BuyPage() {
   return (
