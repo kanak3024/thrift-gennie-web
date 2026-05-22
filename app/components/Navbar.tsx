@@ -662,7 +662,7 @@ export default function Navbar() {
                             <div className="text-center py-10 text-[#9a8a7a] text-sm"><div className="text-3xl mb-2">🧺</div>nothing in the archive matches that vibe yet</div>
                           )}
                           {results.pieces.map((p) => (
-                            <Link key={p.id} href={`/buy/${p.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition group">
+                            <Link key={p.id}  href={`/product/${p.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition group">
                               <div className="w-11 h-11 rounded-md bg-[#f0e8d8] flex-shrink-0 overflow-hidden">
                                 {p.image_url ? <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-lg">🛍️</span>}
                               </div>
