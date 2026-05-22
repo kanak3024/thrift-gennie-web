@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ThriftGennie 🛍️
 
-## Getting Started
+> *"This isn't thrift. It's a fashion archive."*
 
-First, run the development server:
+A peer-to-peer secondhand fashion marketplace built for India — where pre-loved 
+pieces find new homes. Think Depop/Vinted, but designed around how Indians actually 
+buy and sell: mood-based discovery, UPI-native payments, and AI-assisted listing creation.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+🔗 **Live at [thriftgennie.com](https://thriftgennie.com)**
+
+---
+
+## 📸 Screenshots
+
+| Homepage | Archive / Browse |
+|----------|-----------------|
+| ![Homepage](./screenshots/home.png) | ![Browse](./screenshots/browse.png) |
+
+| Seller Profile | Submit a Piece |
+|---------------|-------|
+| ![Profile](./screenshots/profile.png) | ![Submit](./screenshots/submit.png) |
+
+---
+
+## ✨ Features
+
+**For Buyers**
+- 🎭 Mood-based discovery — shop by Y2K, Old Money, Indie, Bollywood Glam, 90s
+- 🔍 Filter by price, size, category, condition, city
+- 💬 Direct messaging + offer/negotiation system
+- ❤️ Wishlist with live activity notifications
+- 🛒 Checkout with Razorpay (UPI, cards, netbanking)
+
+**For Sellers**
+- 🤖 AI-powered listing descriptions via Gemini
+- 📱 SMS OTP onboarding (MSG91)
+- 📊 Seller dashboard with live activity feed (sales, offers, wishlists, likes)
+- 💸 Payout management system
+- 📦 Order tracking and shipping address management
+
+**Platform**
+- 🔴 Real-time notifications (Upstash Redis)
+- 🛡️ Admin panel: manage buyers, sellers, listings, payouts, support
+- 📧 Transactional emails (Resend)
+- 🔗 Razorpay webhook verification for payment security
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Backend | Next.js API Routes |
+| Database | Supabase (PostgreSQL) |
+| Auth | Supabase Auth + SMS OTP via MSG91 |
+| Payments | Razorpay (live) |
+| AI | Google Gemini API |
+| Cache / Queues | Upstash Redis |
+| Email | Resend |
+| Deployment | Vercel |
+
+---
+
+## 📁 Project Structure
+
+```
+app/
+├── admin/          # Admin panel (buyers, sellers, listings, payouts)
+├── api/            # API routes (auth, orders, offers, payments, AI)
+├── buy/            # Browse & product pages
+├── checkout/       # Checkout flow
+├── messages/       # Buyer-seller messaging
+├── orders/         # Order management
+├── sell/           # Listing creation with AI descriptions
+├── seller/         # Seller profiles
+├── account/        # User dashboard + activity feed
+└── wishlist/       # Saved items
+
+components/         # Shared UI components
+lib/                # Supabase clients, middleware
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Running Locally
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Clone the repo
+git clone https://github.com/kanak3024/thrift-gennie-web.git
+cd thrift-gennie-web
 
-## Learn More
+# Install dependencies
+npm install
 
-To learn more about Next.js, take a look at the following resources:
+# Set up environment variables
+cp .env.example .env.local
+# Fill in your Supabase, Razorpay, MSG91, Resend, Gemini keys
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Run the development server
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000)
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## ⚡ Live Stats (May 2026)
+- 👗 65+ listings live
+- 👤 20 registered sellers
+- 🏙️ 6 cities represented
+- 💳 Live payments processing via Razorpay
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 👤 Built By
+
+**Kanak** — [@kanak3024](https://github.com/kanak3024)  
+🌐 [thriftgennie.com](https://thriftgennie.com)
