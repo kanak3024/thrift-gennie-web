@@ -14,11 +14,11 @@ buy and sell: mood-based discovery, UPI-native payments, and AI-assisted listing
 
 | Homepage | Archive / Browse |
 |----------|-----------------|
-| ![Homepage](./screenshots/home.png) | ![Browse](./screenshots/browse.png) |
+| ![Homepage](./home.png) | ![Browse](./browse.png) |
 
 | Seller Profile | Submit a Piece |
 |---------------|-------|
-| ![Profile](./screenshots/profile.png) | ![Submit](./screenshots/submit.png) |
+| ![Profile](./profile.png) | ![Submit](./submit.png) |
 
 ---
 
