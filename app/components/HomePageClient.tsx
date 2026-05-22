@@ -25,11 +25,16 @@ import { supabase } from "../../lib/supabase";
 
    Add to <html>: className={`${cormorant.variable} ${dmSans.variable}`}
    ─────────────────────────────
-   Color changes from this file:
-   - var(--font-playfair) → var(--font-cormorant)
-   - var(--font-inter)    → var(--font-dm)
-   - Ticker dot: #A1123F  → #C9901A  (gold)
-   - Countdown pill:       maroon  → gold (#C9901A)
+   Also run this once in your Supabase SQL editor:
+
+   create or replace function get_mood_counts()
+   returns table(mood text, count bigint)
+   language sql stable as $$
+     select mood, count(*)
+     from products
+     where status = 'available' and mood is not null
+     group by mood;
+   $$;
 ========================= */
 
 /* =========================
@@ -64,7 +69,7 @@ function useCountdown(targetDate: Date) {
 /* =========================
    ANIMATED COUNTER
 ========================= */
- function useCountUp(target: number, duration = 1400) {
+function useCountUp(target: number, duration = 1400) {
   const [val, setVal] = useState(0);
   const startedRef = useRef(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -154,17 +159,158 @@ const TICKER_ITEMS = [
   "Free Listing for Founding Sellers",
 ];
 
+const MOOD_TAGS = ["y2k", "oldmoney", "indie", "bollywood", "90s"] as const;
+
 const CAROUSEL_INTERVAL = 3500;
 
 /* =========================
+   TYPES
+========================= */
+type Stats = { pieces: number; avgPrice: number; cities: number };
+type MoodGridData = Record<string, { image: string | null; count: number }>;
+type MoodPreviews = Record<string, { pieces: any[]; count: number }>;
+
+interface HomeData {
+  products: any[];
+  stats: Stats;
+  socialProof: string[];
+  moodGridData: MoodGridData;
+  moodPreviews: MoodPreviews;
+  trendingSearches: string[];
+}
+
+/* =========================
+   SINGLE BATCHED DATA HOOK
+   — replaces useLiveStats, useSocialProof,
+     useMoodGridData, useMoodPreviews, and
+     the two loose useEffects in the main component.
+   — page renders instantly with SSR data;
+     client refresh fires as one Promise.all.
+========================= */
+function useHomeData(
+  initialProducts: any[],
+  initialStats: Stats
+): HomeData {
+  const [state, setState] = useState<HomeData>({
+    products: initialProducts,
+    stats: initialStats,
+    socialProof: [],
+    moodGridData: {},
+    moodPreviews: {},
+    trendingSearches: [],
+  });
+
+  useEffect(() => {
+    Promise.all([
+      // ① All available products — used for products grid, stats, mood previews
+      supabase
+        .from("products")
+        .select(
+          "id, title, price, location, image_url, mood, created_at, quantity, is_rare, status, profiles!products_seller_id_fkey(full_name)"
+        )
+        .eq("status", "available")
+        .order("created_at", { ascending: false })
+        .limit(30),
+
+      // ② Mood counts via RPC (no full-table scan)
+      //    Run once in Supabase SQL editor:
+      //    create or replace function get_mood_counts()
+      //    returns table(mood text, count bigint) language sql stable as $$
+      //      select mood, count(*) from products
+      //      where status = 'available' and mood is not null group by mood;
+      //    $$;
+      supabase.rpc("get_mood_counts"),
+
+      // ③ Recent orders for social proof
+      supabase
+        .from("orders")
+        .select("amount, products(title)")
+        .eq("status", "payment_held")
+        .order("created_at", { ascending: false })
+        .limit(4),
+
+      // ④ Trending searches
+      supabase
+        .from("trending_searches")
+        .select("query")
+        .order("count", { ascending: false })
+        .limit(8),
+    ]).then(([productsRes, moodCountsRes, ordersRes, searchRes]) => {
+      const allProducts: any[] = productsRes.data ?? [];
+
+      // ── Stats (derived from the products we already fetched) ──
+      const prices = allProducts.map((p) => p.price).filter(Boolean);
+      const stats: Stats = {
+        pieces: allProducts.length,
+        avgPrice: prices.length
+          ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length)
+          : initialStats.avgPrice,
+        cities: new Set(allProducts.map((p) => p.location).filter(Boolean)).size,
+      };
+
+      // ── Mood counts map ──
+      const moodCounts: Record<string, number> = {};
+      (moodCountsRes.data ?? []).forEach((r: any) => {
+        moodCounts[r.mood] = Number(r.count);
+      });
+
+      // ── Mood grid data (hero image + count per mood) ──
+      const moodGridData: MoodGridData = {};
+      for (const tag of MOOD_TAGS) {
+        const firstWithImage = allProducts.find((p) => p.mood === tag && p.image_url);
+        moodGridData[tag] = {
+          image: firstWithImage?.image_url ?? null,
+          count: moodCounts[tag] ?? 0,
+        };
+      }
+
+      // ── Mood previews (3 pieces per mood for the hero card) ──
+      const moodPreviews: MoodPreviews = {};
+      for (const tag of MOOD_TAGS) {
+        const pieces = allProducts
+          .filter((p) => p.mood === tag && p.image_url)
+          .slice(0, 3)
+          .map(({ id, image_url, title, price }) => ({ id, image_url, title, price }));
+        moodPreviews[tag] = { pieces, count: moodCounts[tag] ?? 0 };
+      }
+
+      // ── Social proof events ──
+      const listingEvents = allProducts.slice(0, 6).map((l) => {
+        const name = (l.profiles as any)?.full_name?.split(" ")[0] || "Someone";
+        return `${name} just listed — ${l.title}${l.location ? ` in ${l.location}` : ""}`;
+      });
+      const orderEvents = (ordersRes.data ?? []).map((o: any) =>
+        `Just sold — ${o.products?.title} · ₹${o.amount?.toLocaleString("en-IN")}`
+      );
+      const socialProof = [...listingEvents, ...orderEvents]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 8);
+
+      setState({
+        products: allProducts.slice(0, 8),
+        stats,
+        socialProof: socialProof.length > 0
+          ? socialProof
+          : ["Archive No. 001 is now live", "New pieces added this week"],
+        moodGridData,
+        moodPreviews,
+        trendingSearches: (searchRes.data ?? []).map((d: any) => d.query),
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return state;
+}
+
+/* =========================
    AUTO-CYCLING CAROUSEL HOOK
-   — resets timer when user manually picks a mood
 ========================= */
 function useCarousel(length: number) {
   const [idx, setIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const startTimer = (fromIdx: number) => {
+  const startTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setIdx((prev) => (prev + 1) % length);
@@ -172,13 +318,14 @@ function useCarousel(length: number) {
   };
 
   useEffect(() => {
-    startTimer(0);
+    startTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const jumpTo = (i: number) => {
     setIdx(i);
-    startTimer(i);
+    startTimer();
   };
 
   return { idx, jumpTo };
@@ -264,249 +411,37 @@ function SearchOverlay({
 }
 
 /* =========================
-   LIVE STATS
-========================= */
-  function useLiveStats(initial: { pieces: number; avgPrice: number; cities: number }) {
-  const [stats, setStats] = useState(initial); // starts with server data immediately
-
-  useEffect(() => {
-    async function fetchStats() {
-      const { data } = await supabase.from("products").select("price, location").eq("status", "available");
-      if (!data) return;
-      const pieces = data.length;
-      const prices = data.map((p: any) => p.price).filter(Boolean);
-      const avgPrice = prices.length
-        ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length)
-        : 0;
-      const cities = new Set(data.map((p: any) => p.location).filter(Boolean)).size;
-      setStats({ pieces, avgPrice, cities });
-    }
-    fetchStats();
-  }, []);
-
-  return stats;
-}
-
-function useSocialProof() {
-  const [events, setEvents] = useState<string[]>([]);
-
-  useEffect(() => {
-    async function fetch() {
-      const [{ data: listings }, { data: orders }] = await Promise.all([
-        supabase
-          .from("products")
-          .select("title, location, profiles!products_seller_id_fkey(full_name)")
-          .eq("status", "available")
-          .order("created_at", { ascending: false })
-          .limit(6),
-        supabase
-          .from("orders")
-          .select("amount, products(title)")
-          .eq("status", "payment_held")
-          .order("created_at", { ascending: false })
-          .limit(4),
-      ]);
-
-      const listingEvents = (listings ?? []).map((l: any) => {
-        const name = l.profiles?.full_name?.split(" ")[0] || "Someone";
-        const city = l.location ? ` in ${l.location}` : "";
-        return `${name} just listed — ${l.title}${city}`;
-      });
-
-      const orderEvents = (orders ?? []).map((o: any) => {
-        return `Just sold — ${o.products?.title} · ₹${o.amount?.toLocaleString("en-IN")}`;
-      });
-
-      const all = [...listingEvents, ...orderEvents]
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 8);
-
-      setEvents(all.length > 0 ? all : [
-        "First listings just dropped in Mumbai",
-        "Archive No. 001 is now live",
-        "New pieces added this week",
-      ]);
-    }
-    fetch();
-  }, []);
-
-  return events;
-}
-/* =========================
-   MOOD PIECE PREVIEWS
-========================= */
-function useMoodPreviews(tag: string) {
-  const [pieces, setPieces] = useState<any[]>([]);
-  const [count, setCount] = useState(0);
-  const cache = useRef<Record<string, { pieces: any[]; count: number }>>({});
-
-  useEffect(() => {
-    if (cache.current[tag]) {
-      setPieces(cache.current[tag].pieces);
-      setCount(cache.current[tag].count);
-      return;
-    }
-    async function doFetch() {
-      const [{ data }, { count: total }] = await Promise.all([
-        supabase.from("products").select("id, image_url, title, price").eq("mood", tag).order("created_at", { ascending: false }).limit(3),
-        supabase.from("products").select("*", { count: "exact", head: true }).eq("mood_tag", tag),
-      ]);
-      const result = { pieces: data ?? [], count: total ?? 0 };
-      cache.current[tag] = result;
-      setPieces(result.pieces);
-      setCount(result.count);
-    }
-    doFetch();
-  }, [tag]);
-
-  return { pieces, count };
-}
-
-/* =========================
-   MOOD GRID ITEM
-========================= */
-  function MoodGridItem({
-  mood,
-  index,
-  bgImage,
-  count,
-}: {
-  mood: typeof MOOD_GRID[0];
-  index: number;
-  bgImage: string | null;
-  count: number;
-}) {
-  const isWide = index === 4;
-
-  return (
-    <Link
-      href={`/buy?mood=${mood.tag}`}
-      className={`group relative overflow-hidden rounded-[20px] cursor-pointer ${
-        isWide ? "col-span-2 md:col-span-2 aspect-[2/1] md:aspect-[3/1]" : "aspect-[3/4]"
-      }`}
-    >
-      {/* Background — real image or gradient */}
-      {bgImage ? (
-        <div className="absolute inset-0">
-          <Image
-            src={bgImage}
-            alt={mood.title}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-700"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
-        </div>
-      ) : (
-        <div className={`absolute inset-0 bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-700`}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-        </div>
-      )}
-
-      {/* Piece count badge */}
-      <div className="absolute top-3 left-3 z-20">
-        <span
-          className="text-[9px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/20"
-          style={{ fontFamily: "var(--font-dm)" }}
-        >
-          {count > 0 ? `${count} pieces` : "Coming soon"}
-        </span>
-      </div>
-
-      {/* Mascot — positioned differently for wide card */}
-      {mood.mascot && (
-        <div className={`absolute z-10 pointer-events-none ${
-          isWide
-            ? "right-8 bottom-0 h-[90%] w-auto"
-            : "right-0 bottom-0 h-[65%] w-auto"
-        }`}>
-          <img
-            src={mood.mascot}
-            alt=""
-            className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-2xl"
-          />
-        </div>
-      )}
-
-      {/* Text */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
-        <p
-          className="text-[8px] uppercase tracking-[0.3em] text-white/60 mb-1"
-          style={{ fontFamily: "var(--font-dm)" }}
-        >
-          {mood.sub}
-        </p>
-        <h3
-          className={`text-white leading-tight ${isWide ? "text-2xl md:text-3xl" : "text-lg"}`}
-          style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}
-        >
-          {mood.title}
-        </h3>
-        <span
-          className="inline-block mt-2 text-[9px] uppercase tracking-[0.2em] text-white/50 group-hover:text-white/90 transition-colors"
-          style={{ fontFamily: "var(--font-dm)" }}
-        >
-          Shop now →
-        </span>
-      </div>
-    </Link>
-  );
-}
-
-function useMoodGridData() {
-  const [data, setData] = useState<Record<string, { image: string | null; count: number }>>({});
-
-  useEffect(() => {
-    async function fetch() {
-      const tags = ["y2k", "oldmoney", "indie", "bollywood", "90s"];
-
-      // ONE query for all images, ONE for all counts
-      const [{ data: images }, { data: counts }] = await Promise.all([
-        supabase
-          .from("products")
-          .select("mood, image_url")
-          .eq("status", "available")
-          .in("mood", tags)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("products")
-          .select("mood")
-          .eq("status", "available")
-          .in("mood", tags),
-      ]);
-
-      const result: Record<string, { image: string | null; count: number }> = {};
-      for (const tag of tags) {
-        const firstImage = images?.find((p: any) => p.mood === tag)?.image_url ?? null;
-        const count = counts?.filter((p: any) => p.mood === tag).length ?? 0;
-        result[tag] = { image: firstImage, count };
-      }
-      setData(result);
-    }
-    fetch();
-  }, []);
-
-  return data;
-}
-/* =========================
    STAT CARD
 ========================= */
-function StatCard({ num, label, prefix = "", suffix = "" }: { num: number; label: string; prefix?: string; suffix?: string }) {
+function StatCard({ num, label, prefix = "", suffix = "" }: {
+  num: number; label: string; prefix?: string; suffix?: string;
+}) {
   const { val, ref } = useCountUp(num);
   return (
     <div ref={ref}>
       <div style={{ fontFamily: "var(--font-cormorant)", fontSize: "clamp(1.4rem,3vw,1.8rem)", fontWeight: 500 }}>
         {prefix}{val.toLocaleString("en-IN")}{suffix}
       </div>
-      <div className="text-[9px] md:text-[10px] tracking-[0.18em] uppercase opacity-40 mt-1" style={{ fontFamily: "var(--font-dm)" }}>{label}</div>
+      <div className="text-[9px] md:text-[10px] tracking-[0.18em] uppercase opacity-40 mt-1" style={{ fontFamily: "var(--font-dm)" }}>
+        {label}
+      </div>
     </div>
   );
 }
 
 /* =========================
    MOOD HERO CARD
+   — now receives pre-fetched data via props,
+     no internal Supabase call
 ========================= */
-function MoodHeroCard({ mood }: { mood: typeof MOODS[0] }) {
-  const { pieces, count } = useMoodPreviews(mood.tag);
+function MoodHeroCard({
+  mood,
+  preview,
+}: {
+  mood: typeof MOODS[0];
+  preview: { pieces: any[]; count: number };
+}) {
+  const { pieces, count } = preview;
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -534,7 +469,10 @@ function MoodHeroCard({ mood }: { mood: typeof MOODS[0] }) {
           </div>
         )}
         <Link href={`/buy?mood=${mood.tag}`}>
-          <span className="text-[10px] tracking-[0.15em] uppercase hover:opacity-70 transition-opacity mt-2 inline-block" style={{ color: "#C9901A", fontFamily: "var(--font-dm)" }}>
+          <span
+            className="text-[10px] tracking-[0.15em] uppercase hover:opacity-70 transition-opacity mt-2 inline-block"
+            style={{ color: "#C9901A", fontFamily: "var(--font-dm)" }}
+          >
             Shop this mood →
           </span>
         </Link>
@@ -544,9 +482,89 @@ function MoodHeroCard({ mood }: { mood: typeof MOODS[0] }) {
 }
 
 /* =========================
+   MOOD GRID ITEM
+========================= */
+function MoodGridItem({
+  mood, index, bgImage, count,
+}: {
+  mood: typeof MOOD_GRID[0];
+  index: number;
+  bgImage: string | null;
+  count: number;
+}) {
+  const isWide = index === 4;
+
+  return (
+    <Link
+      href={`/buy?mood=${mood.tag}`}
+      className={`group relative overflow-hidden rounded-[20px] cursor-pointer ${
+        isWide ? "col-span-2 md:col-span-2 aspect-[2/1] md:aspect-[3/1]" : "aspect-[3/4]"
+      }`}
+    >
+      {bgImage ? (
+        <div className="absolute inset-0">
+          <Image
+            src={bgImage}
+            alt={mood.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-700"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+        </div>
+      ) : (
+        <div className={`absolute inset-0 bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-700`}>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+        </div>
+      )}
+
+      <div className="absolute top-3 left-3 z-20">
+        <span
+          className="text-[9px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/20"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
+          {count > 0 ? `${count} pieces` : "Coming soon"}
+        </span>
+      </div>
+
+      {mood.mascot && (
+        <div className={`absolute z-10 pointer-events-none ${
+          isWide ? "right-8 bottom-0 h-[90%] w-auto" : "right-0 bottom-0 h-[65%] w-auto"
+        }`}>
+          <img
+            src={mood.mascot}
+            alt=""
+            className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-2xl"
+          />
+        </div>
+      )}
+
+      <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+        <p className="text-[8px] uppercase tracking-[0.3em] text-white/60 mb-1" style={{ fontFamily: "var(--font-dm)" }}>
+          {mood.sub}
+        </p>
+        <h3
+          className={`text-white leading-tight ${isWide ? "text-2xl md:text-3xl" : "text-lg"}`}
+          style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}
+        >
+          {mood.title}
+        </h3>
+        <span
+          className="inline-block mt-2 text-[9px] uppercase tracking-[0.2em] text-white/50 group-hover:text-white/90 transition-colors"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
+          Shop now →
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+/* =========================
    CAROUSEL PROGRESS DOTS
 ========================= */
-function CarouselDots({ total, active, onSelect }: { total: number; active: number; onSelect: (i: number) => void }) {
+function CarouselDots({ total, active, onSelect }: {
+  total: number; active: number; onSelect: (i: number) => void;
+}) {
   return (
     <div className="flex gap-1.5 items-center">
       {Array.from({ length: total }).map((_, i) => (
@@ -582,7 +600,11 @@ function EmailCapture() {
   }
 
   if (status === "done") {
-    return <p className="text-xs tracking-wide opacity-60" style={{ fontFamily: "var(--font-dm)" }}>✦ You're on the list. See you Sunday.</p>;
+    return (
+      <p className="text-xs tracking-wide opacity-60" style={{ fontFamily: "var(--font-dm)" }}>
+        ✦ You're on the list. See you Sunday.
+      </p>
+    );
   }
 
   return (
@@ -604,7 +626,9 @@ function EmailCapture() {
       >
         {status === "loading" ? "..." : "Join"}
       </button>
-      {status === "error" && <span className="text-[10px] text-[#E8859C]" style={{ fontFamily: "var(--font-dm)" }}>Try again</span>}
+      {status === "error" && (
+        <span className="text-[10px] text-[#E8859C]" style={{ fontFamily: "var(--font-dm)" }}>Try again</span>
+      )}
     </div>
   );
 }
@@ -612,39 +636,33 @@ function EmailCapture() {
 /* =========================
    MAIN PAGE
 ========================= */
- export default function HomePageClient({
+export default function HomePageClient({
   initialProducts,
   initialStats,
 }: {
   initialProducts: any[];
   initialStats: { pieces: number; avgPrice: number; cities: number };
-}) {  
-    const week = getWeekNumber();
+}) {
+  const week = getWeekNumber();
   const nextSunday = new Date();
   nextSunday.setDate(nextSunday.getDate() + ((7 - nextSunday.getDay()) % 7 || 7));
   const countdown = useCountdown(nextSunday);
 
-  const [products, setProducts] = useState<any[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [trendingSearches, setTrendingSearches] = useState<string[]>([]);
-const liveStats = useLiveStats(initialStats);
-  const socialProof = useSocialProof();
-  const moodGridData = useMoodGridData();
 
-  // Carousel drives the active mood. jumpTo() resets the auto-cycle timer.
+  // Single hook — replaces all separate data fetches
+  const {
+    products,
+    stats,
+    socialProof,
+    moodGridData,
+    moodPreviews,
+    trendingSearches,
+  } = useHomeData(initialProducts, initialStats);
+
   const { idx: activeMoodIdx, jumpTo } = useCarousel(MOODS.length);
   const activeMood = MOODS[activeMoodIdx];
   const secondaryIdx = (activeMoodIdx + MOODS.length - 1) % MOODS.length;
-
-  useEffect(() => {
-    supabase.from("products").select("*").order("created_at", { ascending: false }).limit(8)
-      .then(({ data, error }) => { if (!error && data) setProducts(data); });
-  }, []);
-
-  useEffect(() => {
-    supabase.from("trending_searches").select("query").order("count", { ascending: false }).limit(8)
-      .then(({ data }) => { if (data?.length) setTrendingSearches(data.map((d: any) => d.query)); });
-  }, []);
 
   useEffect(() => {
     document.body.style.overflow = searchOpen ? "hidden" : "";
@@ -652,8 +670,8 @@ const liveStats = useLiveStats(initialStats);
   }, [searchOpen]);
 
   return (
-    <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F] ">
-  
+    <main className="relative overflow-hidden bg-[#F6F3EF] text-[#2B0A0F]">
+
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} trendingSearches={trendingSearches} />
       <Navbar />
 
@@ -681,11 +699,11 @@ const liveStats = useLiveStats(initialStats);
                 <span className="relative inline-flex rounded-full h-[7px] w-[7px] bg-[#A1123F]" />
               </span>
               <span className="text-[10px] tracking-[0.3em] uppercase opacity-50" style={{ fontFamily: "var(--font-dm)" }}>
- Live archive · {liveStats.pieces > 0 ? `${liveStats.pieces} pieces` : "Loading..."}            
-   </span>
+                Live archive · {stats.pieces > 0 ? `${stats.pieces} pieces` : "Loading..."}
+              </span>
             </motion.div>
 
-            {/* Headline — each line staggers in with blur clear */}
+            {/* Headline */}
             <h1 className="leading-[0.88] tracking-tight" style={{ fontFamily: "var(--font-cormorant)", fontSize: "clamp(3.5rem,10vw,7.5rem)" }}>
               {[
                 { text: "Thrift it.", style: {}, delay: 0.15 },
@@ -749,36 +767,35 @@ const liveStats = useLiveStats(initialStats);
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.76 }}
               className="mt-8 md:mt-12 flex gap-6 md:gap-8 border-t border-[#2B0A0F]/08 pt-6 md:pt-8"
             >
-              <StatCard num={liveStats.pieces} label="Pieces Listed" suffix="+" />
-              <StatCard num={liveStats.avgPrice} label="Avg Price" prefix="₹" />
-              <StatCard num={liveStats.cities} label="Cities" suffix=" Cities" />
+              <StatCard num={stats.pieces} label="Pieces Listed" suffix="+" />
+              <StatCard num={stats.avgPrice} label="Avg Price" prefix="₹" />
+              <StatCard num={stats.cities} label="Cities" suffix=" Cities" />
             </motion.div>
           </div>
 
           {/* RIGHT — CAROUSEL (desktop) */}
           <div className="relative h-[620px] hidden md:block">
 
-            {/* Ambient glow shifts with mood */}
+            {/* Ambient glow */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`glow-${activeMood.tag}`}
                 className="absolute w-[440px] h-[440px] rounded-full top-[15%] left-[10%]"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: [0.18, 0.28, 0.18] }}
-                exit={{ opacity: 0, transition: { duration: 0.4 }  }}
+                exit={{ opacity: 0, transition: { duration: 0.4 } }}
                 transition={{ opacity: { duration: 4, repeat: Infinity } }}
                 style={{ background: activeMood.bg, filter: "blur(70px)" }}
               />
             </AnimatePresence>
 
-            {/* Shop by mood label */}
             <div className="absolute top-[20px] left-[40px] z-30">
               <p className="uppercase tracking-[0.3em] text-xs text-[#2B0A0F]/55" style={{ fontFamily: "var(--font-dm)" }}>
                 Shop by your mood
               </p>
             </div>
 
-            {/* Mood chips + carousel dots */}
+            {/* Mood chips */}
             <div className="absolute top-12 right-0 flex flex-col gap-2 z-40">
               {MOODS.map((mood, i) => (
                 <button
@@ -801,7 +818,7 @@ const liveStats = useLiveStats(initialStats);
               </div>
             </div>
 
-            {/* PRIMARY GENNIE — driven by carousel */}
+            {/* Primary Gennie */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`primary-${activeMood.tag}`}
@@ -821,7 +838,7 @@ const liveStats = useLiveStats(initialStats);
               </motion.div>
             </AnimatePresence>
 
-            {/* SECONDARY GENNIE — previous mood */}
+            {/* Secondary Gennie */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`secondary-${MOODS[secondaryIdx].tag}`}
@@ -841,11 +858,14 @@ const liveStats = useLiveStats(initialStats);
               </motion.div>
             </AnimatePresence>
 
-            {/* Mood card */}
-            <MoodHeroCard mood={activeMood} />
+            {/* Mood hero card — fed from batch, no extra query */}
+            <MoodHeroCard
+              mood={activeMood}
+              preview={moodPreviews[activeMood.tag] ?? { pieces: [], count: 0 }}
+            />
           </div>
 
-          {/* MOBILE — active Gennie + chips */}
+          {/* MOBILE */}
           <div className="md:hidden flex flex-col gap-4">
             <div className="relative h-64 flex justify-center">
               <AnimatePresence mode="wait">
@@ -894,33 +914,30 @@ const liveStats = useLiveStats(initialStats);
       </section>
 
       {/* ══════════════════════════
-    SOCIAL PROOF STRIP
-══════════════════════════ */}
-{socialProof.length > 0 && (
-  <div className="bg-[#F0EBE3] border-y border-[#2B0A0F]/06 py-2.5 overflow-hidden">
-    <div
-      className="flex whitespace-nowrap"
-      style={{ animation: "ticker 20s linear infinite" }}
-    >
-      {[...socialProof, ...socialProof].map((event, i) => (
-        <span
-          key={i}
-          className="inline-flex items-center gap-3 px-6 text-[10px] tracking-[0.2em] uppercase text-[#2B0A0F]/60"
-          style={{ fontFamily: "var(--font-dm)" }}
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ background: i % 2 === 0 ? "#A1123F" : "#B48A5A" }}
-          />
-          {event}
-        </span>
-      ))}
-    </div>
-  </div>
-)}
+          SOCIAL PROOF STRIP
+      ══════════════════════════ */}
+      {socialProof.length > 0 && (
+        <div className="bg-[#F0EBE3] border-y border-[#2B0A0F]/06 py-2.5 overflow-hidden">
+          <div className="flex whitespace-nowrap" style={{ animation: "ticker 20s linear infinite" }}>
+            {[...socialProof, ...socialProof].map((event, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-3 px-6 text-[10px] tracking-[0.2em] uppercase text-[#2B0A0F]/60"
+                style={{ fontFamily: "var(--font-dm)" }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: i % 2 === 0 ? "#A1123F" : "#B48A5A" }}
+                />
+                {event}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════
-          TICKER — gold dot
+          TICKER
       ══════════════════════════ */}
       <div className="bg-[#1A060B] text-[#F6F3EF] py-3 overflow-hidden">
         <div className="flex whitespace-nowrap" style={{ animation: "ticker 24s linear infinite" }}>
@@ -951,15 +968,15 @@ const liveStats = useLiveStats(initialStats);
           </div>
           <div className="grid grid-cols-2 gap-3 md:gap-4">
             {MOOD_GRID.map((mood, i) => (
-  <MoodGridItem
-    key={mood.tag}
-    mood={mood}
-    index={i}
-    bgImage={moodGridData[mood.tag]?.image ?? null}
-    count={moodGridData[mood.tag]?.count ?? 0}
-  />
-))}
-           </div>
+              <MoodGridItem
+                key={mood.tag}
+                mood={mood}
+                index={i}
+                bgImage={moodGridData[mood.tag]?.image ?? null}
+                count={moodGridData[mood.tag]?.count ?? 0}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -982,7 +999,7 @@ const liveStats = useLiveStats(initialStats);
             </Link>
           </div>
 
-          {/* Countdown — gold */}
+          {/* Countdown */}
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-2 mb-7 md:mb-10"
             style={{ background: "rgba(201,144,26,0.12)", border: "1px solid rgba(201,144,26,0.3)" }}
@@ -995,18 +1012,23 @@ const liveStats = useLiveStats(initialStats);
               Next drop in {countdown}
             </span>
           </div>
-          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 md:mx-0 md:px-0 items-stretch">
 
-             {products.length === 0 && <p className="opacity-40 text-sm" style={{ fontFamily: "var(--font-dm)" }}>Loading archive...</p>}
+          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 md:mx-0 md:px-0 items-stretch">
+            {products.length === 0 && (
+              <p className="opacity-40 text-sm" style={{ fontFamily: "var(--font-dm)" }}>Loading archive...</p>
+            )}
             {products.map((item) => {
               const badge = getProductBadge(item);
               return (
-                 <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] w-[200px] md:w-[260px] group flex-shrink-0">
-    <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden h-full ...">
-      <div className="relative aspect-[3/4]">
+                <Link key={item.id} href={`/product/${item.id}`} className="min-w-[200px] md:min-w-[260px] w-[200px] md:w-[260px] group flex-shrink-0">
+                  <div className="bg-[#2B0A0F] rounded-2xl overflow-hidden h-full">
+                    <div className="relative aspect-[3/4]">
                       <Image src={item.image_url} alt={item.title} fill className="object-cover group-hover:scale-105 transition duration-700" />
                       {badge && (
-                        <div className={`absolute top-3 left-3 text-[9px] px-3 py-1 rounded-full uppercase tracking-wide font-medium ${badge.cls}`} style={{ fontFamily: "var(--font-dm)" }}>
+                        <div
+                          className={`absolute top-3 left-3 text-[9px] px-3 py-1 rounded-full uppercase tracking-wide font-medium ${badge.cls}`}
+                          style={{ fontFamily: "var(--font-dm)" }}
+                        >
                           {badge.label}
                         </div>
                       )}
@@ -1039,7 +1061,10 @@ const liveStats = useLiveStats(initialStats);
               clothes you will. Listing takes 90 seconds.
             </p>
             <Link href="/sell">
-              <button className="mt-6 md:mt-7 px-7 py-4 bg-[#F6F3EF] text-[#2B0A0F] rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-85 transition-all hover:scale-[1.02]" style={{ fontFamily: "var(--font-dm)" }}>
+              <button
+                className="mt-6 md:mt-7 px-7 py-4 bg-[#F6F3EF] text-[#2B0A0F] rounded-full text-xs tracking-[0.18em] uppercase hover:opacity-85 transition-all hover:scale-[1.02]"
+                style={{ fontFamily: "var(--font-dm)" }}
+              >
                 Submit a Piece →
               </button>
             </Link>
@@ -1079,7 +1104,10 @@ const liveStats = useLiveStats(initialStats);
             <EmailCapture />
           </div>
         </div>
-        <div className="px-5 md:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-3 text-[10px] tracking-[0.15em] uppercase text-[#F6F3EF]/40 text-center" style={{ fontFamily: "var(--font-dm)" }}>
+        <div
+          className="px-5 md:px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-3 text-[10px] tracking-[0.15em] uppercase text-[#F6F3EF]/40 text-center"
+          style={{ fontFamily: "var(--font-dm)" }}
+        >
           <span className="text-[#F6F3EF]" style={{ fontFamily: "var(--font-cormorant)", fontSize: "15px", letterSpacing: "0.25em", textTransform: "uppercase" }}>
             Thrift Gennie
           </span>
