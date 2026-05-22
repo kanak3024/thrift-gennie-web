@@ -362,12 +362,12 @@ const [cropSlotIndex, setCropSlotIndex] = useState<number>(0);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
       setUserId(user.id);
-      const { data: profile } = await supabase
+       const { data: profile, error: profileError } = await supabase
   .from("profiles")
   .select("bank_upi")
   .eq("id", user.id)
-  .single();
-setHasUpi(!!profile?.bank_upi);
+  .maybeSingle();
+if (!profileError) setHasUpi(!!profile?.bank_upi);
       setCheckingAuth(false);
     };
     checkUser();
