@@ -102,7 +102,7 @@ const MOOD_GRID = [
     sub: "Trend",
     cls: "from-[#F7C5D5] via-[#DBA8E8] to-[#B48AE0]",
     mascot: "/y2k.png",
-    staticImage: "/mood-y2k.jpg",
+    staticImage: "/mood-y2k.jpeg",
   },
   {
     title: "Old Money",
@@ -110,7 +110,7 @@ const MOOD_GRID = [
     sub: "Aesthetic",
     cls: "from-[#E8D5B0] via-[#C9A96E] to-[#8B6914]",
     mascot: "/oldmoney.png",
-    staticImage: "/mood-oldmoney.jpg",
+    staticImage: "/mood-oldmoney.jpeg",
   },
   {
     title: "Indie Archive",
@@ -126,7 +126,7 @@ const MOOD_GRID = [
     sub: "Statement",
     cls: "from-[#F5C0A0] via-[#E8804A] to-[#B84028]",
     mascot: "/night.png",
-    staticImage: "/mood-bollywood.jpg",
+    staticImage: "/mood-bollywood.jpeg",
   },
 ];
 
@@ -411,7 +411,7 @@ function MoodGridItem({
   index: number;
   count: number;
 }) {
-  const isWide = index === 3;
+   const isWide = false;
 
   return (
     <Link
