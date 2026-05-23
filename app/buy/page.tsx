@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { useWishlist } from "../hooks/useWishlist";
+import { useWishlist } from "../context/WishlistContext";
 import { useSearchParams } from "next/navigation";
 
 /* ─────────────────────────────

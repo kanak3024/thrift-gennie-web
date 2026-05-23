@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { useWishlist } from "../../hooks/useWishlist";
+import { useWishlist } from "../../context/WishlistContext";
+import { useLikes } from "../../hooks/useLikes";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
@@ -58,19 +59,21 @@ export default function ProductPage() {
   const { id } = useParams();
   const router = useRouter();
   const { toggleWishlist, isWishlisted } = useWishlist();
+  const { toggleLike, isLiked } = useLikes();
 
-  const [user, setUser]                         = useState<any>(null);
-  const [product, setProduct]                   = useState<any>(null);
-  const [seller, setSeller]                     = useState<any>(null);
-  const [similarItems, setSimilarItems]         = useState<any[]>([]);
-  const [paymentLoading, setPaymentLoading]     = useState(false);
-  const [activeImage, setActiveImage]           = useState<string>("");
-  const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [pendingAddress, setPendingAddress]     = useState<ShippingAddress | null>(null);
+  const [user, setUser]                           = useState<any>(null);
+  const [product, setProduct]                     = useState<any>(null);
+  const [seller, setSeller]                       = useState<any>(null);
+  const [similarItems, setSimilarItems]           = useState<any[]>([]);
+  const [paymentLoading, setPaymentLoading]       = useState(false);
+  const [activeImage, setActiveImage]             = useState<string>("");
+  const [addressModalOpen, setAddressModalOpen]   = useState(false);
+  const [pendingAddress, setPendingAddress]       = useState<ShippingAddress | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [dragStartX, setDragStartX] = useState<number | null>(null);
-  const [wishlistCount, setWishlistCount] = useState(0);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [dragStartX, setDragStartX]               = useState<number | null>(null);
+  const [wishlistCount, setWishlistCount]         = useState(0);
+  const [likeCount, setLikeCount]                 = useState(0);
+  const [lightboxOpen, setLightboxOpen]           = useState(false);
 
   // Chat
   const [chatOpen, setChatOpen]             = useState(false);
@@ -109,7 +112,7 @@ export default function ProductPage() {
     });
   }, []);
 
-  /* ── FETCH PRODUCT + SELLER + SIMILAR + OFFER ── */
+  /* ── FETCH PRODUCT + SELLER + SIMILAR + COUNTS ── */
   useEffect(() => {
     if (!id) return;
     const fetchAll = async () => {
@@ -134,27 +137,59 @@ export default function ProductPage() {
       if (similar) setSimilarItems(similar);
 
       // Increment view count
-await supabase.rpc("increment_views", { product_id: id });
+      await supabase.rpc("increment_views", { product_id: id });
 
-// Fetch wishlist count
-const { count } = await supabase
-  .from("wishlists")
-  .select("*", { count: "exact", head: true })
-  .eq("product_id", id);
-setWishlistCount(count || 0);
+      // Fetch wishlist count
+      const { count: wCount } = await supabase
+        .from("wishlists")
+        .select("*", { count: "exact", head: true })
+        .eq("product_id", id);
+      setWishlistCount(wCount || 0);
+
+      // Fetch like count
+      const { count: lCount } = await supabase
+        .from("likes")
+        .select("*", { count: "exact", head: true })
+        .eq("product_id", id);
+      setLikeCount(lCount || 0);
     };
     fetchAll();
+  }, [id]);
+
+  /* ── REALTIME: keep like + save counts live ── */
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`product-detail-counts-${id}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "likes", filter: `product_id=eq.${id}` },
+        (payload) => {
+          setLikeCount(prev =>
+            payload.eventType === "INSERT" ? prev + 1 : Math.max(0, prev - 1)
+          );
+        }
+      )
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "wishlists", filter: `product_id=eq.${id}` },
+        (payload) => {
+          setWishlistCount(prev =>
+            payload.eventType === "INSERT" ? prev + 1 : Math.max(0, prev - 1)
+          );
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [id]);
 
   /* ── CHECK EXISTING OFFER ── */
   useEffect(() => {
     if (!user || !id) return;
     supabase.from("offers").select("*")
-  .eq("product_id", id).eq("buyer_id", user.id)
-  .in("status", ["pending", "countered", "accepted"])
-  .order("created_at", { ascending: false })
-  .limit(1)
-  .maybeSingle()
+      .eq("product_id", id).eq("buyer_id", user.id)
+      .in("status", ["pending", "countered", "accepted"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
       .then(({ data }) => { if (data) setExistingOffer(data); });
   }, [user, id]);
 
@@ -244,20 +279,20 @@ setWishlistCount(count || 0);
     try {
       let convId = conversationId;
       if (!convId) convId = await initConversation();
-       const { data: { session } } = await supabase.auth.getSession();
-const res = await fetch("/api/offers/create", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${session?.access_token}`,
-  },
-  body: JSON.stringify({
-    productId: product.id,
-    sellerId: product.seller_id,
-    amount: parseFloat(offerAmount),
-    message: offerMessage,
-  }),
-});
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/offers/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          productId: product.id,
+          sellerId: product.seller_id,
+          amount: parseFloat(offerAmount),
+          message: offerMessage,
+        }),
+      });
       const result = await res.json();
       if (result.error) {
         alert(result.error);
@@ -304,87 +339,90 @@ const res = await fetch("/api/offers/create", {
     }
     setReportLoading(false);
   };
+
   /* ── RAZORPAY ── */
-const handleBuyNow = async () => {
-  if (!user) { router.push("/login"); return; }
-  if (user.id === product.seller_id || product.status === "sold") return;
-  setAddressModalOpen(true);
-};
+  const handleBuyNow = async () => {
+    if (!user) { router.push("/login"); return; }
+    if (user.id === product.seller_id || product.status === "sold") return;
+    setAddressModalOpen(true);
+  };
 
-const handleAddressConfirmed = async (address: ShippingAddress) => {
-  setPendingAddress(address);
-  setAddressModalOpen(false);
-  setPaymentLoading(true);
-  try {
-    const shippingFee = Number(product.shipping_price ?? 0);
-    const res = await fetch("/api/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount:          Math.round(product.price + shippingFee),
-        productId:       product.id,
-        buyerId:         user.id,
-        buyerEmail:      user.email,
-        shippingAddress: address,
-      }),
-    });
-    const order = await res.json();
-    if (!order.id) throw new Error("Failed to create order");
+  const handleAddressConfirmed = async (address: ShippingAddress) => {
+    setPendingAddress(address);
+    setAddressModalOpen(false);
+    setPaymentLoading(true);
+    try {
+      const shippingFee = Number(product.shipping_price ?? 0);
+      const res = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount:          Math.round(product.price + shippingFee),
+          productId:       product.id,
+          buyerId:         user.id,
+          buyerEmail:      user.email,
+          shippingAddress: address,
+        }),
+      });
+      const order = await res.json();
+      if (!order.id) throw new Error("Failed to create order");
 
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    document.body.appendChild(script);
-    script.onload = () => {
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim(),
-        amount: order.amount,
-        currency: "INR",
-        name: "Thrift Gennie",
-        description: product.title,
-        order_id: order.id,
-        image: product.image_url || "/final.png",
-        prefill: { email: user.email, contact: address.phone, name: address.fullName },
-        theme: { color: "#2B0A0F" },
-         handler: async (response: any) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  const verifyRes = await fetch("/api/verify-payment", {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
-            body: JSON.stringify({
-              razorpay_order_id:   response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
-              productId:           product.id,
-              buyerId:             user.id,
-              buyerEmail:          user.email,
-              shippingAddress:     address,
-            }),
-          });
-          const result = await verifyRes.json();
-          if (result.success) router.push(`/orders/${result.orderId}`);
-          else router.push("/orders");
-        },
-        modal: { ondismiss: () => setPaymentLoading(false) },
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      document.body.appendChild(script);
+      script.onload = () => {
+        const options = {
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim(),
+          amount: order.amount,
+          currency: "INR",
+          name: "Thrift Gennie",
+          description: product.title,
+          order_id: order.id,
+          image: product.image_url || "/final.png",
+          prefill: { email: user.email, contact: address.phone, name: address.fullName },
+          theme: { color: "#2B0A0F" },
+          handler: async (response: any) => {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            const verifyRes = await fetch("/api/verify-payment", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                razorpay_order_id:   response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature:  response.razorpay_signature,
+                productId:           product.id,
+                buyerId:             user.id,
+                buyerEmail:          user.email,
+                shippingAddress:     address,
+              }),
+            });
+            const result = await verifyRes.json();
+            if (result.success) router.push(`/orders/${result.orderId}`);
+            else router.push("/orders");
+          },
+          modal: { ondismiss: () => setPaymentLoading(false) },
+        };
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+        setPaymentLoading(false);
       };
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
+    } catch {
       setPaymentLoading(false);
-    };
-  } catch {
-    setPaymentLoading(false);
-  }
-};
-  
+    }
+  };
+
   if (!product) return <ProductSkeleton />;
 
   const isSold    = product.status === "sold";
   const isMine    = user?.id === product.seller_id;
   const allImages = [product.image_url, ...(product.extra_images || [])].filter(Boolean);
   const condStyle = CONDITION_STYLE[product.condition] || { bg: "#88810", text: "#888", dot: "#888" };
+  const liked     = isLiked(product.id);
+  const saved     = isWishlisted(product.id);
 
   return (
     <motion.main
@@ -409,7 +447,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              /* full-width on mobile, fixed 380px on sm+ */
               className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
                          bg-[#F6F3EF] rounded-2xl p-6 sm:p-8
                          w-[calc(100vw-2rem)] sm:w-[380px] shadow-2xl"
@@ -428,91 +465,84 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                   </p>
 
                   {existingOffer ? (
-  <div className="space-y-4">
-    {/* Counter offer state */}
-    {existingOffer.status === "countered" && (
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-[9px] uppercase tracking-widest text-blue-500 mb-1">Seller Countered</p>
-        <p className="text-2xl text-blue-700" style={{ fontFamily: "var(--font-playfair)" }}>
-          ₹{existingOffer.counter_amount?.toLocaleString("en-IN")}
-        </p>
-        <p className="text-[10px] text-blue-500 mt-1">Your original offer: ₹{existingOffer.amount?.toLocaleString("en-IN")}</p>
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={async () => {
-              const { data: { session } } = await supabase.auth.getSession();
-              await fetch("/api/offers/respond", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
-                body: JSON.stringify({ offerId: existingOffer.id, action: "accept" }),
-              });
-              setExistingOffer({ ...existingOffer, status: "accepted" });
-              setTimeout(() => setOfferOpen(false), 1500);
-            }}
-            className="flex-1 py-2.5 rounded-full bg-blue-600 text-white text-[9px] uppercase tracking-widest hover:opacity-80 transition-opacity"
-          >
-            Accept ₹{existingOffer.counter_amount?.toLocaleString("en-IN")}
-          </button>
-          <button
-            onClick={async () => {
-              const { data: { session } } = await supabase.auth.getSession();
-              await fetch("/api/offers/respond", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
-                body: JSON.stringify({ offerId: existingOffer.id, action: "decline" }),
-              });
-              setExistingOffer(null);
-              setOfferOpen(false);
-            }}
-            className="flex-1 py-2.5 rounded-full border border-blue-200 text-blue-600 text-[9px] uppercase tracking-widest hover:opacity-80 transition-opacity"
-          >
-            Decline
-          </button>
-        </div>
-      </div>
-    )}
+                    <div className="space-y-4">
+                      {existingOffer.status === "countered" && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                          <p className="text-[9px] uppercase tracking-widest text-blue-500 mb-1">Seller Countered</p>
+                          <p className="text-2xl text-blue-700" style={{ fontFamily: "var(--font-playfair)" }}>
+                            ₹{existingOffer.counter_amount?.toLocaleString("en-IN")}
+                          </p>
+                          <p className="text-[10px] text-blue-500 mt-1">Your original offer: ₹{existingOffer.amount?.toLocaleString("en-IN")}</p>
+                          <div className="flex gap-2 mt-4">
+                            <button
+                              onClick={async () => {
+                                const { data: { session } } = await supabase.auth.getSession();
+                                await fetch("/api/offers/respond", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+                                  body: JSON.stringify({ offerId: existingOffer.id, action: "accept" }),
+                                });
+                                setExistingOffer({ ...existingOffer, status: "accepted" });
+                                setTimeout(() => setOfferOpen(false), 1500);
+                              }}
+                              className="flex-1 py-2.5 rounded-full bg-blue-600 text-white text-[9px] uppercase tracking-widest hover:opacity-80 transition-opacity"
+                            >
+                              Accept ₹{existingOffer.counter_amount?.toLocaleString("en-IN")}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const { data: { session } } = await supabase.auth.getSession();
+                                await fetch("/api/offers/respond", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+                                  body: JSON.stringify({ offerId: existingOffer.id, action: "decline" }),
+                                });
+                                setExistingOffer(null);
+                                setOfferOpen(false);
+                              }}
+                              className="flex-1 py-2.5 rounded-full border border-blue-200 text-blue-600 text-[9px] uppercase tracking-widest hover:opacity-80 transition-opacity"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
-    {/* Pending offer state */}
-    {existingOffer.status === "pending" && (
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-        <p className="text-[9px] uppercase tracking-widest text-amber-600 mb-1">Offer Pending</p>
-        <p className="text-2xl text-amber-700" style={{ fontFamily: "var(--font-playfair)" }}>
-          ₹{existingOffer.amount?.toLocaleString("en-IN")}
-        </p>
-        <p className="text-[10px] text-amber-500 mt-1">Waiting for seller to respond</p>
-      </div>
-    )}
+                      {existingOffer.status === "pending" && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <p className="text-[9px] uppercase tracking-widest text-amber-600 mb-1">Offer Pending</p>
+                          <p className="text-2xl text-amber-700" style={{ fontFamily: "var(--font-playfair)" }}>
+                            ₹{existingOffer.amount?.toLocaleString("en-IN")}
+                          </p>
+                          <p className="text-[10px] text-amber-500 mt-1">Waiting for seller to respond</p>
+                        </div>
+                      )}
 
-    {/* Accepted state */}
-    {existingOffer.status === "accepted" && (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-        <p className="text-2xl mb-2">✅</p>
-        <p className="text-sm text-green-700">Offer accepted! Proceed to payment.</p>
-      </div>
-    )}
+                      {existingOffer.status === "accepted" && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                          <p className="text-2xl mb-2">✅</p>
+                          <p className="text-sm text-green-700">Offer accepted! Proceed to payment.</p>
+                        </div>
+                      )}
 
-    {/* Cancel button — only for pending */}
-    {existingOffer.status === "pending" && (
-      <button
-        onClick={async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          const res = await fetch("/api/offers/cancel", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
-            body: JSON.stringify({ offerId: existingOffer.id }),
-          });
-          if (res.ok) {
-            setExistingOffer(null);
-            setOfferOpen(false);
-          }
-        }}
-        className="w-full py-3 rounded-full border border-red-200 text-red-400 text-[9px] uppercase tracking-widest hover:bg-red-50 transition-all"
-      >
-        Cancel Offer
-      </button>
-    )}
-  </div>
-) : (
+                      {existingOffer.status === "pending" && (
+                        <button
+                          onClick={async () => {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            const res = await fetch("/api/offers/cancel", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+                              body: JSON.stringify({ offerId: existingOffer.id }),
+                            });
+                            if (res.ok) { setExistingOffer(null); setOfferOpen(false); }
+                          }}
+                          className="w-full py-3 rounded-full border border-red-200 text-red-400 text-[9px] uppercase tracking-widest hover:bg-red-50 transition-all"
+                        >
+                          Cancel Offer
+                        </button>
+                      )}
+                    </div>
+                  ) : (
                     <div className="space-y-4">
                       <div className="border-b border-[#2B0A0F]/10 pb-2">
                         <label className="text-[9px] uppercase tracking-widest opacity-50 block mb-2">Your Offer (₹)</label>
@@ -526,7 +556,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                           autoFocus
                         />
                       </div>
-
                       <div className="border-b border-[#2B0A0F]/10 pb-2">
                         <label className="text-[9px] uppercase tracking-widest opacity-50 block mb-2">Message (optional)</label>
                         <input
@@ -537,7 +566,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                           className="w-full bg-transparent text-sm outline-none placeholder:opacity-20"
                         />
                       </div>
-
                       <div className="flex gap-2">
                         {[0.9, 0.8, 0.7].map((pct) => (
                           <button
@@ -549,7 +577,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                           </button>
                         ))}
                       </div>
-
                       <div className="flex gap-3 pt-2">
                         <button
                           onClick={() => setOfferOpen(false)}
@@ -595,7 +622,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
             >
               <h3 className="text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Share this Piece</h3>
               <p className="text-[10px] uppercase tracking-widest opacity-40 mb-6">{product.title}</p>
-
               <div className="space-y-3">
                 <button
                   onClick={handleCopyLink}
@@ -621,7 +647,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                   <span className="text-[10px] uppercase tracking-widest">Share on X</span>
                 </button>
               </div>
-
               <button
                 onClick={() => setShareOpen(false)}
                 className="w-full mt-4 py-3 text-[10px] uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity"
@@ -662,7 +687,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                 <>
                   <h3 className="text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Report Listing</h3>
                   <p className="text-[10px] uppercase tracking-widest opacity-40 mb-6">Help us keep the archive safe</p>
-
                   <div className="space-y-2 mb-5">
                     {REPORT_REASONS.map((reason) => (
                       <button
@@ -678,7 +702,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                       </button>
                     ))}
                   </div>
-
                   <div className="border-b border-[#2B0A0F]/10 pb-2 mb-5">
                     <label className="text-[9px] uppercase tracking-widest opacity-50 block mb-2">Additional Details (optional)</label>
                     <textarea
@@ -689,7 +712,6 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
                       className="w-full bg-transparent text-sm outline-none placeholder:opacity-20 resize-none"
                     />
                   </div>
-
                   <div className="flex gap-3">
                     <button
                       onClick={() => setReportOpen(false)}
@@ -735,170 +757,152 @@ const handleAddressConfirmed = async (address: ShippingAddress) => {
 
       {/* ══════════════════════════════
           MAIN GRID
-          — stacks to single column on mobile
       ══════════════════════════════ */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 sm:pb-24">
         <div className="grid md:grid-cols-[1fr_1fr] gap-8 lg:gap-20">
 
           {/* ── LEFT: IMAGE GALLERY ── */}
-           <div className="flex flex-col gap-3">
-  <div
-     className={`relative aspect-[4/5] bg-[#EAE3DB] overflow-hidden rounded-2xl cursor-zoom-in ${isSold ? "opacity-70" : ""}`}
-onClick={() => setLightboxOpen(true)}
-    onMouseDown={(e) => setDragStartX(e.clientX)}
-    onMouseUp={(e) => {
-      if (dragStartX === null) return;
-      const diff = dragStartX - e.clientX;
-      if (diff > 50) setCurrentImageIndex((i) => Math.min(i + 1, allImages.length - 1));
-      else if (diff < -50) setCurrentImageIndex((i) => Math.max(i - 1, 0));
-      setDragStartX(null);
-    }}
-    onTouchStart={(e) => setDragStartX(e.touches[0].clientX)}
-    onTouchEnd={(e) => {
-      if (dragStartX === null) return;
-      const diff = dragStartX - e.changedTouches[0].clientX;
-      if (diff > 50) setCurrentImageIndex((i) => Math.min(i + 1, allImages.length - 1));
-      else if (diff < -50) setCurrentImageIndex((i) => Math.max(i - 1, 0));
-      setDragStartX(null);
-    }}
-  >
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={currentImageIndex}
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-        transition={{ duration: 0.25 }}
-        className="absolute inset-0"
-      >
-        <Image
-          src={allImages[currentImageIndex]}
-          alt={product.title}
-          fill
-          className={`object-cover select-none ${isSold ? "grayscale" : ""}`}
-          priority
-          draggable={false}
-        />
-      </motion.div>
-    </AnimatePresence>
+          <div className="flex flex-col gap-3">
+            <div
+              className={`relative aspect-[4/5] bg-[#EAE3DB] overflow-hidden rounded-2xl cursor-zoom-in ${isSold ? "opacity-70" : ""}`}
+              onClick={() => setLightboxOpen(true)}
+              onMouseDown={(e) => setDragStartX(e.clientX)}
+              onMouseUp={(e) => {
+                if (dragStartX === null) return;
+                const diff = dragStartX - e.clientX;
+                if (diff > 50) setCurrentImageIndex((i) => Math.min(i + 1, allImages.length - 1));
+                else if (diff < -50) setCurrentImageIndex((i) => Math.max(i - 1, 0));
+                setDragStartX(null);
+              }}
+              onTouchStart={(e) => setDragStartX(e.touches[0].clientX)}
+              onTouchEnd={(e) => {
+                if (dragStartX === null) return;
+                const diff = dragStartX - e.changedTouches[0].clientX;
+                if (diff > 50) setCurrentImageIndex((i) => Math.min(i + 1, allImages.length - 1));
+                else if (diff < -50) setCurrentImageIndex((i) => Math.max(i - 1, 0));
+                setDragStartX(null);
+              }}
+            >
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentImageIndex}
+                  initial={{ opacity: 0, x: 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -40 }}
+                  transition={{ duration: 0.25 }}
+                  className="absolute inset-0"
+                >
+                  <Image
+                    src={allImages[currentImageIndex]}
+                    alt={product.title}
+                    fill
+                    className={`object-cover select-none ${isSold ? "grayscale" : ""}`}
+                    priority
+                    draggable={false}
+                  />
+                </motion.div>
+              </AnimatePresence>
 
-    {/* Dot indicators */}
-    {allImages.length > 1 && (
-      <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-        {allImages.map((_: string, i: number) => (
-          <button
-            key={i}
-            onClick={() => setCurrentImageIndex(i)}
-            className="transition-all"
-            style={{
-              width: i === currentImageIndex ? "16px" : "6px",
-              height: "6px",
-              borderRadius: "9999px",
-              background: i === currentImageIndex ? "white" : "rgba(255,255,255,0.45)",
-            }}
-          />
-        ))}
-      </div>
-    )}
+              {/* Dot indicators */}
+              {allImages.length > 1 && (
+                <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                  {allImages.map((_: string, i: number) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentImageIndex(i)}
+                      className="transition-all"
+                      style={{
+                        width: i === currentImageIndex ? "16px" : "6px",
+                        height: "6px",
+                        borderRadius: "9999px",
+                        background: i === currentImageIndex ? "white" : "rgba(255,255,255,0.45)",
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
 
-    {/* Left / Right arrows — desktop only */}
-    {allImages.length > 1 && currentImageIndex > 0 && (
-      <button
-        onClick={() => setCurrentImageIndex((i) => i - 1)}
-        className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M15 18l-6-6 6-6"/>
-        </svg>
-      </button>
-    )}
-    {allImages.length > 1 && currentImageIndex < allImages.length - 1 && (
-      <button
-        onClick={() => setCurrentImageIndex((i) => i + 1)}
-        className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M9 18l6-6-6-6"/>
-        </svg>
-      </button>
-    )}
+              {/* Arrows */}
+              {allImages.length > 1 && currentImageIndex > 0 && (
+                <button
+                  onClick={() => setCurrentImageIndex((i) => i - 1)}
+                  className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M15 18l-6-6 6-6"/>
+                  </svg>
+                </button>
+              )}
+              {allImages.length > 1 && currentImageIndex < allImages.length - 1 && (
+                <button
+                  onClick={() => setCurrentImageIndex((i) => i + 1)}
+                  className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M9 18l6-6-6-6"/>
+                  </svg>
+                </button>
+              )}
 
-    {isSold && (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl">
-        <span className="bg-[#2B0A0F]/90 text-[#F6F3EF] text-[9px] uppercase tracking-[0.5em] px-8 py-3 rounded-full">
-          Sold
-        </span>
-      </div>
-    )}
+              {isSold && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl">
+                  <span className="bg-[#2B0A0F]/90 text-[#F6F3EF] text-[9px] uppercase tracking-[0.5em] px-8 py-3 rounded-full">
+                    Sold
+                  </span>
+                </div>
+              )}
 
-    {!isMine && (
-      <button
-        onClick={() => toggleWishlist(product.id)}
-        className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center hover:scale-110 transition-transform z-10"
-      >
-        <svg
-          width="22" height="22" viewBox="0 0 24 24"
-          fill={isWishlisted(product.id) ? "#A1123F" : "none"}
-          stroke={isWishlisted(product.id) ? "#A1123F" : "white"}
-          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-          style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }}
-        >
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-        </svg>
-      </button>
-    )}
+              {/* Bottom action buttons */}
+              <div className="absolute bottom-4 left-4 flex gap-2 z-10">
+                <button
+                  onClick={() => setShareOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  </svg>
+                  Share
+                </button>
+                <button
+                  onClick={() => setLightboxOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                  </svg>
+                  View
+                </button>
+                {!isMine && user && (
+                  <button
+                    onClick={() => setReportOpen(true)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm text-[#A1123F]"
+                  >
+                    🚩 Report
+                  </button>
+                )}
+              </div>
+            </div>
 
-    <div className="absolute bottom-4 left-4 flex gap-2 z-10">
-      <button
-        onClick={() => setShareOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-        </svg>
-        Share
-      </button>
-      <button
-    onClick={() => setLightboxOpen(true)}
-    className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
-  >
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-    </svg>
-    View
-  </button>
-
-      {!isMine && user && (
-        <button
-          onClick={() => setReportOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm text-[#A1123F]"
-        >
-          🚩 Report
-        </button>
-      )}
-    </div>
-  </div>
-
-  {/* Thumbnail strip — synced to current index */}
-  {allImages.length > 1 && (
-    <div className="flex gap-2 overflow-x-auto pb-1">
-      {allImages.map((img: string, i: number) => (
-        <button
-          key={i}
-          onClick={() => setCurrentImageIndex(i)}
-          className={`relative w-14 sm:w-16 h-[72px] sm:h-20 flex-shrink-0 overflow-hidden rounded-lg transition-all ${
-            currentImageIndex === i
-              ? "ring-2 ring-[#2B0A0F] opacity-100"
-              : "opacity-40 hover:opacity-80"
-          }`}
-        >
-          <Image src={img} alt={`View ${i + 1}`} fill className="object-cover" />
-        </button>
-      ))}
-    </div>
-  )}
-</div>
+            {/* Thumbnail strip */}
+            {allImages.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {allImages.map((img: string, i: number) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentImageIndex(i)}
+                    className={`relative w-14 sm:w-16 h-[72px] sm:h-20 flex-shrink-0 overflow-hidden rounded-lg transition-all ${
+                      currentImageIndex === i
+                        ? "ring-2 ring-[#2B0A0F] opacity-100"
+                        : "opacity-40 hover:opacity-80"
+                    }`}
+                  >
+                    <Image src={img} alt={`View ${i + 1}`} fill className="object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* ── RIGHT: PRODUCT DETAILS ── */}
           <div className="flex flex-col">
@@ -913,19 +917,44 @@ onClick={() => setLightboxOpen(true)}
               {product.title}
             </h1>
 
-             <p className="text-2xl sm:text-3xl mb-2 text-[#A1123F]" style={{ fontFamily: "var(--font-playfair)" }}>
-  ₹{product.price?.toLocaleString("en-IN")}
-</p>
+            <p className="text-2xl sm:text-3xl mb-2 text-[#A1123F]" style={{ fontFamily: "var(--font-playfair)" }}>
+              ₹{product.price?.toLocaleString("en-IN")}
+            </p>
 
-{/* Shipping line */}
-<p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-5 sm:mb-6">
-  {Number(product.shipping_price) > 0
-    ? `+ ₹${Number(product.shipping_price)} shipping · Total ₹${(product.price + Number(product.shipping_price)).toLocaleString("en-IN")}`
-    : "Free shipping"
-  }
-</p>
+            {/* Shipping line */}
+            <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-4">
+              {Number(product.shipping_price) > 0
+                ? `+ ₹${Number(product.shipping_price)} shipping · Total ₹${(product.price + Number(product.shipping_price)).toLocaleString("en-IN")}`
+                : "Free shipping"
+              }
+            </p>
 
-            {/* Meta chips — scrollable on very small screens */}
+            {/* ── LIKE + SAVE COUNT ROW ── */}
+            <div className="flex items-center gap-4 mb-5 sm:mb-6">
+              <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.15em] opacity-50">
+                <svg width="11" height="11" viewBox="0 0 24 24"
+                  fill={likeCount > 0 ? "#A1123F" : "none"}
+                  stroke="#A1123F" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+                {likeCount} {likeCount === 1 ? "like" : "likes"}
+              </span>
+              <span className="w-px h-3 bg-[#2B0A0F]/15" />
+              <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.15em] opacity-50">
+                <svg width="11" height="11" viewBox="0 0 24 24"
+                  fill={wishlistCount > 0 ? "#B48A5A" : "none"}
+                  stroke="#B48A5A" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                {wishlistCount} {wishlistCount === 1 ? "save" : "saves"}
+              </span>
+            </div>
+
+            {/* Meta chips */}
             <div className="flex flex-wrap gap-2 mb-6 sm:mb-7">
               {product.condition && (
                 <span
@@ -1026,30 +1055,28 @@ onClick={() => setLightboxOpen(true)}
                       Opening Payment...
                     </>
                   ) : (
-                     `Buy Now — ₹${(product.price + Number(product.shipping_price ?? 0)).toLocaleString("en-IN")}`
+                    `Buy Now — ₹${(product.price + Number(product.shipping_price ?? 0)).toLocaleString("en-IN")}`
                   )}
                 </motion.button>
 
                 {/* Make an Offer */}
-                 {/* Make an Offer — only show if seller marked it negotiable */}
- 
-<motion.button
-  whileTap={{ scale: 0.98 }}
-  onClick={() => setOfferOpen(true)}
-  className={`w-full py-4 rounded-full text-[10px] uppercase tracking-[0.25em] transition-all border ${
-    existingOffer
-      ? "border-amber-300 text-amber-600 bg-amber-50"
-      : "border-[#2B0A0F]/20 hover:bg-[#2B0A0F]/05"
-  }`}
->
-  {existingOffer
-    ? `Offer Pending — ₹${existingOffer.amount?.toLocaleString("en-IN")}`
-    : "Make an Offer"}
-</motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setOfferOpen(true)}
+                  className={`w-full py-4 rounded-full text-[10px] uppercase tracking-[0.25em] transition-all border ${
+                    existingOffer
+                      ? "border-amber-300 text-amber-600 bg-amber-50"
+                      : "border-[#2B0A0F]/20 hover:bg-[#2B0A0F]/05"
+                  }`}
+                >
+                  {existingOffer
+                    ? `Offer Pending — ₹${existingOffer.amount?.toLocaleString("en-IN")}`
+                    : "Make an Offer"}
+                </motion.button>
 
-
-                {/* Inquire + Wishlist — side by side */}
-                <div className="flex gap-3">
+                {/* Inquire + Like + Save — three buttons in a row */}
+                <div className="flex gap-2 sm:gap-3">
+                  {/* Inquire */}
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
@@ -1062,21 +1089,49 @@ onClick={() => setLightboxOpen(true)}
                     {loadingChat ? "Opening..." : "Inquire →"}
                   </motion.button>
 
+                  {/* ── LIKE button → `likes` table, signal to seller ── */}
                   <motion.button
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => toggleWishlist(product.id)}
-                    className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
-                      isWishlisted(product.id)
-                        ? "bg-[#A1123F] border-[#A1123F] text-white"
+                    onClick={() => toggleLike(product.id)}
+                    title="Like this piece"
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
+                      liked
+                        ? "bg-[#A1123F] border-[#A1123F]"
                         : "border-[#2B0A0F]/20 hover:border-[#A1123F]/50"
                     }`}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24"
-                      fill={isWishlisted(product.id) ? "white" : "none"}
-                      stroke={isWishlisted(product.id) ? "white" : "#A1123F"}
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24"
+                      fill={liked ? "white" : "none"}
+                      stroke={liked ? "white" : "#A1123F"}
                       strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                  </motion.button>
+
+                  {/* ── SAVE button → `wishlists` table → shows in Reserved ── */}
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => toggleWishlist(product.id)}
+                    title="Save to Reserved"
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
+                      saved
+                        ? "bg-[#B48A5A] border-[#B48A5A]"
+                        : "border-[#2B0A0F]/20 hover:border-[#B48A5A]/50"
+                    }`}
+                  >
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24"
+                      fill={saved ? "white" : "none"}
+                      stroke={saved ? "white" : "#B48A5A"}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                     </svg>
                   </motion.button>
                 </div>
@@ -1115,8 +1170,6 @@ onClick={() => setLightboxOpen(true)}
                 View All →
               </Link>
             </div>
-
-            {/* 2 cols on mobile, 4 on md+ */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {similarItems.map((item) => (
                 <Link key={item.id} href={`/product/${item.id}`} className="group">
@@ -1145,7 +1198,6 @@ onClick={() => setLightboxOpen(true)}
 
       {/* ══════════════════════════════
           CHAT PANEL
-          — full width on mobile
       ══════════════════════════════ */}
       <AnimatePresence>
         {chatOpen && (
@@ -1160,7 +1212,6 @@ onClick={() => setLightboxOpen(true)}
               transition={{ type: "spring", damping: 28, stiffness: 260 }}
               className="fixed right-0 top-0 bottom-0 z-50 w-full sm:max-w-[420px] bg-[#1A060B] flex flex-col shadow-2xl"
             >
-              {/* Chat header */}
               <div className="px-4 sm:px-6 py-5 border-b border-white/08 flex items-center gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-9 h-9 rounded-full bg-[#2B0A0F] border border-white/10 flex items-center justify-center text-[#F6F3EF] text-xs overflow-hidden flex-shrink-0">
@@ -1185,7 +1236,6 @@ onClick={() => setLightboxOpen(true)}
                 </button>
               </div>
 
-              {/* Product preview strip */}
               <div className="px-4 sm:px-6 py-4 border-b border-white/05 flex items-center gap-3 bg-[#2B0A0F]/40">
                 <div className="relative w-10 h-12 rounded-md overflow-hidden flex-shrink-0 bg-[#2B0A0F]">
                   <Image src={product.image_url || "/final.png"} alt={product.title} fill className="object-cover" />
@@ -1198,7 +1248,6 @@ onClick={() => setLightboxOpen(true)}
                 </div>
               </div>
 
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-3">
                 {messages.length === 0 && !loadingChat && (
                   <div className="flex flex-col items-center justify-center h-full gap-3 opacity-25">
@@ -1210,12 +1259,10 @@ onClick={() => setLightboxOpen(true)}
                     </p>
                   </div>
                 )}
-
                 {messages.map((msg, idx) => {
-                  const isMe      = msg.sender_id === user?.id;
-                  const prev      = messages[idx - 1];
+                  const isMe       = msg.sender_id === user?.id;
+                  const prev       = messages[idx - 1];
                   const sameAsPrev = prev?.sender_id === msg.sender_id;
-
                   return (
                     <motion.div
                       key={msg.id}
@@ -1232,9 +1279,9 @@ onClick={() => setLightboxOpen(true)}
                         {(idx === messages.length - 1 || messages[idx + 1]?.sender_id !== msg.sender_id) && (
                           <div className={`text-[8px] mt-1.5 opacity-30 ${isMe ? "text-right" : "text-left"}`}>
                             {(() => {
-  const raw = msg.created_at.includes("T") ? msg.created_at : msg.created_at.replace(" ", "T");
-  return new Date(raw.endsWith("Z") ? raw : raw + "Z").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-})()}
+                              const raw = msg.created_at.includes("T") ? msg.created_at : msg.created_at.replace(" ", "T");
+                              return new Date(raw.endsWith("Z") ? raw : raw + "Z").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                            })()}
                           </div>
                         )}
                       </div>
@@ -1244,7 +1291,6 @@ onClick={() => setLightboxOpen(true)}
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Input */}
               <div className="px-4 sm:px-5 py-4 border-t border-white/08 bg-[#1A060B]">
                 <div className="flex items-center gap-3">
                   <input
@@ -1275,7 +1321,6 @@ onClick={() => setLightboxOpen(true)}
                     )}
                   </motion.button>
                 </div>
-
                 {conversationId && (
                   <Link href={`/messages/${conversationId}`}>
                     <p className="text-center text-[9px] uppercase tracking-[0.2em] text-[#F6F3EF]/25 hover:text-[#F6F3EF]/50 transition-colors mt-3">
