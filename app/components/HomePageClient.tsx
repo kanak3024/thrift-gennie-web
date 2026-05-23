@@ -421,16 +421,14 @@ function MoodGridItem({
       }`}
     >
       {/* Static background image — loads instantly */}
-      <div className="absolute inset-0">
-        <Image
-          src={mood.staticImage}
-          alt={mood.title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-700"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
-      </div>
-
+       <div className="absolute inset-0">
+  <img
+    src={mood.staticImage}
+    alt={mood.title}
+    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+  />
+  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+</div>
       <div className="absolute top-3 left-3 z-20">
         <span
           className="text-[9px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/20"
