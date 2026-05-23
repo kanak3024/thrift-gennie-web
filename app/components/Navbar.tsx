@@ -12,7 +12,7 @@ type Piece = {
   id: string;
   title: string;
   price: number;
-  mood?: string;        // was "vibe"
+  mood?: string;
   category?: string;
   brand?: string;
   size?: string;
@@ -40,12 +40,22 @@ const SIZES = ["XS", "S", "M", "L", "XL", "Free size"];
 const BUDGETS = ["Under ₹500", "₹500–₹1500", "₹1500–₹3000", "₹3000+"];
 const TRENDING = ["mini skirts", "leather trench", "cargo sets", "sheer tops", "bling clutch"];
 
-// ─── Bell Icon ────────────────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────
+
 function BellIcon({ size = 17 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+// ── NEW: Messages icon for top nav ──
+function MessageIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
   );
 }
@@ -68,9 +78,10 @@ export default function Navbar() {
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // ── Notification state ────────────────────────────────────
+  // ── Notification + Message state ──────────────────────────
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const notifPanelRef = useRef<HTMLDivElement>(null);
 
   const fetchProfile = async (userId: string) => {
@@ -90,15 +101,24 @@ export default function Navbar() {
     if (data) setSuggestedSellers(data);
   };
 
-  // ── Fetch + subscribe to unread count ─────────────────────
   const fetchUnreadCount = useCallback(async (userId: string) => {
     const { count } = await supabase
       .from("notifications")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("is_read", false)
-      .not("type", "is", null); // only rich activity notifications
+      .not("type", "is", null);
     setUnreadCount(count ?? 0);
+  }, []);
+
+  // ── NEW: fetch unread message count ───────────────────────
+  const fetchUnreadMessages = useCallback(async (userId: string) => {
+    const { count } = await supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("receiver_id", userId)
+      .eq("read", false);
+    setUnreadMessages(count ?? 0);
   }, []);
 
   useEffect(() => {
@@ -107,30 +127,15 @@ export default function Navbar() {
       if (data.user) {
         fetchProfile(data.user.id);
         fetchUnreadCount(data.user.id);
+        fetchUnreadMessages(data.user.id);
 
-        // Realtime: recount when new notification comes in
         const channel = supabase
           .channel("navbar_unread")
-          .on(
-            "postgres_changes",
-            {
-              event: "INSERT",
-              schema: "public",
-              table: "notifications",
-              filter: `user_id=eq.${data.user.id}`,
-            },
-            () => fetchUnreadCount(data.user.id)
-          )
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "notifications",
-              filter: `user_id=eq.${data.user.id}`,
-            },
-            () => fetchUnreadCount(data.user.id)
-          )
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${data.user.id}` }, () => fetchUnreadCount(data.user.id))
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${data.user.id}` }, () => fetchUnreadCount(data.user.id))
+          // ── NEW: listen for new messages ──
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${data.user.id}` }, () => fetchUnreadMessages(data.user.id))
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${data.user.id}` }, () => fetchUnreadMessages(data.user.id))
           .subscribe();
 
         return () => { supabase.removeChannel(channel); };
@@ -142,16 +147,17 @@ export default function Navbar() {
       if (session?.user) {
         fetchProfile(session.user.id);
         fetchUnreadCount(session.user.id);
+        fetchUnreadMessages(session.user.id);
       } else {
         setUserName(null);
         setUnreadCount(0);
+        setUnreadMessages(0);
       }
     });
 
     return () => listener.subscription.unsubscribe();
-  }, [fetchUnreadCount]);
+  }, [fetchUnreadCount, fetchUnreadMessages]);
 
-  // ── Close notif panel on outside click ────────────────────
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) {
@@ -162,7 +168,6 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [notifOpen]);
 
-  // ── When panel opens, mark all as read ───────────────────
   const handleBellClick = async () => {
     setNotifOpen(prev => !prev);
     if (!notifOpen && user && unreadCount > 0) {
@@ -187,7 +192,6 @@ export default function Navbar() {
     }
   }, [searchOpen]);
 
-  // ⌘K / Ctrl+K shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -203,57 +207,47 @@ export default function Navbar() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-   const runSearch = useCallback(async (q: string) => {
-  if (!q.trim()) {
-    setResults({ pieces: [], sellers: [] });
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setResults({ pieces: [], sellers: [] });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+
+    const [piecesRes, sellersRes] = await Promise.all([
+      supabase
+        .from("products")
+        .select(`id, title, price, mood, category, brand, size, condition, image_url, seller_id, profiles(full_name)`)
+        .or(
+          `title.ilike.%${q}%,description.ilike.%${q}%,category.ilike.%${q}%,` +
+          `mood.ilike.%${q}%,brand.ilike.%${q}%,colour.ilike.%${q}%,` +
+          `size.ilike.%${q}%,condition.ilike.%${q}%,location.ilike.%${q}%`
+        )
+        .eq("status", "available")
+        .limit(12),
+
+      supabase
+        .from("profiles")
+        .select("id, full_name, username, avatar_url")
+        .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
+        .limit(6),
+    ]);
+
+    const pieces = (piecesRes.data ?? []).map((p: any) => ({
+      ...p,
+      seller_name: p.profiles?.full_name ?? null,
+    }));
+
+    setResults({ pieces, sellers: sellersRes.data ?? [] });
+
+    if ((sellersRes.data ?? []).length > 0) {
+      setSuggestedSellers(sellersRes.data ?? []);
+    }
+
     setLoading(false);
-    return;
-  }
-  setLoading(true);
+  }, []);
 
-  const [piecesRes, sellersRes] = await Promise.all([
-    supabase
-      .from("products")                          // ← was "listings"
-      .select(`
-        id, title, price, mood, category, brand,
-        size, condition, image_url, seller_id,
-        profiles(full_name)
-      `)
-      .or(
-        `title.ilike.%${q}%,` +
-        `description.ilike.%${q}%,` +
-        `category.ilike.%${q}%,` +
-        `mood.ilike.%${q}%,` +
-        `brand.ilike.%${q}%,` +
-        `colour.ilike.%${q}%,` +
-        `size.ilike.%${q}%,` +
-        `condition.ilike.%${q}%,` +
-        `location.ilike.%${q}%`
-      )
-      .eq("status", "available")                 // ← only show live listings
-      .limit(12),
-
-    supabase
-      .from("profiles")
-      .select("id, full_name, username, avatar_url")
-      .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
-      .limit(6),
-  ]);
-
-  // map seller name from the join
-  const pieces = (piecesRes.data ?? []).map((p: any) => ({
-    ...p,
-    seller_name: p.profiles?.full_name ?? null,
-  }));
-
-  setResults({ pieces, sellers: sellersRes.data ?? [] });
-
-  if ((sellersRes.data ?? []).length > 0) {
-    setSuggestedSellers(sellersRes.data ?? []);
-  }
-
-  setLoading(false);
-}, []);
   const handleQueryChange = (val: string) => {
     setQuery(val);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -294,15 +288,6 @@ export default function Navbar() {
     router.push("/login");
   };
 
-  const navLinks = [
-    { href: "/buy", label: "Archive" },
-    { href: "/sell", label: "Submit" },
-    { href: "/messages", label: "Messages" },
-    { href: "/wishlist", label: "Reserved" },
-    ...(user ? [{ href: `/account/${user.id}`, label: "Account" }] : []),
-    ...(!user ? [{ href: "/login", label: "Login" }] : []),
-  ];
-
   const noResults = query.trim() && !loading && results.pieces.length === 0 && results.sellers.length === 0;
 
   return (
@@ -325,7 +310,7 @@ export default function Navbar() {
             THRIFT GENNIE
           </Link>
 
-          {/* SEARCH PILL */}
+          {/* SEARCH PILL (desktop) */}
           <button
             onClick={() => setSearchOpen(true)}
             className="hidden md:flex items-center gap-2.5 pl-3.5 pr-3 py-[7px] rounded-full
@@ -350,11 +335,10 @@ export default function Navbar() {
 
           {/* DESKTOP NAV LINKS */}
           <nav className="hidden md:flex items-center gap-8 text-xs uppercase tracking-[0.25em]">
-
             {[
               { href: "/buy", label: "Archive" },
               { href: "/sell", label: "Submit" },
-              { href: "/messages", label: "Messages" },
+              { href: "/rack", label: "Rack" },   // ← NEW desktop link
             ].map(({ href, label }) => (
               <Link
                 key={href}
@@ -406,7 +390,25 @@ export default function Navbar() {
                   {userName ?? user.email}
                 </span>
 
-                {/* ── BELL BUTTON ── */}
+                {/* ── MESSAGES ICON (desktop, moved from bottom nav) ── */}
+                <Link
+                  href="/messages"
+                  className="relative text-white/60 hover:text-[#B48A5A] transition-colors duration-200"
+                  aria-label="Messages"
+                >
+                  <MessageIcon />
+                  {unreadMessages > 0 && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-[#A1123F] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 shadow-md shadow-[#A1123F]/40"
+                    >
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </motion.span>
+                  )}
+                </Link>
+
+                {/* ── BELL ── */}
                 <div className="relative" ref={notifPanelRef}>
                   <button
                     onClick={handleBellClick}
@@ -414,7 +416,6 @@ export default function Navbar() {
                     aria-label="Notifications"
                   >
                     <BellIcon />
-                    {/* Unread badge */}
                     {unreadCount > 0 && (
                       <motion.span
                         initial={{ scale: 0 }}
@@ -426,7 +427,6 @@ export default function Navbar() {
                     )}
                   </button>
 
-                  {/* ── NOTIFICATION DROPDOWN PANEL ── */}
                   <AnimatePresence>
                     {notifOpen && (
                       <motion.div
@@ -435,10 +435,8 @@ export default function Navbar() {
                         exit={{ opacity: 0, y: 8, scale: 0.97 }}
                         transition={{ duration: 0.18 }}
                         className="absolute right-0 top-8 w-[420px] max-h-[560px] overflow-y-auto bg-[#FAF7F4] border border-[#EEE5DC] rounded-2xl shadow-2xl shadow-black/20 z-50"
-                        // Stop clicks inside from closing
                         onClick={e => e.stopPropagation()}
                       >
-                        {/* Panel header */}
                         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4] z-10">
                           <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
                           <button
@@ -448,8 +446,6 @@ export default function Navbar() {
                             ✕
                           </button>
                         </div>
-
-                        {/* ActivityFeed rendered inside the panel */}
                         <div className="px-4 pt-2">
                           <ActivityFeed />
                         </div>
@@ -468,13 +464,29 @@ export default function Navbar() {
             )}
           </nav>
 
-          {/* MOBILE RIGHT — search + bell + hamburger */}
+          {/* MOBILE RIGHT — search + messages + bell */}
           <div className="flex md:hidden items-center gap-4 ml-auto">
             {wishlist.length > 0 && (
               <Link href="/wishlist">
                 <span className="text-[10px] bg-[#B48A5A] text-black px-2 py-0.5 rounded-full font-bold">
                   {wishlist.length}
                 </span>
+              </Link>
+            )}
+
+            {/* ── MOBILE MESSAGES ICON (moved here from bottom nav) ── */}
+            {user && (
+              <Link
+                href="/messages"
+                className="relative text-white/60 hover:text-[#B48A5A] transition"
+                aria-label="Messages"
+              >
+                <MessageIcon size={19} />
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] bg-[#A1123F] text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                )}
               </Link>
             )}
 
@@ -504,52 +516,44 @@ export default function Navbar() {
                 <line x1="16.5" y1="16.5" x2="22" y2="22" />
               </svg>
             </button>
-            
           </div>
 
         </div>
       </motion.header>
 
-      {/* MOBILE ACTIVITY PANEL — full screen sheet */}
-        <AnimatePresence>
-  {notifOpen && (
-    <motion.div
-      initial={{ opacity: 0, y: "100%" }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: "100%" }}
-      transition={{ type: "spring", damping: 28, stiffness: 300 }}
-      className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
-      onClickCapture={(e) => e.stopPropagation()}  // ← capture phase, not bubble
-    >
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]">
-        <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
-        <button
-          onClick={() => setNotifOpen(false)}
-          className="text-[#B0A090] text-lg leading-none"
-        >
-          ✕
-        </button>
-      </div>
-      <div className="px-4 pt-2 pb-8">
-        <ActivityFeed />
-      </div>
-    </motion.div>
-  )}
-</AnimatePresence>
-      {/* Mobile activity backdrop */}
-<AnimatePresence>
-  {notifOpen && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[54] bg-black/40 md:hidden"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) setNotifOpen(false)
-      }}
-    />
-  )}
-</AnimatePresence>
+      {/* MOBILE ACTIVITY PANEL */}
+      <AnimatePresence>
+        {notifOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: "100%" }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            className="fixed inset-x-0 bottom-0 z-[55] md:hidden bg-[#FAF7F4] rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto"
+            onClickCapture={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-[#EEE5DC] sticky top-0 bg-[#FAF7F4]">
+              <h3 className="font-serif text-base font-bold text-[#1A0A0A]">Activity</h3>
+              <button onClick={() => setNotifOpen(false)} className="text-[#B0A090] text-lg leading-none">✕</button>
+            </div>
+            <div className="px-4 pt-2 pb-8">
+              <ActivityFeed />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {notifOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[54] bg-black/40 md:hidden"
+            onClick={(e) => { if (e.target === e.currentTarget) setNotifOpen(false); }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── SEARCH OVERLAY ── */}
       <AnimatePresence>
@@ -662,7 +666,7 @@ export default function Navbar() {
                             <div className="text-center py-10 text-[#9a8a7a] text-sm"><div className="text-3xl mb-2">🧺</div>nothing in the archive matches that vibe yet</div>
                           )}
                           {results.pieces.map((p) => (
-                            <Link key={p.id}  href={`/product/${p.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition group">
+                            <Link key={p.id} href={`/product/${p.id}`} onClick={() => setSearchOpen(false)} className="flex items-center gap-3 py-3 border-b border-[#e0d8c8] hover:opacity-70 transition group">
                               <div className="w-11 h-11 rounded-md bg-[#f0e8d8] flex-shrink-0 overflow-hidden">
                                 {p.image_url ? <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-lg">🛍️</span>}
                               </div>
