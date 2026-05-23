@@ -29,7 +29,7 @@ const getAvatarColor = (id: string) => AVATAR_COLORS[id.charCodeAt(0) % AVATAR_C
 const getInitials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-// ── Heart burst animation ──────────────────────────────────────
+// ── Heart burst ────────────────────────────────────────────────
 function HeartBurst({ x, y }: { x: number; y: number }) {
   return (
     <motion.div
@@ -44,11 +44,11 @@ function HeartBurst({ x, y }: { x: number; y: number }) {
   );
 }
 
-// ── Right action button ────────────────────────────────────────
+// ── Action button — accepts MouseEvent so TS is happy ──────────
 function ActionBtn({
   onClick, active, activeStyle, children, label,
 }: {
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   active?: boolean;
   activeStyle?: string;
   children: React.ReactNode;
@@ -80,17 +80,10 @@ function ActionBtn({
   );
 }
 
-// ── Single Rack slide ──────────────────────────────────────────
+// ── Single slide ───────────────────────────────────────────────
 function RackSlide({
-  product,
-  isActive,
-  liked,
-  saved,
-  inBag,
-  onLike,
-  onSave,
-  onBag,
-  onSellerTap,
+  product, isActive, liked, saved, inBag,
+  onLike, onSave, onBag, onSellerTap,
 }: {
   product: Product;
   isActive: boolean;
@@ -98,8 +91,8 @@ function RackSlide({
   saved: boolean;
   inBag: boolean;
   onLike: (e: React.MouseEvent) => void;
-  onSave: () => void;
-  onBag: () => void;
+  onSave: (e: React.MouseEvent) => void;
+  onBag: (e: React.MouseEvent) => void;
   onSellerTap: () => void;
 }) {
   const seller = product.profiles;
@@ -108,7 +101,6 @@ function RackSlide({
   return (
     <div className="relative w-full h-full flex-shrink-0 overflow-hidden bg-[#0e0c0b]">
 
-      {/* full-bleed image */}
       {product.image_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -119,17 +111,16 @@ function RackSlide({
         />
       )}
 
-      {/* gradient overlays */}
+      {/* gradients */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/30" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
 
-      {/* ── SELLER BAR (top left) ── */}
+      {/* ── SELLER BAR top left ── */}
       <button
         onClick={onSellerTap}
         className="absolute top-14 left-4 flex items-center gap-2.5 z-10"
         aria-label={`View ${sellerName}'s profile`}
       >
-        {/* avatar */}
         <div
           className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden border-2 border-white/60 flex items-center justify-center"
           style={{ background: getAvatarColor(product.seller_id) }}
@@ -138,92 +129,48 @@ function RackSlide({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={seller.avatar_url} alt={sellerName} className="w-full h-full object-cover" />
           ) : (
-            <span
-              className="text-[12px] font-medium text-white"
-              style={{ fontFamily: "var(--font-dm)" }}
-            >
+            <span className="text-[12px] font-medium text-white" style={{ fontFamily: "var(--font-dm)" }}>
               {getInitials(sellerName)}
             </span>
           )}
         </div>
         <div className="text-left">
-          <p
-            className="text-white text-[13px] font-medium leading-tight drop-shadow"
-            style={{ fontFamily: "var(--font-dm)" }}
-          >
+          <p className="text-white text-[13px] font-medium leading-tight drop-shadow" style={{ fontFamily: "var(--font-dm)" }}>
             {sellerName}
           </p>
           {seller?.username && (
-            <p
-              className="text-white/50 text-[11px] leading-tight"
-              style={{ fontFamily: "var(--font-dm)" }}
-            >
+            <p className="text-white/50 text-[11px] leading-tight" style={{ fontFamily: "var(--font-dm)" }}>
               @{seller.username}
             </p>
           )}
         </div>
       </button>
 
-      {/* ── RIGHT SIDE ACTIONS ── */}
+      {/* ── RIGHT ACTIONS ── */}
       <div className="absolute right-4 bottom-36 flex flex-col items-center gap-5 z-10">
-
-        {/* Like */}
-        <ActionBtn
-          onClick={onLike}
-          active={liked}
-          activeStyle="bg-[#A1123F]/40 border-[#A1123F]/60"
-          label="Like"
-        >
-          <svg
-            width="22" height="22" viewBox="0 0 24 24"
-            fill={liked ? "#ff6b8a" : "none"}
-            stroke={liked ? "#ff6b8a" : "white"}
-            strokeWidth="1.8"
-          >
+        <ActionBtn onClick={onLike} active={liked} activeStyle="bg-[#A1123F]/40 border-[#A1123F]/60" label="Like">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill={liked ? "#ff6b8a" : "none"} stroke={liked ? "#ff6b8a" : "white"} strokeWidth="1.8">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
         </ActionBtn>
 
-        {/* Save */}
-        <ActionBtn
-          onClick={onSave}
-          active={saved}
-          activeStyle="bg-[#B48A5A]/30 border-[#B48A5A]/50"
-          label="Save"
-        >
-          <svg
-            width="20" height="20" viewBox="0 0 24 24"
-            fill={saved ? "#B48A5A" : "none"}
-            stroke={saved ? "#B48A5A" : "white"}
-            strokeWidth="1.8"
-          >
+        <ActionBtn onClick={onSave} active={saved} activeStyle="bg-[#B48A5A]/30 border-[#B48A5A]/50" label="Save">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill={saved ? "#B48A5A" : "none"} stroke={saved ? "#B48A5A" : "white"} strokeWidth="1.8">
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
           </svg>
         </ActionBtn>
 
-        {/* Bag */}
-        <ActionBtn
-          onClick={onBag}
-          active={inBag}
-          activeStyle="bg-[#2a4a34]/60 border-[#4a9a6a]/50"
-          label={inBag ? "Added" : "Bag"}
-        >
-          <svg
-            width="20" height="20" viewBox="0 0 24 24"
-            fill="none"
-            stroke={inBag ? "#6fd09a" : "white"}
-            strokeWidth="1.8"
-          >
+        <ActionBtn onClick={onBag} active={inBag} activeStyle="bg-[#2a4a34]/60 border-[#4a9a6a]/50" label={inBag ? "Added" : "Bag"}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={inBag ? "#6fd09a" : "white"} strokeWidth="1.8">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
             <line x1="3" y1="6" x2="21" y2="6"/>
             <path d="M16 10a4 4 0 0 1-8 0"/>
           </svg>
         </ActionBtn>
 
-        {/* Share */}
         <ActionBtn
           onClick={() => {
-            if (navigator.share) {
+            if (typeof navigator !== "undefined" && navigator.share) {
               navigator.share({
                 title: product.title,
                 text: `Check out ${product.title} on Thrift Gennie — ₹${product.price}`,
@@ -239,13 +186,10 @@ function RackSlide({
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
           </svg>
         </ActionBtn>
-
       </div>
 
       {/* ── BOTTOM INFO ── */}
       <div className="absolute bottom-0 left-0 right-16 px-4 pb-6 z-10">
-
-        {/* mood tag */}
         {product.mood && (
           <span
             className="inline-block mb-2 text-[9px] uppercase tracking-[0.2em] px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white/70"
@@ -254,20 +198,10 @@ function RackSlide({
             {product.mood}
           </span>
         )}
-
-        {/* title */}
-        <h2
-          className="text-white text-xl leading-tight mb-1"
-          style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}
-        >
+        <h2 className="text-white text-xl leading-tight mb-1" style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}>
           {product.title}
         </h2>
-
-        {/* meta row */}
-        <div
-          className="flex items-center gap-2 text-white/50 text-[11px] mb-3"
-          style={{ fontFamily: "var(--font-dm)" }}
-        >
+        <div className="flex items-center gap-2 text-white/50 text-[11px] mb-3" style={{ fontFamily: "var(--font-dm)" }}>
           {product.size && <span>Size {product.size}</span>}
           {product.size && product.condition && <span className="w-1 h-1 rounded-full bg-white/25 inline-block" />}
           {product.condition && <span>{product.condition}</span>}
@@ -278,13 +212,8 @@ function RackSlide({
             </>
           )}
         </div>
-
-        {/* price + CTA */}
         <div className="flex items-center gap-3">
-          <span
-            className="text-[#B48A5A] text-2xl"
-            style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}
-          >
+          <span className="text-[#B48A5A] text-2xl" style={{ fontFamily: "var(--font-cormorant)", fontWeight: 500 }}>
             ₹{product.price}
           </span>
           <Link href={`/product/${product.id}`}>
@@ -297,42 +226,33 @@ function RackSlide({
             </motion.button>
           </Link>
         </div>
-
       </div>
 
-      {/* scroll hint on last loaded — subtle chevron */}
+      {/* scroll hint */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-25 pointer-events-none">
-        <motion.div
-          animate={{ y: [0, 5, 0] }}
-          transition={{ repeat: Infinity, duration: 1.6 }}
-        >
+        <motion.div animate={{ y: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.6 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
             <polyline points="18 15 12 9 6 15"/>
           </svg>
         </motion.div>
       </div>
-
     </div>
   );
 }
 
-// ── MAIN COMPONENT ─────────────────────────────────────────────
+// ── MAIN FEED ──────────────────────────────────────────────────
 export default function RackFeed() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [activeSellerId, setActiveSellerId] = useState<string | null>(null);
 
-  // per-product interaction state
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [inBag, setInBag] = useState<Record<string, boolean>>({});
-
-  // heart burst animation
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
   const heartIdRef = useRef(0);
 
-  // touch scroll
   const trackRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef(0);
   const touchDeltaY = useRef(0);
@@ -358,7 +278,7 @@ export default function RackFeed() {
       });
   }, []);
 
-  // fetch current user's wishlist to pre-populate saved state
+  // pre-populate saved state from wishlist
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) return;
@@ -376,7 +296,6 @@ export default function RackFeed() {
     });
   }, []);
 
-  // scroll to index
   const scrollTo = useCallback((idx: number) => {
     const clamped = Math.max(0, Math.min(idx, products.length - 1));
     setCurrentIdx(clamped);
@@ -385,7 +304,6 @@ export default function RackFeed() {
     }
   }, [products.length]);
 
-  // touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
     isTouching.current = true;
@@ -403,7 +321,6 @@ export default function RackFeed() {
     touchDeltaY.current = 0;
   };
 
-  // wheel handler
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     if (wheelLock.current) return;
@@ -419,19 +336,14 @@ export default function RackFeed() {
     return () => el.removeEventListener("wheel", handleWheel);
   }, [handleWheel]);
 
-  // like handler — double-tap area or button
   const handleLike = async (productId: string, e: React.MouseEvent) => {
     const newVal = !liked[productId];
     setLiked((prev) => ({ ...prev, [productId]: newVal }));
-
-    // heart burst at tap position
     if (newVal) {
       const id = ++heartIdRef.current;
       setHearts((prev) => [...prev, { id, x: e.clientX - 20, y: e.clientY - 20 }]);
       setTimeout(() => setHearts((prev) => prev.filter((h) => h.id !== id)), 700);
     }
-
-    // persist to rack_likes table if it exists, gracefully ignore if not
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     if (newVal) {
@@ -441,14 +353,11 @@ export default function RackFeed() {
     }
   };
 
-  // save = wishlist toggle
   const handleSave = async (productId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
     const newVal = !saved[productId];
     setSaved((prev) => ({ ...prev, [productId]: newVal }));
-
     if (newVal) {
       await supabase.from("wishlist").upsert({ user_id: user.id, product_id: productId });
     } else {
@@ -456,24 +365,17 @@ export default function RackFeed() {
     }
   };
 
-  // bag toggle (uses your existing cart/checkout flow)
-  const handleBag = async (productId: string) => {
-    const newVal = !inBag[productId];
-    setInBag((prev) => ({ ...prev, [productId]: newVal }));
-    // wire to your cart context/table if you have one
+  const handleBag = (productId: string) => {
+    setInBag((prev) => ({ ...prev, [productId]: !prev[productId] }));
+    // wire to your cart context here if needed
   };
 
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#0e0c0b]">
-        <div className="flex flex-col items-center gap-3">
-          <div
-            className="text-[#B48A5A] text-xs uppercase tracking-[0.35em] animate-pulse"
-            style={{ fontFamily: "var(--font-dm)" }}
-          >
-            Loading the rack...
-          </div>
-        </div>
+        <p className="text-[#B48A5A] text-xs uppercase tracking-[0.35em] animate-pulse" style={{ fontFamily: "var(--font-dm)" }}>
+          Loading the rack...
+        </p>
       </div>
     );
   }
@@ -482,16 +384,10 @@ export default function RackFeed() {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#0e0c0b]">
         <div className="text-center">
-          <p
-            className="text-[#F6F3EF]/40 text-2xl mb-2"
-            style={{ fontFamily: "var(--font-cormorant)" }}
-          >
+          <p className="text-[#F6F3EF]/40 text-2xl mb-2" style={{ fontFamily: "var(--font-cormorant)" }}>
             The rack is empty.
           </p>
-          <p
-            className="text-[10px] uppercase tracking-[0.3em] text-white/20"
-            style={{ fontFamily: "var(--font-dm)" }}
-          >
+          <p className="text-[10px] uppercase tracking-[0.3em] text-white/20" style={{ fontFamily: "var(--font-dm)" }}>
             Check back soon
           </p>
         </div>
@@ -509,7 +405,7 @@ export default function RackFeed() {
       {/* slide track */}
       <div
         ref={trackRef}
-        className="flex flex-col h-full"
+        className="flex flex-col"
         style={{
           height: `${products.length * 100}%`,
           transform: `translateY(-${currentIdx * (100 / products.length)}%)`,
@@ -518,11 +414,7 @@ export default function RackFeed() {
         }}
       >
         {products.map((product, i) => (
-          <div
-            key={product.id}
-            style={{ height: `${100 / products.length}%` }}
-            className="w-full flex-shrink-0"
-          >
+          <div key={product.id} style={{ height: `${100 / products.length}%` }} className="w-full flex-shrink-0">
             <RackSlide
               product={product}
               isActive={i === currentIdx}
@@ -538,7 +430,7 @@ export default function RackFeed() {
         ))}
       </div>
 
-      {/* progress dots — right edge */}
+      {/* progress dots */}
       <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-20 pointer-events-none">
         {products.map((_, i) => (
           <div
@@ -553,24 +445,16 @@ export default function RackFeed() {
         ))}
       </div>
 
-      {/* counter top right */}
-      <div
-        className="absolute top-4 right-4 text-[10px] text-white/30 z-20 pointer-events-none"
-        style={{ fontFamily: "var(--font-dm)" }}
-      >
+      {/* counter */}
+      <div className="absolute top-4 right-4 text-[10px] text-white/30 z-20 pointer-events-none" style={{ fontFamily: "var(--font-dm)" }}>
         {currentIdx + 1} / {products.length}
       </div>
 
-      {/* heart burst layer */}
-      {hearts.map((h) => (
-        <HeartBurst key={h.id} x={h.x} y={h.y} />
-      ))}
+      {/* hearts */}
+      {hearts.map((h) => <HeartBurst key={h.id} x={h.x} y={h.y} />)}
 
       {/* seller sheet */}
-      <SellerSheet
-        sellerId={activeSellerId}
-        onClose={() => setActiveSellerId(null)}
-      />
+      <SellerSheet sellerId={activeSellerId} onClose={() => setActiveSellerId(null)} />
     </div>
   );
 }
