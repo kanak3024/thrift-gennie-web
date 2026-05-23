@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useActivity } from '@/context/ActivityContext'
 
 // ─── Types ────────────────────────────────────────────────────
 type ActivityType = 'like' | 'save' | 'follow' | 'offer' | 'sale'
-type SubscriptionStatus = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR'
 
 interface Actor {
   username: string
@@ -178,9 +178,9 @@ function ActivityRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="text-[13.5px] leading-snug">
-             {activity.actor && activity.type !== 'save' && (
-  <span className="font-semibold text-[#1A0A0A]">@{activity.actor.username} </span>
-)}
+            {activity.actor && activity.type !== 'save' && (
+              <span className="font-semibold text-[#1A0A0A]">@{activity.actor.username} </span>
+            )}
             <span className="text-[#6B5A52]">{cfg.verb}</span>
             {!isFollow && activity.product && (
               <span className="font-semibold text-[#1A0A0A]"> {activity.product.title}</span>
@@ -229,9 +229,9 @@ function ActivityRow({
               </div>
             )}
 
-             {isSave && (
-  <span className="text-[11px] text-[#B0A090] flex-shrink-0">wishlisted</span>
-)}
+            {isSave && (
+              <span className="text-[11px] text-[#B0A090] flex-shrink-0">wishlisted</span>
+            )}
           </div>
         )}
       </div>
@@ -241,118 +241,15 @@ function ActivityRow({
 
 // ─── Main Component ───────────────────────────────────────────
 export default function ActivityFeed() {
-  const [activities, setActivities]             = useState<Activity[]>([])
+  // ── Pull everything from shared context instead of local state ──
+  const { activities, realtimeStatus, loading, setActivities } = useActivity()
+
   const [filter, setFilter]                     = useState<string>('all')
   const [warmLeadActivity, setWarmLeadActivity] = useState<Activity | null>(null)
   const [toast, setToast]                       = useState<string | null>(null)
-  const [loading, setLoading]                   = useState(true)
-  const [realtimeStatus, setRealtimeStatus]     = useState<SubscriptionStatus | null>(null)
 
-  const fetchActivity = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select(`
-        *,
-        actor:profiles!actor_id(username, avatar_url),
-        product:products(title, image_url, price)
-      `)
-      .eq('user_id', userId)
-      .not('type', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    if (error) {
-      console.error('[ActivityFeed] fetchActivity error:', error.message)
-      return
-    }
-    if (data) setActivities(data as Activity[])
-  }, [])
-
-  const markAllRead = useCallback(async (userId: string) => {
-    const { error } = await supabase.rpc('mark_notifications_read', {
-      p_user_id: userId,
-    })
-    if (error) console.error('[ActivityFeed] markAllRead error:', error.message)
-  }, [])
-
-  const fetchSingleActivity = useCallback(async (id: string): Promise<Activity | null> => {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select(`
-        *,
-        actor:profiles!actor_id(username, avatar_url),
-        product:products(title, image_url, price)
-      `)
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      console.error('[ActivityFeed] fetchSingleActivity error:', error.message)
-      return null
-    }
-    return data as Activity
-  }, [])
-
-  // ── Core effect ───────────────────────────────────────────────
-  useEffect(() => {
-    let isMounted = true
-    let channel: ReturnType<typeof supabase.channel> | null = null
-    let feedStarted = false
-
-    const startFeed = async (userId: string) => {
-      if (feedStarted || !isMounted) return
-      feedStarted = true
-
-      await fetchActivity(userId)
-      if (!isMounted) return
-      setLoading(false)
-      await markAllRead(userId)
-
-      channel = supabase
-        .channel(`notifications_feed:${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${userId}`,
-          },
-          async (payload) => {
-            if (!isMounted) return
-            const a = await fetchSingleActivity(payload.new.id)
-            if (!isMounted || !a) return
-            setActivities(prev =>
-              prev.some(x => x.id === a.id) ? prev : [a, ...prev]
-            )
-          }
-        )
-        .subscribe((status: SubscriptionStatus) => {
-          if (isMounted) setRealtimeStatus(status)
-        })
-    }
-
-    // Try immediately
-    supabase.auth.getUser().then(({ data: { user } }) => {
-  if (user) startFeed(user.id)
-  else if (isMounted) setLoading(false)
-})
-
-    // Fallback for late session
-    const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) startFeed(session.user.id)
-      })
-
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-      if (channel) {
-        supabase.removeChannel(channel).catch(console.error)
-        channel = null
-      }
-    }
-  }, [fetchActivity, markAllRead, fetchSingleActivity])
+  // ── No more useEffect / fetchActivity / markAllRead / channel setup here ──
+  // ── All of that now lives in ActivityContext ──────────────────────────────
 
   const filtered = useMemo(
     () => (filter === 'all' ? activities : activities.filter((a) => a.type === filter)),
@@ -388,14 +285,14 @@ export default function ActivityFeed() {
         return
       }
 
-      setActivities(prev => prev.filter(a => a.id !== activityId))
+      setActivities((prev: Activity[]) => prev.filter((a: Activity) => a.id !== activityId))
       showToast(
         action === 'accept'
           ? "Offer accepted! We'll notify the buyer."
           : 'Offer declined.'
       )
     },
-    [showToast]
+    [showToast, setActivities]
   )
 
   const handleSendOffer = useCallback(
@@ -486,7 +383,7 @@ export default function ActivityFeed() {
           filtered.map((activity) => (
             <ActivityRow
               key={activity.id}
-              activity={activity}
+              activity={activity as Activity}
               onOfferAction={handleOfferAction}
               onWarmLead={setWarmLeadActivity}
             />

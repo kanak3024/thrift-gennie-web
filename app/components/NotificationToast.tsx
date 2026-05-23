@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
+import { useActivity } from "@/context/ActivityContext";
 import Link from "next/link";
 
 interface Toast {
@@ -12,55 +12,38 @@ interface Toast {
 }
 
 export default function NotificationToast() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const { activities } = useActivity();
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const seenIds = useRef<Set<string>>(new Set());
 
-  /* ── Get current user + listen for auth changes ── */
+  /* ── Watch for new activities pushed in from shared context ── */
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
-    });
+    if (!activities.length) return;
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
+    // The newest activity is always first (sorted descending in context)
+    const latest = activities[0];
 
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    // Only show a toast if we haven't seen this id before
+    if (seenIds.current.has(latest.id)) return;
+    seenIds.current.add(latest.id);
 
-  /* ── Real-time listener for new notifications ── */
-  useEffect(() => {
-    if (!userId) return;
+    // Don't toast on initial load — only on new inserts after mount
+    // We track this by checking if the activity is less than 10 seconds old
+    const ageMs = Date.now() - new Date(latest.created_at).getTime();
+    if (ageMs > 10_000) return;
 
-    const channel = supabase
-      .channel(`notifications-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const newToast: Toast = {
-            id: payload.new.id,
-            text: payload.new.text,
-            link: payload.new.link ?? null,
-          };
+    const newToast: Toast = {
+      id: latest.id,
+      text: latest.text,
+      link: (latest as any).link ?? null,
+    };
 
-          setToasts((prev) => [...prev, newToast]);
+    setToasts((prev) => [...prev, newToast]);
 
-          // Auto-dismiss after 5 seconds
-          setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
-          }, 5000);
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
+    }, 5000);
+  }, [activities]);
 
   const dismiss = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
