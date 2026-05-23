@@ -11,13 +11,92 @@ import Image from "next/image";
    MOOD ROTATOR — left panel
 ───────────────────────────── */
 const ARCHIVE_LINES = [
-  { line1: "Thrift it.",   line2: "Love it.",    line3: "Gennie it.",  tag: "Y2K It Girl",      color: "#C77DFF" },
-  { line1: "Pre-loved.",   line2: "Re-worn.",    line3: "Archived.",   tag: "Old Money",         color: "#B48A5A" },
-  { line1: "Her story.",   line2: "Your style.", line3: "New chapter.", tag: "Indie Archive",    color: "#6B7E60" },
-  { line1: "Vintage.",     line2: "Verified.",   line3: "Yours.",       tag: "Bollywood Glam",   color: "#C41E3A" },
+  { line1: "Thrift it.",   line2: "Love it.",    line3: "Gennie it.",   tag: "Y2K It Girl",   color: "#C77DFF" },
+  { line1: "Pre-loved.",   line2: "Re-worn.",    line3: "Archived.",    tag: "Old Money",      color: "#B48A5A" },
+  { line1: "Her story.",   line2: "Your style.", line3: "New chapter.", tag: "Indie Archive",  color: "#6B7E60" },
+  { line1: "Vintage.",     line2: "Verified.",   line3: "Yours.",       tag: "Bollywood Glam", color: "#C41E3A" },
 ];
 
 const GENNIES = ["/y2k.png", "/oldmoney.png", "/streetstyle.png", "/night.png"];
+
+/* ─────────────────────────────
+   VIBE TAGS per slide
+───────────────────────────── */
+const VIBE_TAGS_BY_SLIDE = [
+  // Y2K
+  ["y2k", "rhinestone", "baby tee", "micro skirt", "velour", "bedazzled", "low rise", "butterfly clips", "platform boots"],
+  // Old Money
+  ["quiet luxury", "old money", "cashmere", "equestrian", "linen", "heritage", "navy & cream", "loafers", "trench coat"],
+  // Indie Archive
+  ["cottagecore", "indie sleaze", "dark academia", "thrifted", "vintage levi's", "corduroy", "oversized blazer", "doc martens", "crochet"],
+  // Bollywood Glam
+  ["bollywood glam", "mirror work", "sequin sari", "golden hour", "festive edit", "handloom", "ethnic fusion", "statement blouse", "zardozi"],
+];
+
+/* ─────────────────────────────
+   MOOD BOARD — floating vibe tags
+───────────────────────────── */
+function MoodBoard({ activeColor, slideIdx }: { activeColor: string; slideIdx: number }) {
+  const tags = VIBE_TAGS_BY_SLIDE[slideIdx];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p
+        className="text-[8px] uppercase tracking-[0.35em] mb-1"
+        style={{ color: `${activeColor}70` }}
+      >
+        Trending vibes
+      </p>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={slideIdx}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex flex-col gap-2"
+        >
+          {tags.map((label, i) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{
+                opacity: [0, 0.6, 0.35],
+                x: 0,
+              }}
+              transition={{
+                opacity: {
+                  duration: 3.5,
+                  repeat: Infinity,
+                  repeatType: "mirror",
+                  delay: i * 0.18,
+                  ease: "easeInOut",
+                },
+                x: { duration: 0.5, delay: i * 0.06 },
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full w-fit"
+              style={{
+                border: `1px solid ${activeColor}28`,
+                background: `${activeColor}0A`,
+              }}
+            >
+              <span
+                className="w-1 h-1 rounded-full flex-shrink-0"
+                style={{ background: activeColor, opacity: 0.5 }}
+              />
+              <span
+                className="text-[9px] uppercase tracking-[0.16em]"
+                style={{ color: `${activeColor}85` }}
+              >
+                {label}
+              </span>
+            </motion.div>
+          ))}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
 
 /* ─────────────────────────────
    LOGIN FORM
@@ -197,21 +276,11 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Stats strip */}
-        <div className="absolute top-1/2 -translate-y-1/2 left-10 z-20 flex flex-col gap-6">
-          {[
-            { num: "2.4k+", label: "Pieces archived" },
-            { num: "₹340",  label: "Avg listing price" },
-            { num: "5",     label: "Cities active" },
-          ].map((s) => (
-            <div key={s.label}>
-              <p className="text-[#F6F3EF] text-xl font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
-                {s.num}
-              </p>
-              <p className="text-[#F6F3EF]/30 text-[9px] uppercase tracking-[0.2em] mt-0.5">{s.label}</p>
-            </div>
-          ))}
+        {/* ── Mood Board — replaces static stats ── */}
+        <div className="absolute top-1/2 -translate-y-1/2 left-10 z-20">
+          <MoodBoard activeColor={slide.color} slideIdx={slideIdx} />
         </div>
+
       </div>
 
       {/* ══════════════════════════
