@@ -1,9 +1,9 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
-interface Activity {
+export interface Activity {
   id: string
   type: string
   created_at: string
@@ -38,7 +38,6 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
       if (started.current || !isMounted) return
       started.current = true
 
-      // Fetch initial data
       const { data } = await supabase
         .from('notifications')
         .select(`*, actor:profiles!actor_id(username, avatar_url), product:products(title, image_url, price)`)
@@ -51,7 +50,6 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
       if (data) setActivities(data as Activity[])
       setLoading(false)
 
-      // ONE shared channel for both toast + feed
       channel = supabase
         .channel(`notifications:${userId}`)
         .on(
@@ -72,7 +70,6 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
           if (isMounted) setRealtimeStatus(status)
         })
 
-      // Fire and forget
       supabase.rpc('mark_notifications_read', { p_user_id: userId }).catch(console.error)
     }
 
