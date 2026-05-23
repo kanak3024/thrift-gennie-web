@@ -10,7 +10,6 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { WishlistProvider } from "./context/WishlistContext";
 
-
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
@@ -23,7 +22,6 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   other: {
-    // tells browser to fetch this before anything else
     "link:preload:y2k": "</y2k.png>; rel=preload; as=image",
   },
 };
@@ -32,7 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* Preload the first carousel image so LCP renders immediately */}
         <link rel="preload" as="image" href="/y2k.png" />
       </head>
       <body
@@ -46,13 +43,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         `}
       >
         <ClientLayout>
-          {children}
+          <WishlistProvider>
+            {children}
+          </WishlistProvider>
         </ClientLayout>
         <Analytics />
         <SpeedInsights />
-        <WishlistProvider>
-  {children}
-</WishlistProvider>
       </body>
     </html>
   );
