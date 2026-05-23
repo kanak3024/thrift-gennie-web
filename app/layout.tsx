@@ -9,7 +9,7 @@ import ClientLayout from "./components/ClientLayout";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { WishlistProvider } from "./context/WishlistContext";
-import { ActivityProvider } from './context/ActivityContext'
+import { ActivityProvider } from '@/context/ActivityContext'
 
  
 
