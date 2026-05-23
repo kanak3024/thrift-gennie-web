@@ -45,13 +45,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           text-[#2B0A0F]
         `}
       >
-        <ClientLayout>
+        <ActivityProvider>
           <WishlistProvider>
-            <ActivityProvider>
-            {children}
-            </ActivityProvider>
+            <ClientLayout>
+              {children}
+            </ClientLayout>
           </WishlistProvider>
-        </ClientLayout>
+        </ActivityProvider>
         <Analytics />
         <SpeedInsights />
       </body>
