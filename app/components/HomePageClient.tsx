@@ -7,39 +7,6 @@ import Link from "next/link";
 import Navbar from "./Navbar";
 import { supabase } from "../../lib/supabase";
 
-/* =========================
-   FONT SETUP — add to layout.tsx
-   ─────────────────────────────
-   import { Cormorant_Garamond, DM_Sans } from "next/font/google";
-
-   const cormorant = Cormorant_Garamond({
-     subsets: ["latin"],
-     weight: ["300", "400", "500", "600", "700"],
-     style: ["normal", "italic"],
-     variable: "--font-cormorant",
-   });
-   const dmSans = DM_Sans({
-     subsets: ["latin"],
-     variable: "--font-dm",
-   });
-
-   Add to <html>: className={`${cormorant.variable} ${dmSans.variable}`}
-   ─────────────────────────────
-   Also run this once in your Supabase SQL editor:
-
-   create or replace function get_mood_counts()
-   returns table(mood text, count bigint)
-   language sql stable as $$
-     select mood, count(*)
-     from products
-     where status = 'available' and mood is not null
-     group by mood;
-   $$;
-========================= */
-
-/* =========================
-   WEEK CALCULATION
-========================= */
 function getWeekNumber() {
   const start = new Date("2025-01-01");
   const now = new Date();
@@ -47,9 +14,6 @@ function getWeekNumber() {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 7)) + 1;
 }
 
-/* =========================
-   COUNTDOWN
-========================= */
 function useCountdown(targetDate: Date) {
   const [timeLeft, setTimeLeft] = useState("");
   useEffect(() => {
@@ -66,9 +30,6 @@ function useCountdown(targetDate: Date) {
   return timeLeft;
 }
 
-/* =========================
-   ANIMATED COUNTER
-========================= */
 function useCountUp(target: number, duration = 1400) {
   const [val, setVal] = useState(0);
   const startedRef = useRef(false);
@@ -102,9 +63,6 @@ function useCountUp(target: number, duration = 1400) {
   return { val, ref };
 }
 
-/* =========================
-   MOOD CONFIG
-========================= */
 const MOODS = [
   {
     label: "Y2K",
@@ -134,21 +92,42 @@ const MOODS = [
     gennie: "/night.png",
     bg: "linear-gradient(160deg,#E8A08A 0%,#B84028 100%)",
   },
-  {
-    label: "90s",
-    title: "90s Minimal",
-    tag: "90s",
-    gennie: "/y2k.png",
-    bg: "linear-gradient(160deg,#AECDCE 0%,#5A8D90 100%)",
-  },
 ];
 
+// ── MOOD GRID — static images, no Supabase fetch ──
 const MOOD_GRID = [
-  { title: "Y2K It Girl",    tag: "y2k",       sub: "Trend",     cls: "from-[#F7C5D5] via-[#DBA8E8] to-[#B48AE0]", mascot: "/y2k.png" },
-  { title: "Old Money",      tag: "oldmoney",  sub: "Aesthetic", cls: "from-[#E8D5B0] via-[#C9A96E] to-[#8B6914]", mascot: "/oldmoney.png" },
-  { title: "Indie Archive",  tag: "indie",     sub: "Vibe",      cls: "from-[#C8D5B8] via-[#8FA87A] to-[#4A6240]", mascot: "/streetstyle.png" },
-  { title: "Bollywood Glam", tag: "bollywood", sub: "Statement", cls: "from-[#F5C0A0] via-[#E8804A] to-[#B84028]", mascot: "/night.png" },
-  { title: "90s Minimal",    tag: "90s",       sub: "Classic",   cls: "from-[#C5D8E8] via-[#7AAFC8] to-[#3A6E8A]", mascot: "/y2k.png" },
+  {
+    title: "Y2K It Girl",
+    tag: "y2k",
+    sub: "Trend",
+    cls: "from-[#F7C5D5] via-[#DBA8E8] to-[#B48AE0]",
+    mascot: "/y2k.png",
+    staticImage: "/mood-y2k.jpg",
+  },
+  {
+    title: "Old Money",
+    tag: "oldmoney",
+    sub: "Aesthetic",
+    cls: "from-[#E8D5B0] via-[#C9A96E] to-[#8B6914]",
+    mascot: "/oldmoney.png",
+    staticImage: "/mood-oldmoney.jpg",
+  },
+  {
+    title: "Indie Archive",
+    tag: "indie",
+    sub: "Vibe",
+    cls: "from-[#C8D5B8] via-[#8FA87A] to-[#4A6240]",
+    mascot: "/streetstyle.png",
+    staticImage: "/mood-indie.jpg",
+  },
+  {
+    title: "Bollywood Glam",
+    tag: "bollywood",
+    sub: "Statement",
+    cls: "from-[#F5C0A0] via-[#E8804A] to-[#B84028]",
+    mascot: "/night.png",
+    staticImage: "/mood-bollywood.jpg",
+  },
 ];
 
 const TICKER_ITEMS = [
@@ -159,50 +138,32 @@ const TICKER_ITEMS = [
   "Free Listing for Founding Sellers",
 ];
 
-const MOOD_TAGS = ["y2k", "oldmoney", "indie", "bollywood", "90s"] as const;
+const MOOD_TAGS = ["y2k", "oldmoney", "indie", "bollywood"] as const;
 
 const CAROUSEL_INTERVAL = 3500;
 
-/* =========================
-   TYPES
-========================= */
 type Stats = { pieces: number; avgPrice: number; cities: number };
-type MoodGridData = Record<string, { image: string | null; count: number }>;
 type MoodPreviews = Record<string, { pieces: any[]; count: number }>;
 
 interface HomeData {
   products: any[];
   stats: Stats;
   socialProof: string[];
-  moodGridData: MoodGridData;
   moodPreviews: MoodPreviews;
   trendingSearches: string[];
 }
 
-/* =========================
-   SINGLE BATCHED DATA HOOK
-   — replaces useLiveStats, useSocialProof,
-     useMoodGridData, useMoodPreviews, and
-     the two loose useEffects in the main component.
-   — page renders instantly with SSR data;
-     client refresh fires as one Promise.all.
-========================= */
-function useHomeData(
-  initialProducts: any[],
-  initialStats: Stats
-): HomeData {
+function useHomeData(initialProducts: any[], initialStats: Stats): HomeData {
   const [state, setState] = useState<HomeData>({
     products: initialProducts,
     stats: initialStats,
     socialProof: [],
-    moodGridData: {},
     moodPreviews: {},
     trendingSearches: [],
   });
 
   useEffect(() => {
     Promise.all([
-      // ① All available products — used for products grid, stats, mood previews
       supabase
         .from("products")
         .select(
@@ -212,16 +173,8 @@ function useHomeData(
         .order("created_at", { ascending: false })
         .limit(30),
 
-      // ② Mood counts via RPC (no full-table scan)
-      //    Run once in Supabase SQL editor:
-      //    create or replace function get_mood_counts()
-      //    returns table(mood text, count bigint) language sql stable as $$
-      //      select mood, count(*) from products
-      //      where status = 'available' and mood is not null group by mood;
-      //    $$;
       supabase.rpc("get_mood_counts"),
 
-      // ③ Recent orders for social proof
       supabase
         .from("orders")
         .select("amount, products(title)")
@@ -229,7 +182,6 @@ function useHomeData(
         .order("created_at", { ascending: false })
         .limit(4),
 
-      // ④ Trending searches
       supabase
         .from("trending_searches")
         .select("query")
@@ -238,7 +190,6 @@ function useHomeData(
     ]).then(([productsRes, moodCountsRes, ordersRes, searchRes]) => {
       const allProducts: any[] = productsRes.data ?? [];
 
-      // ── Stats (derived from the products we already fetched) ──
       const prices = allProducts.map((p) => p.price).filter(Boolean);
       const stats: Stats = {
         pieces: allProducts.length,
@@ -248,23 +199,11 @@ function useHomeData(
         cities: new Set(allProducts.map((p) => p.location).filter(Boolean)).size,
       };
 
-      // ── Mood counts map ──
       const moodCounts: Record<string, number> = {};
       (moodCountsRes.data ?? []).forEach((r: any) => {
         moodCounts[r.mood] = Number(r.count);
       });
 
-      // ── Mood grid data (hero image + count per mood) ──
-      const moodGridData: MoodGridData = {};
-      for (const tag of MOOD_TAGS) {
-        const firstWithImage = allProducts.find((p) => p.mood === tag && p.image_url);
-        moodGridData[tag] = {
-          image: firstWithImage?.image_url ?? null,
-          count: moodCounts[tag] ?? 0,
-        };
-      }
-
-      // ── Mood previews (3 pieces per mood for the hero card) ──
       const moodPreviews: MoodPreviews = {};
       for (const tag of MOOD_TAGS) {
         const pieces = allProducts
@@ -274,7 +213,6 @@ function useHomeData(
         moodPreviews[tag] = { pieces, count: moodCounts[tag] ?? 0 };
       }
 
-      // ── Social proof events ──
       const listingEvents = allProducts.slice(0, 6).map((l) => {
         const name = (l.profiles as any)?.full_name?.split(" ")[0] || "Someone";
         return `${name} just listed — ${l.title}${l.location ? ` in ${l.location}` : ""}`;
@@ -292,7 +230,6 @@ function useHomeData(
         socialProof: socialProof.length > 0
           ? socialProof
           : ["Archive No. 001 is now live", "New pieces added this week"],
-        moodGridData,
         moodPreviews,
         trendingSearches: (searchRes.data ?? []).map((d: any) => d.query),
       });
@@ -303,9 +240,6 @@ function useHomeData(
   return state;
 }
 
-/* =========================
-   AUTO-CYCLING CAROUSEL HOOK
-========================= */
 function useCarousel(length: number) {
   const [idx, setIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -331,9 +265,6 @@ function useCarousel(length: number) {
   return { idx, jumpTo };
 }
 
-/* =========================
-   BADGE LOGIC
-========================= */
 function getProductBadge(item: any): { label: string; cls: string } | null {
   const createdAt = new Date(item.created_at);
   const ageHours = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
@@ -343,9 +274,6 @@ function getProductBadge(item: any): { label: string; cls: string } | null {
   return null;
 }
 
-/* =========================
-   SEARCH OVERLAY
-========================= */
 function SearchOverlay({
   open, onClose, trendingSearches,
 }: {
@@ -410,9 +338,6 @@ function SearchOverlay({
   );
 }
 
-/* =========================
-   STAT CARD
-========================= */
 function StatCard({ num, label, prefix = "", suffix = "" }: {
   num: number; label: string; prefix?: string; suffix?: string;
 }) {
@@ -429,11 +354,6 @@ function StatCard({ num, label, prefix = "", suffix = "" }: {
   );
 }
 
-/* =========================
-   MOOD HERO CARD
-   — now receives pre-fetched data via props,
-     no internal Supabase call
-========================= */
 function MoodHeroCard({
   mood,
   preview,
@@ -481,48 +401,42 @@ function MoodHeroCard({
   );
 }
 
-/* =========================
-   MOOD GRID ITEM
-========================= */
+// ── MOOD GRID ITEM — always uses staticImage, no bgImage prop ──
 function MoodGridItem({
-  mood, index, bgImage, count,
+  mood,
+  index,
+  count,
 }: {
   mood: typeof MOOD_GRID[0];
   index: number;
-  bgImage: string | null;
   count: number;
 }) {
-  const isWide = index === 4;
+  const isWide = index === 3;
 
   return (
     <Link
       href={`/buy?mood=${mood.tag}`}
       className={`group relative overflow-hidden rounded-[20px] cursor-pointer ${
-        isWide ? "col-span-2 md:col-span-2 aspect-[2/1] md:aspect-[3/1]" : "aspect-[3/4]"
+        isWide ? "col-span-2 aspect-[2/1] md:aspect-[3/1]" : "aspect-[3/4]"
       }`}
     >
-      {bgImage ? (
-        <div className="absolute inset-0">
-          <Image
-            src={bgImage}
-            alt={mood.title}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-700"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
-        </div>
-      ) : (
-        <div className={`absolute inset-0 bg-gradient-to-br ${mood.cls} group-hover:scale-105 transition-transform duration-700`}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-        </div>
-      )}
+      {/* Static background image — loads instantly */}
+      <div className="absolute inset-0">
+        <Image
+          src={mood.staticImage}
+          alt={mood.title}
+          fill
+          className="object-cover group-hover:scale-105 transition-transform duration-700"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+      </div>
 
       <div className="absolute top-3 left-3 z-20">
         <span
           className="text-[9px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/20"
           style={{ fontFamily: "var(--font-dm)" }}
         >
-          {count > 0 ? `${count} pieces` : "Coming soon"}
+          {count > 0 ? `${count} pieces` : "Shop now"}
         </span>
       </div>
 
@@ -559,9 +473,6 @@ function MoodGridItem({
   );
 }
 
-/* =========================
-   CAROUSEL PROGRESS DOTS
-========================= */
 function CarouselDots({ total, active, onSelect }: {
   total: number; active: number; onSelect: (i: number) => void;
 }) {
@@ -585,9 +496,6 @@ function CarouselDots({ total, active, onSelect }: {
   );
 }
 
-/* =========================
-   EMAIL CAPTURE
-========================= */
 function EmailCapture() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -633,9 +541,6 @@ function EmailCapture() {
   );
 }
 
-/* =========================
-   MAIN PAGE
-========================= */
 export default function HomePageClient({
   initialProducts,
   initialStats,
@@ -650,12 +555,10 @@ export default function HomePageClient({
 
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Single hook — replaces all separate data fetches
   const {
     products,
     stats,
     socialProof,
-    moodGridData,
     moodPreviews,
     trendingSearches,
   } = useHomeData(initialProducts, initialStats);
@@ -675,11 +578,8 @@ export default function HomePageClient({
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} trendingSearches={trendingSearches} />
       <Navbar />
 
-      {/* ══════════════════════════
-          HERO
-      ══════════════════════════ */}
+      {/* HERO */}
       <section className="relative min-h-screen flex items-center pt-20 md:pt-24">
-
         <div
           className="absolute left-6 top-1/2 -translate-y-1/2 rotate-[-90deg] tracking-[0.4em] text-xs opacity-25 hidden lg:block"
           style={{ fontFamily: "var(--font-dm)" }}
@@ -688,11 +588,7 @@ export default function HomePageClient({
         </div>
 
         <div className="max-w-7xl mx-auto px-5 md:px-6 w-full grid grid-cols-1 md:grid-cols-2 items-center gap-8 py-10 md:py-0">
-
-          {/* LEFT */}
           <div className="relative z-10">
-
-            {/* Live pill */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex items-center gap-3 mb-6">
               <span className="relative flex h-[7px] w-[7px]">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A1123F] opacity-60" />
@@ -703,7 +599,6 @@ export default function HomePageClient({
               </span>
             </motion.div>
 
-            {/* Headline */}
             <h1 className="leading-[0.88] tracking-tight" style={{ fontFamily: "var(--font-cormorant)", fontSize: "clamp(3.5rem,10vw,7.5rem)" }}>
               {[
                 { text: "Thrift it.", style: {}, delay: 0.15 },
@@ -739,7 +634,6 @@ export default function HomePageClient({
               </p>
             </motion.div>
 
-            {/* CTAs */}
             <motion.div
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.62 }}
               className="mt-7 md:mt-10 flex flex-wrap items-center gap-4"
@@ -762,7 +656,6 @@ export default function HomePageClient({
               </Link>
             </motion.div>
 
-            {/* Live stats */}
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.76 }}
               className="mt-8 md:mt-12 flex gap-6 md:gap-8 border-t border-[#2B0A0F]/08 pt-6 md:pt-8"
@@ -775,8 +668,6 @@ export default function HomePageClient({
 
           {/* RIGHT — CAROUSEL (desktop) */}
           <div className="relative h-[620px] hidden md:block">
-
-            {/* Ambient glow */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`glow-${activeMood.tag}`}
@@ -795,7 +686,6 @@ export default function HomePageClient({
               </p>
             </div>
 
-            {/* Mood chips */}
             <div className="absolute top-12 right-0 flex flex-col gap-2 z-40">
               {MOODS.map((mood, i) => (
                 <button
@@ -818,7 +708,6 @@ export default function HomePageClient({
               </div>
             </div>
 
-            {/* Primary Gennie */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`primary-${activeMood.tag}`}
@@ -838,7 +727,6 @@ export default function HomePageClient({
               </motion.div>
             </AnimatePresence>
 
-            {/* Secondary Gennie */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`secondary-${MOODS[secondaryIdx].tag}`}
@@ -858,7 +746,6 @@ export default function HomePageClient({
               </motion.div>
             </AnimatePresence>
 
-            {/* Mood hero card — fed from batch, no extra query */}
             <MoodHeroCard
               mood={activeMood}
               preview={moodPreviews[activeMood.tag] ?? { pieces: [], count: 0 }}
@@ -902,7 +789,6 @@ export default function HomePageClient({
           </div>
         </div>
 
-        {/* Scroll hint */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-2 opacity-20 hidden md:flex">
           <motion.div animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 2 }} className="flex flex-col items-center gap-1">
             <span className="text-[9px] tracking-[0.3em] uppercase" style={{ fontFamily: "var(--font-dm)" }}>Scroll</span>
@@ -913,9 +799,7 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* ══════════════════════════
-          SOCIAL PROOF STRIP
-      ══════════════════════════ */}
+      {/* SOCIAL PROOF STRIP */}
       {socialProof.length > 0 && (
         <div className="bg-[#F0EBE3] border-y border-[#2B0A0F]/06 py-2.5 overflow-hidden">
           <div className="flex whitespace-nowrap" style={{ animation: "ticker 20s linear infinite" }}>
@@ -936,9 +820,7 @@ export default function HomePageClient({
         </div>
       )}
 
-      {/* ══════════════════════════
-          TICKER
-      ══════════════════════════ */}
+      {/* TICKER */}
       <div className="bg-[#1A060B] text-[#F6F3EF] py-3 overflow-hidden">
         <div className="flex whitespace-nowrap" style={{ animation: "ticker 24s linear infinite" }}>
           {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
@@ -950,9 +832,7 @@ export default function HomePageClient({
         </div>
       </div>
 
-      {/* ══════════════════════════
-          MOOD GRID
-      ══════════════════════════ */}
+      {/* MOOD GRID */}
       <section className="bg-[#F6F3EF] text-[#2B0A0F] py-16 md:py-28">
         <div className="max-w-7xl mx-auto px-5 md:px-6">
           <div className="flex justify-between items-end mb-8 md:mb-12">
@@ -966,23 +846,21 @@ export default function HomePageClient({
               View All →
             </Link>
           </div>
+          {/* 4 moods: first 3 normal, last one wide */}
           <div className="grid grid-cols-2 gap-3 md:gap-4">
             {MOOD_GRID.map((mood, i) => (
               <MoodGridItem
                 key={mood.tag}
                 mood={mood}
                 index={i}
-                bgImage={moodGridData[mood.tag]?.image ?? null}
-                count={moodGridData[mood.tag]?.count ?? 0}
+                count={moodPreviews[mood.tag]?.count ?? 0}
               />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ══════════════════════════
-          WEEKLY ARCHIVE DROP
-      ══════════════════════════ */}
+      {/* WEEKLY ARCHIVE DROP */}
       <section className="bg-[#1A060B] text-[#F6F3EF] py-16 md:py-28">
         <div className="max-w-7xl mx-auto px-5 md:px-6">
           <div className="flex justify-between items-end mb-4 md:mb-6">
@@ -999,7 +877,6 @@ export default function HomePageClient({
             </Link>
           </div>
 
-          {/* Countdown */}
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-2 mb-7 md:mb-10"
             style={{ background: "rgba(201,144,26,0.12)", border: "1px solid rgba(201,144,26,0.3)" }}
@@ -1045,9 +922,7 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* ══════════════════════════
-          SELL STRIP
-      ══════════════════════════ */}
+      {/* SELL STRIP */}
       <section className="bg-[#A1123F] text-[#F6F3EF] py-14 md:py-20 px-5 md:px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12 items-center">
           <div>
@@ -1087,9 +962,7 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* ══════════════════════════
-          FOOTER
-      ══════════════════════════ */}
+      {/* FOOTER */}
       <footer className="bg-[#1A060B] text-[#F6F3EF] pb-20 md:pb-0">
         <div className="border-b border-[#F6F3EF]/08 py-10 px-5 md:px-8">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
