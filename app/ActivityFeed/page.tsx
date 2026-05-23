@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useActivity } from '@/context/ActivityContext'
+import { useActivity, Activity } from '@/context/ActivityContext'
 
 // ─── Types ────────────────────────────────────────────────────
 type ActivityType = 'like' | 'save' | 'follow' | 'offer' | 'sale'
@@ -16,18 +16,6 @@ interface Product {
   title: string
   image_url: string
   price: number
-}
-
-interface Activity {
-  id: string
-  type: ActivityType
-  created_at: string
-  text: string
-  actor: Actor | null
-  product: Product | null
-  offer_id?: string
-  offer_amount?: number
-  is_read: boolean
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -161,7 +149,7 @@ function ActivityRow({
   onOfferAction: (offerId: string, activityId: string, action: 'accept' | 'decline') => void
   onWarmLead: (activity: Activity) => void
 }) {
-  const cfg = TYPE_CONFIG[activity.type]
+  const cfg = TYPE_CONFIG[activity.type as ActivityType]
   const isFollow = activity.type === 'follow'
   const isOffer  = activity.type === 'offer'
   const isSave   = activity.type === 'save'
@@ -241,15 +229,11 @@ function ActivityRow({
 
 // ─── Main Component ───────────────────────────────────────────
 export default function ActivityFeed() {
-  // ── Pull everything from shared context instead of local state ──
   const { activities, realtimeStatus, loading, setActivities } = useActivity()
 
   const [filter, setFilter]                     = useState<string>('all')
   const [warmLeadActivity, setWarmLeadActivity] = useState<Activity | null>(null)
   const [toast, setToast]                       = useState<string | null>(null)
-
-  // ── No more useEffect / fetchActivity / markAllRead / channel setup here ──
-  // ── All of that now lives in ActivityContext ──────────────────────────────
 
   const filtered = useMemo(
     () => (filter === 'all' ? activities : activities.filter((a) => a.type === filter)),
@@ -285,7 +269,7 @@ export default function ActivityFeed() {
         return
       }
 
-      setActivities((prev: Activity[]) => prev.filter((a: Activity) => a.id !== activityId))
+      setActivities((prev) => prev.filter((a) => a.id !== activityId))
       showToast(
         action === 'accept'
           ? "Offer accepted! We'll notify the buyer."
@@ -383,7 +367,7 @@ export default function ActivityFeed() {
           filtered.map((activity) => (
             <ActivityRow
               key={activity.id}
-              activity={activity as Activity}
+              activity={activity}
               onOfferAction={handleOfferAction}
               onWarmLead={setWarmLeadActivity}
             />
