@@ -118,7 +118,7 @@ const MOOD_GRID = [
     sub: "Vibe",
     cls: "from-[#C8D5B8] via-[#8FA87A] to-[#4A6240]",
     mascot: "/streetstyle.png",
-    staticImage: "/mood-indie.jpg",
+    staticImage: "/mood-indie-v2.jpeg",
   },
   {
     title: "Bollywood Glam",
