@@ -69,9 +69,11 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
         .subscribe((status: string) => {
           if (isMounted) setRealtimeStatus(status)
         })
+      supabase.rpc('mark_notifications_read', { p_user_id: userId }).then(({ error }) => {
+  if (error) console.error(error)
+})
 
-      supabase.rpc('mark_notifications_read', { p_user_id: userId }).catch(console.error)
-    }
+     }
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) start(user.id)
