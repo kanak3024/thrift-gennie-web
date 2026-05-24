@@ -7,6 +7,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import ActivityFeed from "../ActivityFeed/page";
+import { useUser } from "./UserContext";
 
 type Piece = {
   id: string;
