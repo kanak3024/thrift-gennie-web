@@ -524,7 +524,7 @@ export default function RackFeed() {
       .select(`
         id, title, price, image_url, mood, size,
         condition, category, location, seller_id,
-        profiles!products_seller_id_fkey(full_name, username, avatar_url)
+        profiles(full_name, username, avatar_url)
       `)
       .eq("status", "available")
       .not("image_url", "is", null)
@@ -681,7 +681,10 @@ export default function RackFeed() {
                 if (!currentUserId) { window.location.href = "/login"; return; }
                 setOfferProduct(product);
               }}
-              onSellerTap={() => setActiveSellerId(product.seller_id)}
+              onSellerTap={() => {
+                console.log("seller tap — seller_id:", product.seller_id, "profiles:", product.profiles);
+                if (product.seller_id) setActiveSellerId(product.seller_id);
+              }}
             />
           </div>
         ))}

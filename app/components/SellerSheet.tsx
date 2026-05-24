@@ -43,21 +43,27 @@ export default function SellerSheet({ sellerId, onClose }: Props) {
 
   // fetch seller profile + counts
   useEffect(() => {
-    if (!sellerId) return;
+    if (!sellerId || sellerId === 'undefined') return;
+    console.log('SellerSheet fetching profile for:', sellerId);
     setLoading(true);
     setSeller(null);
     setFollowing(false);
     setListingCount(0);
     setSalesCount(0);
 
-    // fetch profile
+    // fetch profile — log error so we can see what's failing
     supabase
       .from("profiles")
       .select("id, full_name, username, avatar_url, bio, location")
       .eq("id", sellerId)
-      .single()
-      .then(({ data }) => {
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.error("SellerSheet profile fetch error:", error);
         if (data) setSeller(data);
+        else if (!data) console.warn("SellerSheet: no profile found for id", sellerId);
+        setLoading(false);
+      }, (err) => {
+        console.error("SellerSheet profile fetch threw:", err);
         setLoading(false);
       });
 
@@ -67,14 +73,14 @@ export default function SellerSheet({ sellerId, onClose }: Props) {
       .select("id", { count: "exact", head: true })
       .eq("seller_id", sellerId)
       .eq("status", "available")
-      .then(({ count }) => setListingCount(count ?? 0));
+      .then(({ count }) => setListingCount(count ?? 0), () => {});
 
     // fetch sales count — graceful
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })
       .eq("seller_id", sellerId)
-      .then(({ count }) => setSalesCount(count ?? 0));
+      .then(({ count }) => setSalesCount(count ?? 0), () => {});
   }, [sellerId]);
 
   // check follow status — wrapped in try/catch so missing table doesn't crash
