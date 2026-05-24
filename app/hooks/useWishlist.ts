@@ -34,18 +34,21 @@ export function useWishlist(onUnauthenticated?: () => void) {
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase
-      .channel("wishlist-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "wishlists", filter: `user_id=eq.${userId}` },
-        () => {
-          const fetchWishlist = async () => {
-            const { data } = await supabase
-              .from("wishlists").select("product_id").eq("user_id", userId);
-            if (data) setWishlist(data.map(row => row.product_id));
-          };
-          fetchWishlist();
-        }
-      ).subscribe();
+     const channel = supabase
+  .channel("wishlist-changes")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "wishlists", filter: `user_id=eq.${userId}` },
+    (payload) => {
+      setWishlist(prev =>
+        prev.includes(payload.new.product_id) ? prev : [...prev, payload.new.product_id]
+      );
+    }
+  )
+  .on("postgres_changes", { event: "DELETE", schema: "public", table: "wishlists", filter: `user_id=eq.${userId}` },
+    (payload) => {
+      setWishlist(prev => prev.filter(id => id !== payload.old.product_id));
+    }
+  )
+  .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [userId]);

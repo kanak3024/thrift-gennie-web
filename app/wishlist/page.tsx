@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { useWishlist } from "../hooks/useWishlist";
 import { motion, AnimatePresence } from "framer-motion";
 
+
 /* ─────────────────────────────
    SORT OPTIONS
 ───────────────────────────── */
@@ -265,22 +266,49 @@ export default function WishlistPage() {
   const [shareOpen, setShareOpen]   = useState(false);
 
   /* ── FETCH ── */
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      if (wishlist.length === 0) { setProducts([]); setLoading(false); return; }
+   const prevWishlistRef = useRef<string[]>([]);
 
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, title, price, location, image_url, condition, status, size, mood, category")
-        .in("id", wishlist);
+useEffect(() => {
+  const prev = prevWishlistRef.current;
+  const added = wishlist.filter(id => !prev.includes(id));
+  const removed = prev.filter(id => !wishlist.includes(id));
+  prevWishlistRef.current = wishlist;
 
-      if (!error && data) setProducts(data);
-      setLoading(false);
-    };
-    fetch();
-  }, [wishlist]);
+  // Nothing changed — skip
+  if (added.length === 0 && removed.length === 0 && products.length > 0) return;
 
+  // Only removals — filter locally, no fetch
+  if (added.length === 0 && removed.length > 0) {
+    setProducts(prev => prev.filter(p => wishlist.includes(p.id)));
+    setLoading(false);
+    return;
+  }
+
+  // Empty wishlist
+  if (wishlist.length === 0) {
+    setProducts([]);
+    setLoading(false);
+    return;
+  }
+
+  // First load or new items — fetch what's needed
+  const toFetch = products.length === 0 ? wishlist : added;
+
+  const fetchProducts = async () => {
+    setLoading(products.length === 0); // only show loader on first load
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, title, price, location, image_url, condition, status, size, mood, category")
+      .in("id", toFetch);
+    if (!error && data) {
+      setProducts(prev =>
+        products.length === 0 ? data : [...prev.filter(p => wishlist.includes(p.id)), ...data]
+      );
+    }
+    setLoading(false);
+  };
+  fetchProducts();
+}, [wishlist]);
   /* ── SORT ── */
   const sorted = useMemo(() => {
     const list = [...products];
