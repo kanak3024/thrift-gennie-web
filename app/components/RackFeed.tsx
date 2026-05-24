@@ -498,6 +498,7 @@ export default function RackFeed() {
   const [loading, setLoading] = useState(true);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [activeSellerId, setActiveSellerId] = useState<string | null>(null);
+  const [activePrefetchedProfile, setActivePrefetchedProfile] = useState<{full_name: string; username?: string; avatar_url?: string} | null>(null);
   const [offerProduct, setOfferProduct] = useState<Product | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -682,8 +683,10 @@ export default function RackFeed() {
                 setOfferProduct(product);
               }}
               onSellerTap={() => {
-                console.log("seller tap — seller_id:", product.seller_id, "profiles:", product.profiles);
-                if (product.seller_id) setActiveSellerId(product.seller_id);
+                if (product.seller_id) {
+                  setActiveSellerId(product.seller_id);
+                  setActivePrefetchedProfile(product.profiles ?? null);
+                }
               }}
             />
           </div>
@@ -704,7 +707,11 @@ export default function RackFeed() {
 
       {hearts.map((h) => <HeartBurst key={h.id} x={h.x} y={h.y} />)}
 
-      <SellerSheet sellerId={activeSellerId} onClose={() => setActiveSellerId(null)} />
+      <SellerSheet
+        sellerId={activeSellerId}
+        prefetchedProfile={activePrefetchedProfile}
+        onClose={() => { setActiveSellerId(null); setActivePrefetchedProfile(null); }}
+      />
 
       {/* Offer sheet */}
       <AnimatePresence>

@@ -14,8 +14,15 @@ type SellerProfile = {
   location?: string;
 };
 
+type PrefetchedProfile = {
+  full_name: string;
+  username?: string;
+  avatar_url?: string;
+};
+
 type Props = {
   sellerId: string | null;
+  prefetchedProfile?: PrefetchedProfile | null;
   onClose: () => void;
 };
 
@@ -26,7 +33,7 @@ const getInitials = (name: string | null) => {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 };
 
-export default function SellerSheet({ sellerId, onClose }: Props) {
+export default function SellerSheet({ sellerId, prefetchedProfile, onClose }: Props) {
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [following, setFollowing] = useState(false);
@@ -44,27 +51,35 @@ export default function SellerSheet({ sellerId, onClose }: Props) {
   // fetch seller profile + counts
   useEffect(() => {
     if (!sellerId || sellerId === 'undefined') return;
-    console.log('SellerSheet fetching profile for:', sellerId);
     setLoading(true);
-    setSeller(null);
     setFollowing(false);
     setListingCount(0);
     setSalesCount(0);
 
-    // fetch profile — log error so we can see what's failing
+    // If we already have profile data from the feed, use it immediately
+    // then try to fetch full profile (bio, location) in background
+    if (prefetchedProfile) {
+      setSeller({
+        id: sellerId,
+        full_name: prefetchedProfile.full_name,
+        username: prefetchedProfile.username,
+        avatar_url: prefetchedProfile.avatar_url ?? undefined,
+      });
+      setLoading(false);
+    }
+
+    // Try to get full profile with bio/location — silently upgrade if it works
     supabase
       .from("profiles")
       .select("id, full_name, username, avatar_url, bio, location")
       .eq("id", sellerId)
       .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) console.error("SellerSheet profile fetch error:", error);
+      .then(({ data }) => {
         if (data) setSeller(data);
-        else if (!data) console.warn("SellerSheet: no profile found for id", sellerId);
-        setLoading(false);
-      }, (err) => {
-        console.error("SellerSheet profile fetch threw:", err);
-        setLoading(false);
+        else if (!prefetchedProfile) setLoading(false);
+      }, () => {
+        // RLS blocked or error — prefetchedProfile already set above, just stop loading
+        if (!prefetchedProfile) setLoading(false);
       });
 
     // fetch listing count — graceful
