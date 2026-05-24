@@ -341,31 +341,39 @@ export default function ProductPage() {
   };
 
   /* ── RAZORPAY ── */
-  const handleBuyNow = async () => {
-    if (!user) { router.push("/login"); return; }
-    if (user.id === product.seller_id || product.status === "sold") return;
-    setAddressModalOpen(true);
-  };
-
   const handleAddressConfirmed = async (address: ShippingAddress) => {
-    setPendingAddress(address);
-    setAddressModalOpen(false);
-    setPaymentLoading(true);
-    try {
-      const shippingFee = Number(product.shipping_price ?? 0);
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount:          Math.round(product.price + shippingFee),
-          productId:       product.id,
-          buyerId:         user.id,
-          buyerEmail:      user.email,
-          shippingAddress: address,
-        }),
-      });
+  setPendingAddress(address);
+  setAddressModalOpen(false);
+  setPaymentLoading(true);
+  try {
+    const shippingFee = Number(product.shipping_price ?? 0);
+
+    // Try getSession first, fall back to refreshSession
+    let { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      session = refreshed.session;
+    }
+
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+
+    const res = await fetch("/api/create-order", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        amount:          Math.round(product.price + shippingFee),
+        productId:       product.id,
+        buyerId:         user.id,
+        buyerEmail:      user.email,
+        shippingAddress: address,
+      }),
+    });
       const order = await res.json();
       if (!order.id) throw new Error("Failed to create order");
 
