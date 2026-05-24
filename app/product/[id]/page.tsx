@@ -353,6 +353,8 @@ export default function ProductPage() {
     setPaymentLoading(true);
     try {
       const shippingFee = Number(product.shipping_price ?? 0);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
