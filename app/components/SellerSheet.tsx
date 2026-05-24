@@ -86,8 +86,7 @@ export default function SellerSheet({ sellerId, onClose }: Props) {
       .eq("follower_id", currentUserId)
       .eq("following_id", sellerId)
       .maybeSingle()
-      .then(({ data }) => setFollowing(!!data))
-      .catch(() => {}); // table may not exist yet — fail silently
+      .then(({ data }) => setFollowing(!!data), () => {}); // second arg = error handler, works on PromiseLike
   }, [sellerId, currentUserId]);
 
   const handleFollow = async () => {
