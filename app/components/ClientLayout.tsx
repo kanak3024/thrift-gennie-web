@@ -19,7 +19,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <div className={!isAdmin ? "min-h-screen bg-[#1A060B]" : ""}>
         {children}
       </div>
-      {!isAdmin && <SupportChat />}
+      {/* SupportChat outside page div so it's never trapped in a stacking context */}
+      {!isAdmin && (
+        <div className="relative z-[60]">
+          <SupportChat />
+        </div>
+      )}
     </UserProvider>
   );
 }
