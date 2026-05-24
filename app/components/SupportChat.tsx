@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabase";
+import { useUser } from "./UserContext";
 
 const SUBJECTS = [
   { value: "General Inquiry",  icon: "✦", label: "General Inquiry" },
@@ -25,7 +26,6 @@ const MAX_SIZE_MB = 10;
 export default function SupportChat() {
   const [open, setOpen]               = useState(false);
   const [user, setUser]               = useState<any>(null);
-  const [userRole, setUserRole]       = useState<string | null>(null);  // FIX: track role
   const [ticketId, setTicketId]       = useState<string | null>(null);
   const [messages, setMessages]       = useState<any[]>([]);
   const [newMessage, setNewMessage]   = useState("");
@@ -52,46 +52,13 @@ export default function SupportChat() {
   const ticketIdRef = useRef<string | null>(null);
   useEffect(() => { ticketIdRef.current = ticketId; }, [ticketId]);
 
-   useEffect(() => {
-  // Check session immediately (fast, no network call)
-  supabase.auth.getSession().then(async ({ data: { session } }) => {
-    const u = session?.user;
-    if (!u) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", u.id)
-      .single();
-
-    const role = profile?.role ?? null;
-    setUserRole(role);
-    if (role === "admin") return;
-    setUser(u);
-  });
-
-  // Also listen for auth changes (login/logout)
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    const u = session?.user;
-    if (!u) { setUser(null); setUserRole(null); return; }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", u.id)
-      .single();
-
-    const role = profile?.role ?? null;
-    setUserRole(role);
-    if (role === "admin") return;
-    setUser(u);
-  });
-
+  const { user: contextUser, isAdmin } = useUser();
+useEffect(() => {
+  if (!isAdmin) setUser(contextUser);
+}, [contextUser, isAdmin]);
+useEffect(() => {
   const t = setTimeout(() => setPulse(false), 8000);
-  return () => {
-    subscription.unsubscribe();
-    clearTimeout(t);
-  };
+  return () => clearTimeout(t);
 }, []);
 
   useEffect(() => {
@@ -317,8 +284,7 @@ export default function SupportChat() {
 
   // FIX: Don't render the widget at all for admins or unauthenticated users
   // who haven't loaded yet. Once role is resolved, only show for non-admins.
-  if (userRole === "admin") return null;
-
+ if (isAdmin) return null;
   return (
     <>
     

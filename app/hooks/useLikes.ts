@@ -1,101 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
+import { useUser } from "../components/UserContext";
 
 export function useLikes() {
+  const { userId } = useUser(); // ← reads from context, no auth call
   const [likes, setLikes] = useState<string[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
 
-  // Get current user
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setUserId(data.user.id);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  // Fetch likes from Supabase when user is known
-  useEffect(() => {
-    if (!userId) {
-      setLikes([]);
-      return;
-    }
-
-    const fetchLikes = async () => {
-      const { data } = await supabase
-        .from("likes")
-        .select("product_id")
-        .eq("user_id", userId);
-
-      if (data) setLikes(data.map(row => row.product_id));
-    };
-
-    fetchLikes();
+    if (!userId) { setLikes([]); return; }
+    supabase
+      .from("likes")
+      .select("product_id")
+      .eq("user_id", userId)
+      .then(({ data }) => {
+        if (data) setLikes(data.map((r) => r.product_id));
+      });
   }, [userId]);
 
-  // Realtime sync — mirrors your useWishlist pattern exactly
   useEffect(() => {
     if (!userId) return;
-
     const channel = supabase
       .channel("likes-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "likes",
-          filter: `user_id=eq.${userId}`,
-        },
-        () => {
-          const fetchLikes = async () => {
-            const { data } = await supabase
-              .from("likes")
-              .select("product_id")
-              .eq("user_id", userId);
-
-            if (data) setLikes(data.map(row => row.product_id));
-          };
-          fetchLikes();
-        }
-      )
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "likes",
+        filter: `user_id=eq.${userId}`,
+      }, () => {
+        supabase
+          .from("likes").select("product_id").eq("user_id", userId)
+          .then(({ data }) => { if (data) setLikes(data.map((r) => r.product_id)); });
+      })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
-  const toggleLike = async (productId: string) => {
-    if (!userId) {
-      alert("Please login to like items 🔐");
-      return;
-    }
-
+  const toggleLike = useCallback(async (productId: string) => {
+    if (!userId) { alert("Please login to like items 🔐"); return; }
     if (likes.includes(productId)) {
-      // Unlike
-      await supabase
-        .from("likes")
-        .delete()
-        .eq("user_id", userId)
-        .eq("product_id", productId);
-
-      setLikes(prev => prev.filter(id => id !== productId));
+      await supabase.from("likes").delete().eq("user_id", userId).eq("product_id", productId);
+      setLikes((prev) => prev.filter((id) => id !== productId));
     } else {
-      // Like — trigger on_like_insert() fires automatically → notification created
-      await supabase
-        .from("likes")
-        .insert({ user_id: userId, product_id: productId });
-
-      setLikes(prev => [...prev, productId]);
+      await supabase.from("likes").insert({ user_id: userId, product_id: productId });
+      setLikes((prev) => [...prev, productId]);
     }
-  };
+  }, [userId, likes]);
 
-  const isLiked = (id: string) => likes.includes(id);
+  const isLiked = useCallback((id: string) => likes.includes(id), [likes]);
 
   return { likes, toggleLike, isLiked };
 }

@@ -5,26 +5,41 @@ import { usePathname } from "next/navigation";
 import { useWishlist } from "../hooks/useWishlist";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { useUser } from "./UserContext";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { wishlist } = useWishlist();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useUser(); // ← reads from shared context, zero auth calls
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setLoading(false);
-    });
+    if (!user) { setUnreadMessages(0); return; }
+    supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("receiver_id", user.id)
+      .eq("read", false)
+      .then(({ count }) => setUnreadMessages(count || 0));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    // realtime message badge
+    const channel = supabase
+      .channel("bottomnav_messages")
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "messages",
+        filter: `receiver_id=eq.${user.id}`,
+      }, () => setUnreadMessages((c) => c + 1))
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "messages",
+        filter: `receiver_id=eq.${user.id}`,
+      }, () => {
+        supabase.from("messages").select("*", { count: "exact", head: true })
+          .eq("receiver_id", user.id).eq("read", false)
+          .then(({ count }) => setUnreadMessages(count || 0));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const lastTab = {
     href: user ? `/account/${user.id}` : "/login",

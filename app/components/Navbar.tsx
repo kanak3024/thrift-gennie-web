@@ -121,42 +121,33 @@ export default function Navbar() {
     setUnreadMessages(count ?? 0);
   }, []);
 
+  // ── Read auth from shared context — no duplicate auth calls ──
+  const { user, profile: userProfile, loading: authLoading } = useUser();
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      if (data.user) {
-        fetchProfile(data.user.id);
-        fetchUnreadCount(data.user.id);
-        fetchUnreadMessages(data.user.id);
+    if (!user) {
+      setUserName(null);
+      setUnreadCount(0);
+      setUnreadMessages(0);
+      return;
+    }
+    // Use profile from context if available
+    if (userProfile?.full_name) setUserName(userProfile.full_name);
+    else fetchProfile(user.id);
 
-        const channel = supabase
-          .channel("navbar_unread")
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${data.user.id}` }, () => fetchUnreadCount(data.user.id))
-          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${data.user.id}` }, () => fetchUnreadCount(data.user.id))
-          // ── NEW: listen for new messages ──
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${data.user.id}` }, () => fetchUnreadMessages(data.user.id))
-          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${data.user.id}` }, () => fetchUnreadMessages(data.user.id))
-          .subscribe();
+    fetchUnreadCount(user.id);
+    fetchUnreadMessages(user.id);
 
-        return () => { supabase.removeChannel(channel); };
-      }
-    });
+    const channel = supabase
+      .channel("navbar_unread")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => fetchUnreadCount(user.id))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => fetchUnreadCount(user.id))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => fetchUnreadMessages(user.id))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => fetchUnreadMessages(user.id))
+      .subscribe();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-        fetchUnreadCount(session.user.id);
-        fetchUnreadMessages(session.user.id);
-      } else {
-        setUserName(null);
-        setUnreadCount(0);
-        setUnreadMessages(0);
-      }
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, [fetchUnreadCount, fetchUnreadMessages]);
+    return () => { supabase.removeChannel(channel); };
+  }, [user, userProfile, fetchUnreadCount, fetchUnreadMessages]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
