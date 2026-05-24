@@ -550,7 +550,7 @@ export default function RackFeed() {
       if (!data.user) return;
       const uid = data.user.id;
 
-      supabase.from("wishlist").select("product_id").eq("user_id", uid).then(({ data: wl }) => {
+      supabase.from("wishlists").select("product_id").eq("user_id", uid).then(({ data: wl }) => {
         if (wl) {
           const map: Record<string, boolean> = {};
           wl.forEach((w) => { map[w.product_id] = true; });
@@ -624,9 +624,9 @@ export default function RackFeed() {
     const newVal = !saved[productId];
     setSaved((prev) => ({ ...prev, [productId]: newVal }));
     if (newVal) {
-      await supabase.from("wishlist").upsert({ user_id: user.id, product_id: productId });
+      await supabase.from("wishlists").upsert({ user_id: user.id, product_id: productId });
     } else {
-      await supabase.from("wishlist").delete().eq("user_id", user.id).eq("product_id", productId);
+      await supabase.from("wishlists").delete().eq("user_id", user.id).eq("product_id", productId);
     }
   };
 
