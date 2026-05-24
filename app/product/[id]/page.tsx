@@ -341,6 +341,12 @@ export default function ProductPage() {
   };
 
   /* ── RAZORPAY ── */
+  const handleBuyNow = async () => {
+    if (!user) { router.push("/login"); return; }
+    if (user.id === product.seller_id || product.status === "sold") return;
+    setAddressModalOpen(true);
+  };
+  
   const handleAddressConfirmed = async (address: ShippingAddress) => {
   setPendingAddress(address);
   setAddressModalOpen(false);
