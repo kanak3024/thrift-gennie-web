@@ -122,32 +122,33 @@ export default function Navbar() {
   }, []);
 
   // ── Read auth from shared context — no duplicate auth calls ──
-  const { user, profile: userProfile, loading: authLoading } = useUser();
+  const { user: ctxUser, profile: userProfile } = useUser();
 
+  // Sync context user into local state + kick off subscriptions
   useEffect(() => {
-    if (!user) {
+    setUser(ctxUser);
+    if (!ctxUser) {
       setUserName(null);
       setUnreadCount(0);
       setUnreadMessages(0);
       return;
     }
-    // Use profile from context if available
     if (userProfile?.full_name) setUserName(userProfile.full_name);
-    else fetchProfile(user.id);
+    else fetchProfile(ctxUser.id);
 
-    fetchUnreadCount(user.id);
-    fetchUnreadMessages(user.id);
+    fetchUnreadCount(ctxUser.id);
+    fetchUnreadMessages(ctxUser.id);
 
     const channel = supabase
       .channel("navbar_unread")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => fetchUnreadCount(user.id))
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => fetchUnreadCount(user.id))
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => fetchUnreadMessages(user.id))
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => fetchUnreadMessages(user.id))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${ctxUser.id}` }, () => fetchUnreadCount(ctxUser.id))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${ctxUser.id}` }, () => fetchUnreadCount(ctxUser.id))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${ctxUser.id}` }, () => fetchUnreadMessages(ctxUser.id))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${ctxUser.id}` }, () => fetchUnreadMessages(ctxUser.id))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, userProfile, fetchUnreadCount, fetchUnreadMessages]);
+  }, [ctxUser, userProfile, fetchUnreadCount, fetchUnreadMessages]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
