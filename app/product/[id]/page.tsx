@@ -825,8 +825,8 @@ export default function ProductPage() {
                   {allImages.map((_: string, i: number) => (
                     <button
                       key={i}
-                      onClick={() => setCurrentImageIndex(i)}
-                      className="transition-all"
+                       onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(i); }}
+className="transition-all"
                       style={{
                         width: i === currentImageIndex ? "16px" : "6px",
                         height: "6px",
@@ -841,7 +841,7 @@ export default function ProductPage() {
               {/* Arrows */}
               {allImages.length > 1 && currentImageIndex > 0 && (
                 <button
-                  onClick={() => setCurrentImageIndex((i) => i - 1)}
+                   onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((i) => i - 1); }}
                   className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -851,7 +851,7 @@ export default function ProductPage() {
               )}
               {allImages.length > 1 && currentImageIndex < allImages.length - 1 && (
                 <button
-                  onClick={() => setCurrentImageIndex((i) => i + 1)}
+                  onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((i) => i + 1); }}
                   className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm items-center justify-center hover:bg-white transition-all z-10"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -871,7 +871,7 @@ export default function ProductPage() {
               {/* Bottom action buttons */}
               <div className="absolute bottom-4 left-4 flex gap-2 z-10">
                 <button
-                  onClick={() => setShareOpen(true)}
+                  onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
                   className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -881,8 +881,8 @@ export default function ProductPage() {
                   Share
                 </button>
                 <button
-                  onClick={() => setLightboxOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
+                   onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
+className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
@@ -891,9 +891,9 @@ export default function ProductPage() {
                 </button>
                 {!isMine && user && (
                   <button
-                    onClick={() => setReportOpen(true)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm text-[#A1123F]"
-                  >
+                     onClick={(e) => { e.stopPropagation(); setReportOpen(true); }}
+className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm text-[9px] uppercase tracking-widest hover:bg-white transition-all shadow-sm text-[#A1123F]"
+                     >
                     🚩 Report
                   </button>
                 )}
