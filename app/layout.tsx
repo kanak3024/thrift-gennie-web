@@ -10,6 +10,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { WishlistProvider } from "./context/WishlistContext";
 import { ActivityProvider } from '@/context/ActivityContext'
+import { UserProvider } from "./components/UserContext";
 
  
 
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           text-[#2B0A0F]
         `}
       >
+      <UserProvider> 
         <ActivityProvider>
           <WishlistProvider>
             <ClientLayout>
@@ -52,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ClientLayout>
           </WishlistProvider>
         </ActivityProvider>
+      </UserProvider>
         <Analytics />
         <SpeedInsights />
       </body>
