@@ -17,16 +17,23 @@ const WishlistContext = createContext<WishlistContextType>({
 });
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
-  const { userId } = useUser(); // ← reads from context, no auth call
+  const { userId } = useUser();
   const [wishlist, setWishlist] = useState<string[]>([]);
 
+  // ── Fetch on mount / user change ──
   useEffect(() => {
     if (!userId) { setWishlist([]); return; }
     supabase
-      .from("wishlists").select("product_id").eq("user_id", userId)
-      .then(({ data }) => { if (data) setWishlist(data.map((r) => r.product_id)); });
+      .from("wishlists")
+      .select("product_id")
+      .eq("user_id", userId)
+      .then(({ data, error }) => {
+        if (error) console.error("Wishlist fetch error:", error);
+        if (data) setWishlist(data.map((r) => r.product_id));
+      });
   }, [userId]);
 
+  // ── Realtime sync ──
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
@@ -47,20 +54,45 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
+  // ── Toggle: optimistic update + rollback on error ──
   const toggleWishlist = useCallback(
     async (productId: string, onUnauthenticated?: () => void) => {
       if (!userId) { onUnauthenticated?.(); return; }
-      const alreadySaved = wishlist.includes(productId);
-      setWishlist((prev) =>
-        alreadySaved ? prev.filter((id) => id !== productId) : [...prev, productId]
-      );
+
+      // Read current state inside functional updater — no stale closure
+      let alreadySaved = false;
+      setWishlist((prev) => {
+        alreadySaved = prev.includes(productId);
+        return alreadySaved
+          ? prev.filter((id) => id !== productId)
+          : [...prev, productId];
+      });
+
       if (alreadySaved) {
-        await supabase.from("wishlists").delete().eq("user_id", userId).eq("product_id", productId);
+        const { error } = await supabase
+          .from("wishlists")
+          .delete()
+          .eq("user_id", userId)
+          .eq("product_id", productId);
+
+        if (error) {
+          console.error("Wishlist delete failed:", error);
+          // Rollback
+          setWishlist((prev) => [...prev, productId]);
+        }
       } else {
-        await supabase.from("wishlists").insert({ user_id: userId, product_id: productId });
+        const { error } = await supabase
+          .from("wishlists")
+          .insert({ user_id: userId, product_id: productId });
+
+        if (error) {
+          console.error("Wishlist insert failed:", error);
+          // Rollback
+          setWishlist((prev) => prev.filter((id) => id !== productId));
+        }
       }
     },
-    [userId, wishlist]
+    [userId] // ← wishlist removed from deps; state read via functional updater instead
   );
 
   const isWishlisted = useCallback((id: string) => wishlist.includes(id), [wishlist]);
