@@ -1,18 +1,11 @@
 import "./globals.css";
 import { Playfair_Display, Inter, Cormorant_Garamond, DM_Sans } from "next/font/google";
-import Navbar from "./components/Navbar";
-import SupportChat from "./components/SupportChat";
-import NotificationToast from "./components/NotificationToast";
-import BottomNav from "./components/BottomNav";
 import { Analytics } from "@vercel/analytics/react";
 import ClientLayout from "./components/ClientLayout";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { WishlistProvider } from "./context/WishlistContext";
 import { ActivityProvider } from '@/context/ActivityContext'
-import { UserProvider } from "./components/UserContext";
-
- 
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -46,7 +39,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           text-[#2B0A0F]
         `}
       >
-      <UserProvider> 
         <ActivityProvider>
           <WishlistProvider>
             <ClientLayout>
@@ -54,7 +46,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ClientLayout>
           </WishlistProvider>
         </ActivityProvider>
-      </UserProvider>
         <Analytics />
         <SpeedInsights />
       </body>
