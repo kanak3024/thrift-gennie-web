@@ -308,20 +308,40 @@ export default function ProductPage() {
   };
 
   /* ── SHARE ── */
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  const handleWhatsAppShare = () => {
-    const text = `Check out this listing on Thrift Gennie: ${product.title} — ₹${product.price}\n${window.location.href}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
-  };
-  const handleTwitterShare = () => {
-    const text = `Found this on @ThriftGennie: ${product.title} — ₹${product.price}`;
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, "_blank");
-  };
+   const handleCopyLink = () => {
+  const url = window.location.href;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).catch(() => {
+      const el = document.createElement("textarea");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    });
+  } else {
+    const el = document.createElement("textarea");
+    el.value = url;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+  }
+  setCopied(true);
+  setTimeout(() => setCopied(false), 2000);
+};
 
+const handleWhatsAppShare = () => {
+  const url = typeof window !== "undefined" ? window.location.href : "";
+  const text = `Check out this listing on Thrift Gennie: ${product.title} — ₹${product.price}\n${url}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+};
+
+const handleTwitterShare = () => {
+  const url = typeof window !== "undefined" ? window.location.href : "";
+  const text = `Found this on @ThriftGennie: ${product.title} — ₹${product.price}`;
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank");
+};
   /* ── REPORT ── */
   const handleReport = async () => {
     if (!user) { router.push("/login"); return; }
