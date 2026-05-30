@@ -19,16 +19,16 @@ const CONDITIONS = [
 const SIZES      = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "Custom"];
 const CATEGORIES = ["Tops", "Bottoms", "Dresses", "Outerwear", "Accessories", "Footwear", "Bags", "Jewellery", "Other"];
 const MOODS      = [
-  { tag: "y2k",       label: "Y2K",         color: "#C77DFF" },
-  { tag: "oldmoney",  label: "Old Money",   color: "#B48A5A" },
-  { tag: "indie",     label: "Indie",       color: "#6B7E60" },
-  { tag: "bollywood", label: "Bollywood",   color: "#C41E3A" },
-  { tag: "90s",       label: "90s Minimal", color: "#457B9D" },
-  { tag: "streetwear", label: "Streetwear", color: "#2B2B2B" },
-{ tag: "boho",       label: "Boho",       color: "#C9A96E" },
-{ tag: "minimalist", label: "Minimalist", color: "#888888" },
-{ tag: "ethnic",     label: "Ethnic",     color: "#8B1A3A" },
-{ tag: "cottagecore",label: "Cottagecore",color: "#6B7E60" },
+  { tag: "y2k",        label: "Y2K",         color: "#C77DFF" },
+  { tag: "oldmoney",   label: "Old Money",   color: "#B48A5A" },
+  { tag: "indie",      label: "Indie",       color: "#6B7E60" },
+  { tag: "bollywood",  label: "Bollywood",   color: "#C41E3A" },
+  { tag: "90s",        label: "90s Minimal", color: "#457B9D" },
+  { tag: "streetwear", label: "Streetwear",  color: "#2B2B2B" },
+  { tag: "boho",       label: "Boho",        color: "#C9A96E" },
+  { tag: "minimalist", label: "Minimalist",  color: "#888888" },
+  { tag: "ethnic",     label: "Ethnic",      color: "#8B1A3A" },
+  { tag: "cottagecore",label: "Cottagecore", color: "#6B7E60" },
 ];
 const CITIES = ["Mumbai", "Pune", "Delhi", "Bengaluru", "Jaipur", "Hyderabad", "Chennai", "Kolkata", "Other"];
 const COLOURS = [
@@ -50,7 +50,7 @@ const MAX_PHOTOS = 4;
 const MAX_DESC   = 500;
 const MAX_TITLE  = 80;
 
- const SIZE_GUIDE: Record<string, {
+const SIZE_GUIDE: Record<string, {
   chest_cm: string; waist_cm: string; hips_cm: string;
   chest_in: string; waist_in: string; hips_in: string;
   fit: string;
@@ -79,7 +79,7 @@ const CONDITION_MULTIPLIER: Record<string, number> = {
   "Like New":   1.0,
   "Good":       0.8,
   "Fair":       0.6,
-  "Pre Loved": 0.4,
+  "Pre Loved":  0.4,
 };
 
 function getPriceRange(category: string, condition: string): [number, number] | null {
@@ -126,14 +126,13 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
     >{message}</motion.div>
   );
 }
+
 function PhotoSlot({ index, preview, onRemove, onFileSelected, onMultiSelected, isMain }: {
   index: number; preview?: string; onRemove: () => void;
   onFileSelected: (file: File) => void;
-  onMultiSelected: (files: File[]) => void;  // ← add this
+  onMultiSelected: (files: File[]) => void;
   isMain: boolean;
-})
-
-  {
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <motion.div layout
@@ -142,17 +141,17 @@ function PhotoSlot({ index, preview, onRemove, onFileSelected, onMultiSelected, 
       }`}
       onClick={() => !preview && inputRef.current?.click()}
     >
-       <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
-  onChange={(e) => {
-    const selected = Array.from(e.target.files || []);
-    if (selected.length === 1) {
-      onFileSelected(selected[0]);
-    } else if (selected.length > 1) {
-      onMultiSelected(selected);
-    }
-    if (inputRef.current) inputRef.current.value = "";
-  }}
-/>
+      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
+        onChange={(e) => {
+          const selected = Array.from(e.target.files || []);
+          if (selected.length === 1) {
+            onFileSelected(selected[0]);
+          } else if (selected.length > 1) {
+            onMultiSelected(selected);
+          }
+          if (inputRef.current) inputRef.current.value = "";
+        }}
+      />
       {preview ? (
         <>
           <Image src={preview} alt={`Photo ${index + 1}`} fill className="object-cover" />
@@ -229,38 +228,33 @@ function SizeGuideModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            // Replace thead:
-<thead>
-  <tr className="border-b border-[#2B0A0F]/10">
-    {["Size", "Chest", "Waist", "Hips", "Fits like"].map(h => (
-      <th key={h} className="text-left text-[9px] uppercase tracking-[0.2em] opacity-40 pb-3 pr-4">{h}</th>
-    ))}
-  </tr>
-</thead>
-
-// Replace tbody:
-<tbody>
-  {Object.entries(SIZE_GUIDE).map(([s, m], i) => (
-    <tr key={s} className={`border-b border-[#2B0A0F]/05 ${i % 2 === 0 ? "bg-[#2B0A0F]/02" : ""}`}>
-      <td className="py-3 pr-4 font-medium text-[10px] uppercase tracking-widest">{s}</td>
-      <td className="py-3 pr-4">
-        <p className="text-[11px] opacity-60">{m.chest_cm} cm</p>
-        <p className="text-[10px] opacity-35">{m.chest_in} in</p>
-      </td>
-      <td className="py-3 pr-4">
-        <p className="text-[11px] opacity-60">{m.waist_cm} cm</p>
-        <p className="text-[10px] opacity-35">{m.waist_in} in</p>
-      </td>
-      <td className="py-3 pr-4">
-        <p className="text-[11px] opacity-60">{m.hips_cm} cm</p>
-        <p className="text-[10px] opacity-35">{m.hips_in} in</p>
-      </td>
-      <td className="py-3 text-[10px] opacity-40 italic">{m.fit}</td>
-    </tr>
-  ))}
-</tbody>
-             
-             
+            <thead>
+              <tr className="border-b border-[#2B0A0F]/10">
+                {["Size", "Chest", "Waist", "Hips", "Fits like"].map(h => (
+                  <th key={h} className="text-left text-[9px] uppercase tracking-[0.2em] opacity-40 pb-3 pr-4">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(SIZE_GUIDE).map(([s, m], i) => (
+                <tr key={s} className={`border-b border-[#2B0A0F]/05 ${i % 2 === 0 ? "bg-[#2B0A0F]/02" : ""}`}>
+                  <td className="py-3 pr-4 font-medium text-[10px] uppercase tracking-widest">{s}</td>
+                  <td className="py-3 pr-4">
+                    <p className="text-[11px] opacity-60">{m.chest_cm} cm</p>
+                    <p className="text-[10px] opacity-35">{m.chest_in} in</p>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <p className="text-[11px] opacity-60">{m.waist_cm} cm</p>
+                    <p className="text-[10px] opacity-35">{m.waist_in} in</p>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <p className="text-[11px] opacity-60">{m.hips_cm} cm</p>
+                    <p className="text-[10px] opacity-35">{m.hips_in} in</p>
+                  </td>
+                  <td className="py-3 text-[10px] opacity-40 italic">{m.fit}</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
         <div className="mt-5 pt-4 border-t border-[#2B0A0F]/08">
@@ -288,17 +282,16 @@ function AIDescriptionButton({ photos, title, category, condition, size, mood, o
         reader.onerror = rej;
         reader.readAsDataURL(blob);
       });
-       const { data: { session } } = await supabase.auth.getSession();
-const token = session?.access_token;
-
-const response = await fetch("/api/generate-description", {
-  method: "POST",
-  headers: { 
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
-  },
-  body: JSON.stringify({ base64, mediaType: blob.type || "image/jpeg", title, category, condition, size, mood }),
-});
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch("/api/generate-description", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ base64, mediaType: blob.type || "image/jpeg", title, category, condition, size, mood }),
+      });
       const data = await response.json();
       if (data.text) { onGenerated(data.text); setState("done"); setTimeout(() => setState("idle"), 3000); }
       else setState("idle");
@@ -307,7 +300,7 @@ const response = await fetch("/api/generate-description", {
   return (
     <motion.button type="button" onClick={generate} disabled={state === "loading" || photos.length === 0} whileTap={{ scale: 0.97 }}
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] uppercase tracking-[0.2em] transition-all ${
-        state === "done"    ? "border-[#6B7E60] text-[#6B7E60] bg-[#6B7E60]/08"
+        state === "done"      ? "border-[#6B7E60] text-[#6B7E60] bg-[#6B7E60]/08"
         : state === "loading" ? "border-[#2B0A0F]/20 text-[#2B0A0F]/40"
         : photos.length === 0 ? "border-[#2B0A0F]/10 text-[#2B0A0F]/25 cursor-not-allowed"
         : "border-[#B48A5A]/50 text-[#B48A5A] hover:bg-[#B48A5A]/08"
@@ -325,38 +318,42 @@ export default function SellPage() {
   const router         = useRouter();
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep]                 = useState(0);
-  const [userId, setUserId]             = useState<string | null>(null);
-  const [hasUpi, setHasUpi] = useState(true);
-  const [loading, setLoading]           = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [toast, setToast]               = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [step, setStep]                   = useState(0);
+  const [userId, setUserId]               = useState<string | null>(null);
+  const [hasUpi, setHasUpi]               = useState(true);
+  const [loading, setLoading]             = useState(false);
+  const [checkingAuth, setCheckingAuth]   = useState(true);
+  const [toast, setToast]                 = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
-  const [keywords, setKeywords] = useState("");
-  const [title, setTitle]               = useState("");
-  const [brand, setBrand]               = useState("");
-  const [price, setPrice]               = useState("");
+  const [keywords, setKeywords]           = useState("");
+  const [title, setTitle]                 = useState("");
+  const [brand, setBrand]                 = useState("");
+  const [price, setPrice]                 = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
-  const [negotiable, setNegotiable]     = useState(false);
+  const [negotiable, setNegotiable]       = useState(false);
   const [shippingPrice, setShippingPrice] = useState<string>("0");
-  const [freeShipping, setFreeShipping] = useState(false);
-  const [location, setLocation]         = useState("");
-  const [description, setDescription]   = useState("");
-  const [condition, setCondition]       = useState("");
-  const [size, setSize]                 = useState("");
-  const [category, setCategory]         = useState("");
-  const [mood, setMood]                 = useState("");
-  const [colour, setColour]             = useState("");
-  const [files, setFiles]               = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls]   = useState<string[]>([]);
-  const [cropSrc, setCropSrc]         = useState<string | null>(null);
+  const [freeShipping, setFreeShipping]   = useState(false);
+  const [location, setLocation]           = useState("");
+  const [description, setDescription]     = useState("");
+  const [condition, setCondition]         = useState("");
+  const [size, setSize]                   = useState("");
+  const [category, setCategory]           = useState("");
+  const [mood, setMood]                   = useState("");
+  const [colour, setColour]               = useState("");
+  const [files, setFiles]                 = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls]     = useState<string[]>([]);
+  const [cropSrc, setCropSrc]             = useState<string | null>(null);
   const [cropSlotIndex, setCropSlotIndex] = useState<number>(0);
-  const [pickupPincode, setPickupPincode] = useState("");
-  const [weightKg, setWeightKg] = useState<number>(0.5);
-  const [shippingLoading, setShippingLoading] = useState(false);
+
+  // Shipping states
+  const [pickupPincode, setPickupPincode]         = useState("");
+  const [weightKg, setWeightKg]                   = useState<number>(0.5);
+  const [shippingLoading, setShippingLoading]     = useState(false);
   const [shippingCalculated, setShippingCalculated] = useState(false);
-  const [minShippingPrice, setMinShippingPrice] = useState<number>(0);
-  const [courierInfo, setCourierInfo] = useState<{ name: string; days: string } | null>(null);
+  const [minShippingPrice, setMinShippingPrice]   = useState<number>(0);
+  const [courierInfo, setCourierInfo]             = useState<{ name: string; days: string } | null>(null);
+  const [shippingMode, setShippingMode]           = useState<"shiprocket" | "self">("shiprocket");
+  const [showShippingInfo, setShowShippingInfo]   = useState(false);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -368,59 +365,47 @@ export default function SellPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
       setUserId(user.id);
-       const { data: profile, error: profileError } = await supabase
-  .from("profiles")
-  .select("bank_upi")
-  .eq("id", user.id)
-  .maybeSingle();
-if (!profileError) setHasUpi(!!profile?.bank_upi);
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("bank_upi")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!profileError) setHasUpi(!!profile?.bank_upi);
       setCheckingAuth(false);
     };
     checkUser();
   }, [router]);
 
   const handleSlotFile = (slotIndex: number, newFile: File) => {
-  openCropper(newFile, slotIndex);
-};
+    openCropper(newFile, slotIndex);
+  };
 
-   const handleCameraFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-
-  if (!file || files.length >= MAX_PHOTOS) return;
-
-  openCropper(file, files.length);
-
-  if (cameraInputRef.current) {
-    cameraInputRef.current.value = "";
-  }
-};
+  const handleCameraFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || files.length >= MAX_PHOTOS) return;
+    openCropper(file, files.length);
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+  };
 
   const openCropper = (file: File, slotIndex: number) => {
-  setCropSlotIndex(slotIndex);
-  setCropSrc(URL.createObjectURL(file));
-};
+    setCropSlotIndex(slotIndex);
+    setCropSrc(URL.createObjectURL(file));
+  };
 
-const handleCropDone = (croppedFile: File) => {
-  setFiles(prev => {
-    const updated = [...prev];
-
-    if (cropSlotIndex < updated.length) {
-      updated[cropSlotIndex] = croppedFile;
-    } else {
-      updated.push(croppedFile);
-    }
-
-    const sliced = updated.slice(0, MAX_PHOTOS);
-
-    setPreviewUrls(
-      sliced.map(f => URL.createObjectURL(f))
-    );
-
-    return sliced;
-  });
-
-  setCropSrc(null);
-};
+  const handleCropDone = (croppedFile: File) => {
+    setFiles(prev => {
+      const updated = [...prev];
+      if (cropSlotIndex < updated.length) {
+        updated[cropSlotIndex] = croppedFile;
+      } else {
+        updated.push(croppedFile);
+      }
+      const sliced = updated.slice(0, MAX_PHOTOS);
+      setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+      return sliced;
+    });
+    setCropSrc(null);
+  };
 
   const removeImage = (index: number) => {
     URL.revokeObjectURL(previewUrls[index]);
@@ -445,38 +430,38 @@ const handleCropDone = (croppedFile: File) => {
   const quality    = getQualityScore({ photos: files.length, title, price, location, condition, category, size, mood, description, brand, colour });
   const savingPct  = price && originalPrice && parseFloat(originalPrice) > parseFloat(price)
     ? Math.round((1 - parseFloat(price) / parseFloat(originalPrice)) * 100) : null;
-    
+
   const calculateShipping = async () => {
-  if (!pickupPincode || pickupPincode.length !== 6) {
-    showToast("Enter a valid 6-digit pincode", "error");
-    return;
-  }
-  setShippingLoading(true);
-  try {
-    const res = await fetch("/api/shiprocket-rate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pickup_pincode: pickupPincode,
-        delivery_pincode: "400001",
-        weight: weightKg,
-      }),
-    });
-    const data = await res.json();
-    if (data.error) {
-      showToast(data.error, "error");
+    if (!pickupPincode || pickupPincode.length !== 6) {
+      showToast("Enter a valid 6-digit pincode", "error");
       return;
     }
-    setMinShippingPrice(data.suggested_price);
-    setShippingPrice(data.suggested_price.toString());
-    setCourierInfo({ name: data.courier_name, days: data.estimated_days });
-    setShippingCalculated(true);
-  } catch {
-    showToast("Could not calculate shipping. Try again.", "error");
-  } finally {
-    setShippingLoading(false);
-  }
-};
+    setShippingLoading(true);
+    try {
+      const res = await fetch("/api/shiprocket-rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pickup_pincode: pickupPincode,
+          delivery_pincode: "400001",
+          weight: weightKg,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        showToast(data.error, "error");
+        return;
+      }
+      setMinShippingPrice(data.suggested_price);
+      setShippingPrice(data.suggested_price.toString());
+      setCourierInfo({ name: data.courier_name, days: data.estimated_days });
+      setShippingCalculated(true);
+    } catch {
+      showToast("Could not calculate shipping. Try again.", "error");
+    } finally {
+      setShippingLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,20 +483,22 @@ const handleCropDone = (croppedFile: File) => {
         uploadedUrls.push(publicUrl);
       }
       const { error: dbError } = await supabase.from("products").insert([{
-        title, brand: brand || null,
+        title,
+        brand: brand || null,
         price: parseFloat(price),
         original_price: originalPrice ? parseFloat(originalPrice) : null,
         negotiable,
         shipping_price: freeShipping ? 0 : (parseInt(shippingPrice) || 0),
-pickup_pincode: pickupPincode || null,
-weight_kg: weightKg,
+        pickup_pincode: pickupPincode || null,
+        weight_kg: weightKg,
+        shipping_type: shippingMode,
         location, description, condition, size, category, mood,
         colour: colour || null,
         image_url:    uploadedUrls[0],
         extra_images: uploadedUrls.slice(1),
         seller_id:    userId,
         status:       "available",
-        keywords: keywords || null,
+        keywords:     keywords || null,
       }]);
       if (dbError) throw dbError;
       showToast("Piece added to the Archive ✦");
@@ -528,13 +515,13 @@ weight_kg: weightKg,
   return (
     <main className="min-h-screen bg-[#F6F3EF] text-[#2B0A0F]">
       {cropSrc && (
-  <ImageCropper
-    imageSrc={cropSrc}
-    onCropDone={handleCropDone}
-    onCancel={() => setCropSrc(null)}
-    aspectRatio={3 / 4}
-  />
-)}
+        <ImageCropper
+          imageSrc={cropSrc}
+          onCropDone={handleCropDone}
+          onCancel={() => setCropSrc(null)}
+          aspectRatio={3 / 4}
+        />
+      )}
       <AnimatePresence>
         {toast && <Toast message={toast.message} type={toast.type} />}
         {sizeGuideOpen && <SizeGuideModal onClose={() => setSizeGuideOpen(false)} />}
@@ -558,92 +545,95 @@ weight_kg: weightKg,
                   <h2 className="text-2xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>First, the visuals.</h2>
                   <p className="text-sm opacity-50">Add up to {MAX_PHOTOS} photos. Natural light works best.</p>
                 </div>
-                 <div className="grid grid-cols-3 gap-2 sm:hidden">
-  <div className="col-span-3">
-    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)}
-      onMultiSelected={(newFiles) => {
-        const combined = [...files];
-        newFiles.forEach((f, offset) => {
-          const targetIndex = 0 + offset;
-          if (targetIndex < MAX_PHOTOS) {
-            if (targetIndex < combined.length) combined[targetIndex] = f;
-            else combined.push(f);
-          }
-        });
-        const sliced = combined.slice(0, MAX_PHOTOS);
-        setFiles(sliced);
-        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
-      }}
-      isMain={true} />
-  </div>
-  {[1, 2, 3].map((i) => (
-    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)}
-      onMultiSelected={(newFiles) => {
-        const combined = [...files];
-        newFiles.forEach((f, offset) => {
-          const targetIndex = i + offset;
-          if (targetIndex < MAX_PHOTOS) {
-            if (targetIndex < combined.length) combined[targetIndex] = f;
-            else combined.push(f);
-          }
-        });
-        const sliced = combined.slice(0, MAX_PHOTOS);
-        setFiles(sliced);
-        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
-      }}
-      isMain={false} />
-  ))}
-</div>
+
+                {/* Mobile photo grid */}
+                <div className="grid grid-cols-3 gap-2 sm:hidden">
+                  <div className="col-span-3">
+                    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)}
+                      onMultiSelected={(newFiles) => {
+                        const combined = [...files];
+                        newFiles.forEach((f, offset) => {
+                          const targetIndex = 0 + offset;
+                          if (targetIndex < MAX_PHOTOS) {
+                            if (targetIndex < combined.length) combined[targetIndex] = f;
+                            else combined.push(f);
+                          }
+                        });
+                        const sliced = combined.slice(0, MAX_PHOTOS);
+                        setFiles(sliced);
+                        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+                      }}
+                      isMain={true} />
+                  </div>
+                  {[1, 2, 3].map((i) => (
+                    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)}
+                      onMultiSelected={(newFiles) => {
+                        const combined = [...files];
+                        newFiles.forEach((f, offset) => {
+                          const targetIndex = i + offset;
+                          if (targetIndex < MAX_PHOTOS) {
+                            if (targetIndex < combined.length) combined[targetIndex] = f;
+                            else combined.push(f);
+                          }
+                        });
+                        const sliced = combined.slice(0, MAX_PHOTOS);
+                        setFiles(sliced);
+                        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+                      }}
+                      isMain={false} />
+                  ))}
+                </div>
+
+                {/* Desktop photo grid */}
                 <div className="hidden sm:grid grid-cols-3 gap-3">
-  <div className="row-span-2">
-    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)}
-      onMultiSelected={(newFiles) => {
-        const combined = [...files];
-        newFiles.forEach((f, offset) => {
-          const targetIndex = 0 + offset;
-          if (targetIndex < MAX_PHOTOS) {
-            if (targetIndex < combined.length) combined[targetIndex] = f;
-            else combined.push(f);
-          }
-        });
-        const sliced = combined.slice(0, MAX_PHOTOS);
-        setFiles(sliced);
-        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
-      }}
-      isMain={true} />
-  </div>
-  {[1, 2, 3].map((i) => (
-    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)}
-      onMultiSelected={(newFiles) => {
-        const combined = [...files];
-        newFiles.forEach((f, offset) => {
-          const targetIndex = i + offset;
-          if (targetIndex < MAX_PHOTOS) {
-            if (targetIndex < combined.length) combined[targetIndex] = f;
-            else combined.push(f);
-          }
-        });
-        const sliced = combined.slice(0, MAX_PHOTOS);
-        setFiles(sliced);
-        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
-      }}
-      isMain={false} />
-  ))}
-</div>
- 
+                  <div className="row-span-2">
+                    <PhotoSlot index={0} preview={previewUrls[0]} onRemove={() => removeImage(0)} onFileSelected={(f) => handleSlotFile(0, f)}
+                      onMultiSelected={(newFiles) => {
+                        const combined = [...files];
+                        newFiles.forEach((f, offset) => {
+                          const targetIndex = 0 + offset;
+                          if (targetIndex < MAX_PHOTOS) {
+                            if (targetIndex < combined.length) combined[targetIndex] = f;
+                            else combined.push(f);
+                          }
+                        });
+                        const sliced = combined.slice(0, MAX_PHOTOS);
+                        setFiles(sliced);
+                        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+                      }}
+                      isMain={true} />
+                  </div>
+                  {[1, 2, 3].map((i) => (
+                    <PhotoSlot key={i} index={i} preview={previewUrls[i]} onRemove={() => removeImage(i)} onFileSelected={(f) => handleSlotFile(i, f)}
+                      onMultiSelected={(newFiles) => {
+                        const combined = [...files];
+                        newFiles.forEach((f, offset) => {
+                          const targetIndex = i + offset;
+                          if (targetIndex < MAX_PHOTOS) {
+                            if (targetIndex < combined.length) combined[targetIndex] = f;
+                            else combined.push(f);
+                          }
+                        });
+                        const sliced = combined.slice(0, MAX_PHOTOS);
+                        setFiles(sliced);
+                        setPreviewUrls(sliced.map(f => URL.createObjectURL(f)));
+                      }}
+                      isMain={false} />
+                  ))}
+                </div>
+
                 <div className="flex gap-3">
                   <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Upload
                     <input type="file" accept="image/*" multiple className="hidden" disabled={files.length >= MAX_PHOTOS}
-                      // Replace the Upload label's onChange in step === 0:
-onChange={(e) => {
-  const selected = Array.from(e.target.files || []);
-  const combined = [...files, ...selected].slice(0, MAX_PHOTOS);
-  setFiles(combined);
-  setPreviewUrls(combined.map(f => URL.createObjectURL(f)));
-  e.target.value = "";
-}}  />
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.files || []);
+                        const combined = [...files, ...selected].slice(0, MAX_PHOTOS);
+                        setFiles(combined);
+                        setPreviewUrls(combined.map(f => URL.createObjectURL(f)));
+                        e.target.value = "";
+                      }} />
                   </label>
                   <label className={`flex-1 flex items-center justify-center gap-2 border border-[#2B0A0F]/15 rounded-full py-3.5 text-[10px] uppercase tracking-[0.2em] hover:bg-[#2B0A0F] hover:text-[#F6F3EF] hover:border-[#2B0A0F] transition-all cursor-pointer select-none ${files.length >= MAX_PHOTOS ? "opacity-30 pointer-events-none" : ""}`}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -651,12 +641,14 @@ onChange={(e) => {
                     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" disabled={files.length >= MAX_PHOTOS} onChange={handleCameraFile} />
                   </label>
                 </div>
+
                 <div className="flex items-center gap-3">
                   {Array.from({ length: MAX_PHOTOS }).map((_, i) => (
                     <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-500 ${i < files.length ? "bg-[#2B0A0F]" : "bg-[#2B0A0F]/10"}`} />
                   ))}
                   <span className="text-[9px] uppercase tracking-[0.2em] opacity-40 flex-shrink-0">{files.length}/{MAX_PHOTOS}</span>
                 </div>
+
                 <PhotoGuidelines />
                 <p className="text-[9px] uppercase tracking-[0.2em] opacity-35 leading-relaxed">Tip — Lay flat or hang. Photograph the label, any flaws, and the full garment. More photos = faster sale.</p>
                 <button type="button" onClick={() => setStep(1)} disabled={!canProceedStep0}
@@ -765,156 +757,313 @@ onChange={(e) => {
                         </AnimatePresence>
                       </div>
                     </div>
-              {/* Shipping */}
-<div className="space-y-5">
 
-  {/* Pincode */}
-  <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-    <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-      Your Pincode *
-    </label>
-    <input
-      suppressHydrationWarning
-      type="text"
-      inputMode="numeric"
-      maxLength={6}
-      value={pickupPincode}
-      onChange={(e) => {
-        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-        setPickupPincode(val);
-        setShippingCalculated(false);
-      }}
-      placeholder="e.g. 411048"
-      className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
-    />
-    <p className="text-[9px] opacity-25 mb-2">
-      Used to calculate accurate shipping cost for buyers
-    </p>
-  </div>
+                    {/* ── SHIPPING ── */}
+                    <div className="space-y-5">
 
-  {/* Weight */}
-  <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-    <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-      Item Weight *
-    </label>
-    <div className="relative">
-      <select
-        value={weightKg}
-        onChange={(e) => {
-          setWeightKg(parseFloat(e.target.value));
-          setShippingCalculated(false);
-        }}
-        className="w-full bg-transparent pb-3 outline-none text-base appearance-none cursor-pointer pr-6"
-      >
-        <option value={0.5}>Under 500g — T-shirts, tops, light items</option>
-        <option value={1}>500g – 1kg — Jeans, dresses, knitwear</option>
-        <option value={2}>1kg – 2kg — Jackets, coats, heavy bottoms</option>
-        <option value={3}>Above 2kg — Bulk / heavy outerwear</option>
-      </select>
-      <svg className="absolute right-0 bottom-4 pointer-events-none opacity-30" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
-    </div>
-  </div>
+                      {/* Method selector header */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">Shipping Method</label>
+                          <button
+                            type="button"
+                            onClick={() => setShowShippingInfo(!showShippingInfo)}
+                            className="flex items-center gap-1 text-[8px] uppercase tracking-[0.2em] opacity-40 hover:opacity-80 transition-opacity"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            Which should I choose?
+                          </button>
+                        </div>
 
-  {/* Calculate + Result */}
-  <div className="border-b border-[#2B0A0F]/12 pb-4">
-    <div className="flex items-center justify-between mb-2">
-      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">
-        Shipping Charge
-      </label>
-      <button
-        type="button"
-        onClick={() => {
-          setFreeShipping(!freeShipping);
-          if (!freeShipping) setShippingPrice("0");
-        }}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[8px] uppercase tracking-[0.15em] transition-all ${
-          freeShipping
-            ? "bg-[#6B7E60] border-[#6B7E60] text-white"
-            : "border-[#2B0A0F]/15 opacity-40 hover:opacity-70"
-        }`}
-      >
-        <span className={`w-1.5 h-1.5 rounded-full ${freeShipping ? "bg-white" : "bg-[#2B0A0F]/40"}`} />
-        {freeShipping ? "Free Shipping" : "Set Free"}
-      </button>
-    </div>
+                        {/* Pros/cons panel */}
+                        <AnimatePresence>
+                          {showShippingInfo && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                              className="mb-4 rounded-2xl border border-[#2B0A0F]/08 bg-white/60 overflow-hidden"
+                            >
+                              <div className="grid grid-cols-2 divide-x divide-[#2B0A0F]/08">
+                                <div className="p-4">
+                                  <p className="text-[9px] uppercase tracking-[0.2em] font-medium mb-3 text-[#B48A5A]">✦ Shiprocket</p>
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                      <span className="text-[#6B7E60] text-[10px] flex-shrink-0">✓</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Courier comes to your door for pickup</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="text-[#6B7E60] text-[10px] flex-shrink-0">✓</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Tracking auto-sent to buyer</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="text-[#6B7E60] text-[10px] flex-shrink-0">✓</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Rate is calculated for you</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="text-[#A1123F] text-[10px] flex-shrink-0">✗</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Must be available for pickup</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="p-4">
+                                  <p className="text-[9px] uppercase tracking-[0.2em] font-medium mb-3 text-[#457B9D]">✦ Self Ship</p>
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                      <span className="text-[#6B7E60] text-[10px] flex-shrink-0">✓</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Drop at any courier yourself</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="text-[#6B7E60] text-[10px] flex-shrink-0">✓</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Set your own price (max ₹100)</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="text-[#6B7E60] text-[10px] flex-shrink-0">✓</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">Good for local / same-city sales</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="text-[#A1123F] text-[10px] flex-shrink-0">✗</span>
+                                      <p className="text-[9px] opacity-60 leading-snug">You manage tracking manually</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="px-4 py-2 border-t border-[#2B0A0F]/08">
+                                <p className="text-[8px] opacity-30 text-center">Shiprocket recommended for most sellers · Self Ship for local pickups</p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
 
-    {!freeShipping ? (
-      <div className="space-y-3">
-        {!shippingCalculated && (
-          <button
-            type="button"
-            onClick={calculateShipping}
-            disabled={shippingLoading || pickupPincode.length !== 6}
-            className={`w-full py-3 rounded-full border text-[10px] uppercase tracking-[0.2em] transition-all ${
-              pickupPincode.length === 6 && !shippingLoading
-                ? "border-[#B48A5A] text-[#B48A5A] hover:bg-[#B48A5A]/08"
-                : "border-[#2B0A0F]/10 text-[#2B0A0F]/25 cursor-not-allowed"
-            }`}
-          >
-            {shippingLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
-                </svg>
-                Calculating...
-              </span>
-            ) : pickupPincode.length !== 6
-              ? "Enter your pincode first"
-              : "✦ Calculate Shipping Price"
-            }
-          </button>
-        )}
+                        {/* Toggle */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShippingMode("shiprocket");
+                              setShippingCalculated(false);
+                              setShippingPrice("0");
+                            }}
+                            className={`py-3 rounded-xl border text-[10px] uppercase tracking-[0.15em] transition-all ${
+                              shippingMode === "shiprocket"
+                                ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
+                                : "border-[#2B0A0F]/12 opacity-50 hover:opacity-80"
+                            }`}
+                          >
+                            🚚 Shiprocket
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShippingMode("self");
+                              setShippingCalculated(false);
+                              setShippingPrice("0");
+                              setFreeShipping(false);
+                            }}
+                            className={`py-3 rounded-xl border text-[10px] uppercase tracking-[0.15em] transition-all ${
+                              shippingMode === "self"
+                                ? "bg-[#2B0A0F] text-[#F6F3EF] border-[#2B0A0F]"
+                                : "border-[#2B0A0F]/12 opacity-50 hover:opacity-80"
+                            }`}
+                          >
+                            📦 Self Ship
+                          </button>
+                        </div>
+                      </div>
 
-        {shippingCalculated && (
-          <div className="rounded-xl border border-[#6B7E60]/30 bg-[#6B7E60]/05 p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] uppercase tracking-[0.2em] text-[#6B7E60]">
-                ✦ Suggested minimum: ₹{minShippingPrice}
-              </p>
-              <button
-                type="button"
-                onClick={() => setShippingCalculated(false)}
-                className="text-[8px] opacity-30 hover:opacity-60 uppercase tracking-[0.1em]"
-              >
-                recalculate
-              </button>
-            </div>
-            {courierInfo && (
-              <p className="text-[9px] opacity-40">
-                via {courierInfo.name} · est. {courierInfo.days} days
-              </p>
-            )}
-            <div className="pt-1">
-              <input
-                suppressHydrationWarning
-                type="number"
-                inputMode="numeric"
-                min={minShippingPrice}
-                value={shippingPrice}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value) || 0;
-                  setShippingPrice(Math.max(val, minShippingPrice).toString());
-                }}
-                className="w-full bg-transparent border-b border-[#2B0A0F]/20 pb-2 outline-none text-base placeholder:opacity-20"
-              />
-              <p className="text-[9px] opacity-25 mt-1">
-                You can charge more than ₹{minShippingPrice} but not less · buyer pays this
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    ) : (
-      <p className="text-[9px] text-[#6B7E60] pb-3">
-        ✦ Free shipping makes your listing stand out
-      </p>
-    )}
-  </div>
+                      {/* ── SHIPROCKET MODE ── */}
+                      {shippingMode === "shiprocket" && (
+                        <div className="space-y-5">
+                          {/* Pincode */}
+                          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+                            <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Your Pincode *</label>
+                            <input
+                              suppressHydrationWarning
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={pickupPincode}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                setPickupPincode(val);
+                                setShippingCalculated(false);
+                              }}
+                              placeholder="e.g. 411048"
+                              className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+                            />
+                            <p className="text-[9px] opacity-25 mb-2">Used to calculate accurate shipping cost for buyers</p>
+                          </div>
 
-</div>
+                          {/* Weight */}
+                          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+                            <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Item Weight *</label>
+                            <div className="relative">
+                              <select
+                                value={weightKg}
+                                onChange={(e) => {
+                                  setWeightKg(parseFloat(e.target.value));
+                                  setShippingCalculated(false);
+                                }}
+                                className="w-full bg-transparent pb-3 outline-none text-base appearance-none cursor-pointer pr-6"
+                              >
+                                <option value={0.5}>Under 500g — T-shirts, tops, light items</option>
+                                <option value={1}>500g – 1kg — Jeans, dresses, knitwear</option>
+                                <option value={2}>1kg – 2kg — Jackets, coats, heavy bottoms</option>
+                                <option value={3}>Above 2kg — Bulk / heavy outerwear</option>
+                              </select>
+                              <svg className="absolute right-0 bottom-4 pointer-events-none opacity-30" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="6 9 12 15 18 9"/>
+                              </svg>
+                            </div>
+                          </div>
+
+                          {/* Calculate + result */}
+                          <div className="border-b border-[#2B0A0F]/12 pb-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">Shipping Charge</label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFreeShipping(!freeShipping);
+                                  if (!freeShipping) setShippingPrice("0");
+                                }}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[8px] uppercase tracking-[0.15em] transition-all ${
+                                  freeShipping
+                                    ? "bg-[#6B7E60] border-[#6B7E60] text-white"
+                                    : "border-[#2B0A0F]/15 opacity-40 hover:opacity-70"
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${freeShipping ? "bg-white" : "bg-[#2B0A0F]/40"}`} />
+                                {freeShipping ? "Free Shipping" : "Set Free"}
+                              </button>
+                            </div>
+
+                            {!freeShipping ? (
+                              <div className="space-y-3">
+                                {!shippingCalculated && (
+                                  <button
+                                    type="button"
+                                    onClick={calculateShipping}
+                                    disabled={shippingLoading || pickupPincode.length !== 6}
+                                    className={`w-full py-3 rounded-full border text-[10px] uppercase tracking-[0.2em] transition-all ${
+                                      pickupPincode.length === 6 && !shippingLoading
+                                        ? "border-[#B48A5A] text-[#B48A5A] hover:bg-[#B48A5A]/08"
+                                        : "border-[#2B0A0F]/10 text-[#2B0A0F]/25 cursor-not-allowed"
+                                    }`}
+                                  >
+                                    {shippingLoading ? (
+                                      <span className="flex items-center justify-center gap-2">
+                                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                                        </svg>
+                                        Calculating...
+                                      </span>
+                                    ) : pickupPincode.length !== 6
+                                      ? "Enter your pincode first"
+                                      : "✦ Calculate Shipping Price"
+                                    }
+                                  </button>
+                                )}
+
+                                {shippingCalculated && (
+                                  <div className="rounded-xl border border-[#6B7E60]/30 bg-[#6B7E60]/05 p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-[9px] uppercase tracking-[0.2em] text-[#6B7E60]">
+                                        ✦ Suggested minimum: ₹{minShippingPrice}
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => setShippingCalculated(false)}
+                                        className="text-[8px] opacity-30 hover:opacity-60 uppercase tracking-[0.1em]"
+                                      >
+                                        recalculate
+                                      </button>
+                                    </div>
+                                    {courierInfo && (
+                                      <p className="text-[9px] opacity-40">via {courierInfo.name} · est. {courierInfo.days} days</p>
+                                    )}
+                                    <div className="pt-1">
+                                      <input
+                                        suppressHydrationWarning
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={minShippingPrice}
+                                        value={shippingPrice}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          setShippingPrice(Math.max(val, minShippingPrice).toString());
+                                        }}
+                                        className="w-full bg-transparent border-b border-[#2B0A0F]/20 pb-2 outline-none text-base"
+                                      />
+                                      <p className="text-[9px] opacity-25 mt-1">
+                                        You can charge more than ₹{minShippingPrice} but not less · buyer pays this
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-[9px] text-[#6B7E60] pb-3">✦ Free shipping makes your listing stand out</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── SELF SHIP MODE ── */}
+                      {shippingMode === "self" && (
+                        <div className="space-y-5">
+                          <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">Shipping Charge</label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFreeShipping(!freeShipping);
+                                  if (!freeShipping) setShippingPrice("0");
+                                }}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[8px] uppercase tracking-[0.15em] transition-all ${
+                                  freeShipping
+                                    ? "bg-[#6B7E60] border-[#6B7E60] text-white"
+                                    : "border-[#2B0A0F]/15 opacity-40 hover:opacity-70"
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${freeShipping ? "bg-white" : "bg-[#2B0A0F]/40"}`} />
+                                {freeShipping ? "Free Shipping" : "Set Free"}
+                              </button>
+                            </div>
+                            {!freeShipping ? (
+                              <>
+                                <input
+                                  suppressHydrationWarning
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  inputMode="numeric"
+                                  value={shippingPrice}
+                                  onChange={(e) => {
+                                    const val = Math.min(parseInt(e.target.value) || 0, 100);
+                                    setShippingPrice(val.toString());
+                                  }}
+                                  placeholder="e.g. 60"
+                                  className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+                                />
+                                <p className="text-[9px] opacity-30 mb-2">Max ₹100 · You arrange the courier yourself</p>
+                              </>
+                            ) : (
+                              <p className="text-[9px] text-[#6B7E60] pb-3">✦ Free shipping makes your listing stand out</p>
+                            )}
+                          </div>
+                          <div className="rounded-xl border border-[#457B9D]/20 bg-[#457B9D]/04 p-3">
+                            <p className="text-[9px] opacity-50 leading-relaxed">
+                              You'll need to drop the parcel at a courier (Delhivery, DTDC, India Post etc.) and share the tracking number with the buyer after the order is placed.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                    {/* ── END SHIPPING ── */}
 
                     {/* City */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
@@ -1012,19 +1161,18 @@ onChange={(e) => {
                       </div>
                     </div>
 
+                    {/* Keywords */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-  <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
-    Keywords
-  </label>
-  <input
-    type="text"
-    value={keywords}
-    onChange={(e) => setKeywords(e.target.value)}
-    placeholder="e.g. floral, summer, beach, printed, gift"
-    className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
-  />
-  <p className="text-[9px] opacity-25 mb-2">Helps buyers find your piece · separate with commas</p>
-</div>
+                      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">Keywords</label>
+                      <input
+                        type="text"
+                        value={keywords}
+                        onChange={(e) => setKeywords(e.target.value)}
+                        placeholder="e.g. floral, summer, beach, printed, gift"
+                        className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+                      />
+                      <p className="text-[9px] opacity-25 mb-2">Helps buyers find your piece · separate with commas</p>
+                    </div>
 
                     {/* Description */}
                     <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
@@ -1041,40 +1189,36 @@ onChange={(e) => {
                       </p>
                     </div>
 
-                      {/* Submit */}
-<div className="pt-2 space-y-3">
-  {!canProceedStep1 && missingFields().length > 0 && (
-    <p className="text-[9px] text-[#A1123F] opacity-70 text-center">Still needed: {missingFields().join(" · ")}</p>
-  )}
+                    {/* Submit */}
+                    <div className="pt-2 space-y-3">
+                      {!canProceedStep1 && missingFields().length > 0 && (
+                        <p className="text-[9px] text-[#A1123F] opacity-70 text-center">Still needed: {missingFields().join(" · ")}</p>
+                      )}
 
-  {!hasUpi && (
-    <div className="p-4 rounded-2xl border border-[#B48A5A]/30 bg-[#B48A5A]/05">
-      <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48A5A] mb-1">
-        ⚠️ Add UPI before listing
-      </p>
-      <p className="text-[9px] opacity-50 mb-3">
-        You need a UPI ID to receive payment when your piece sells.
-      </p>
-      <Link href={`/account/${userId}`}>
-        <button type="button" className="text-[9px] uppercase tracking-[0.15em] px-3 py-2 rounded-full border border-[#B48A5A]/40 text-[#B48A5A] hover:bg-[#B48A5A] hover:text-white transition-all">
-          Add UPI in Profile →
-        </button>
-      </Link>
-    </div>
-  )}
+                      {!hasUpi && (
+                        <div className="p-4 rounded-2xl border border-[#B48A5A]/30 bg-[#B48A5A]/05">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48A5A] mb-1">⚠️ Add UPI before listing</p>
+                          <p className="text-[9px] opacity-50 mb-3">You need a UPI ID to receive payment when your piece sells.</p>
+                          <Link href={`/account/${userId}`}>
+                            <button type="button" className="text-[9px] uppercase tracking-[0.15em] px-3 py-2 rounded-full border border-[#B48A5A]/40 text-[#B48A5A] hover:bg-[#B48A5A] hover:text-white transition-all">
+                              Add UPI in Profile →
+                            </button>
+                          </Link>
+                        </div>
+                      )}
 
-  <motion.button type="submit" disabled={loading || !canProceedStep1} whileTap={{ scale: 0.98 }}
-    className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2">
-    {loading ? (
-      <><svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>Archiving your piece...</>
-    ) : "Submit Piece to Archive ✦"}
-  </motion.button>
+                      <motion.button type="submit" disabled={loading || !canProceedStep1} whileTap={{ scale: 0.98 }}
+                        className="w-full py-4 bg-[#2B0A0F] text-[#F6F3EF] rounded-full text-[10px] uppercase tracking-[0.3em] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2">
+                        {loading ? (
+                          <><svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>Archiving your piece...</>
+                        ) : "Submit Piece to Archive ✦"}
+                      </motion.button>
 
-  <button type="button" onClick={() => setStep(0)}
-    className="w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-80 transition-opacity">
-    ← Back to Photos
-  </button>
-</div>
+                      <button type="button" onClick={() => setStep(0)}
+                        className="w-full py-3 rounded-full border border-[#2B0A0F]/12 text-[10px] uppercase tracking-[0.2em] opacity-40 hover:opacity-80 transition-opacity">
+                        ← Back to Photos
+                      </button>
+                    </div>
 
                     <p className="text-[9px] uppercase tracking-[0.15em] leading-relaxed opacity-30 text-center">Every piece is reviewed before appearing in the Archive.</p>
                   </div>
