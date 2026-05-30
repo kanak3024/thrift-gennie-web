@@ -350,7 +350,13 @@ export default function SellPage() {
   const [files, setFiles]               = useState<File[]>([]);
   const [previewUrls, setPreviewUrls]   = useState<string[]>([]);
   const [cropSrc, setCropSrc]         = useState<string | null>(null);
-const [cropSlotIndex, setCropSlotIndex] = useState<number>(0);
+  const [cropSlotIndex, setCropSlotIndex] = useState<number>(0);
+  const [pickupPincode, setPickupPincode] = useState("");
+  const [weightKg, setWeightKg] = useState<number>(0.5);
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [shippingCalculated, setShippingCalculated] = useState(false);
+  const [minShippingPrice, setMinShippingPrice] = useState<number>(0);
+  const [courierInfo, setCourierInfo] = useState<{ name: string; days: string } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -439,6 +445,38 @@ const handleCropDone = (croppedFile: File) => {
   const quality    = getQualityScore({ photos: files.length, title, price, location, condition, category, size, mood, description, brand, colour });
   const savingPct  = price && originalPrice && parseFloat(originalPrice) > parseFloat(price)
     ? Math.round((1 - parseFloat(price) / parseFloat(originalPrice)) * 100) : null;
+    
+  const calculateShipping = async () => {
+  if (!pickupPincode || pickupPincode.length !== 6) {
+    showToast("Enter a valid 6-digit pincode", "error");
+    return;
+  }
+  setShippingLoading(true);
+  try {
+    const res = await fetch("/api/shiprocket-rate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pickup_pincode: pickupPincode,
+        delivery_pincode: "400001",
+        weight: weightKg,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      showToast(data.error, "error");
+      return;
+    }
+    setMinShippingPrice(data.suggested_price);
+    setShippingPrice(data.suggested_price.toString());
+    setCourierInfo({ name: data.courier_name, days: data.estimated_days });
+    setShippingCalculated(true);
+  } catch {
+    showToast("Could not calculate shipping. Try again.", "error");
+  } finally {
+    setShippingLoading(false);
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -464,7 +502,9 @@ const handleCropDone = (croppedFile: File) => {
         price: parseFloat(price),
         original_price: originalPrice ? parseFloat(originalPrice) : null,
         negotiable,
-        shipping_price: freeShipping ? 0 : Math.min(parseInt(shippingPrice) || 0, 60),
+        shipping_price: freeShipping ? 0 : (parseInt(shippingPrice) || 0),
+pickup_pincode: pickupPincode || null,
+weight_kg: weightKg,
         location, description, condition, size, category, mood,
         colour: colour || null,
         image_url:    uploadedUrls[0],
@@ -725,54 +765,155 @@ onChange={(e) => {
                         </AnimatePresence>
                       </div>
                     </div>
-                    {/* Shipping */}
-<div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
-  <div className="flex items-center justify-between mb-2">
-    <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">
-      Shipping Charge
+              {/* Shipping */}
+<div className="space-y-5">
+
+  {/* Pincode */}
+  <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+    <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
+      Your Pincode *
     </label>
-    <button
-      type="button"
-      onClick={() => {
-        setFreeShipping(!freeShipping);
-        if (!freeShipping) setShippingPrice("0");
+    <input
+      suppressHydrationWarning
+      type="text"
+      inputMode="numeric"
+      maxLength={6}
+      value={pickupPincode}
+      onChange={(e) => {
+        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+        setPickupPincode(val);
+        setShippingCalculated(false);
       }}
-      className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[8px] uppercase tracking-[0.15em] transition-all ${
-        freeShipping
-          ? "bg-[#6B7E60] border-[#6B7E60] text-white"
-          : "border-[#2B0A0F]/15 opacity-40 hover:opacity-70"
-      }`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${freeShipping ? "bg-white" : "bg-[#2B0A0F]/40"}`} />
-      {freeShipping ? "Free Shipping" : "Set Free"}
-    </button>
+      placeholder="e.g. 411048"
+      className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
+    />
+    <p className="text-[9px] opacity-25 mb-2">
+      Used to calculate accurate shipping cost for buyers
+    </p>
   </div>
 
-  {!freeShipping ? (
-    <>
-      <input
-        suppressHydrationWarning
-        type="number"
-        min="0"
-        max="60"
-        inputMode="numeric"
-        value={shippingPrice}
+  {/* Weight */}
+  <div className="border-b border-[#2B0A0F]/12 focus-within:border-[#2B0A0F]/40 transition-colors">
+    <label className="text-[8px] uppercase tracking-[0.25em] opacity-40 block mb-2">
+      Item Weight *
+    </label>
+    <div className="relative">
+      <select
+        value={weightKg}
         onChange={(e) => {
-          const val = Math.min(parseInt(e.target.value) || 0, 60);
-          setShippingPrice(val.toString());
+          setWeightKg(parseFloat(e.target.value));
+          setShippingCalculated(false);
         }}
-        placeholder="0"
-        className="w-full bg-transparent pb-3 outline-none text-base placeholder:opacity-20"
-      />
-      <p className="text-[9px] opacity-30 mb-2">
-        Max ₹60 · Buyer pays this on top of item price
+        className="w-full bg-transparent pb-3 outline-none text-base appearance-none cursor-pointer pr-6"
+      >
+        <option value={0.5}>Under 500g — T-shirts, tops, light items</option>
+        <option value={1}>500g – 1kg — Jeans, dresses, knitwear</option>
+        <option value={2}>1kg – 2kg — Jackets, coats, heavy bottoms</option>
+        <option value={3}>Above 2kg — Bulk / heavy outerwear</option>
+      </select>
+      <svg className="absolute right-0 bottom-4 pointer-events-none opacity-30" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  </div>
+
+  {/* Calculate + Result */}
+  <div className="border-b border-[#2B0A0F]/12 pb-4">
+    <div className="flex items-center justify-between mb-2">
+      <label className="text-[8px] uppercase tracking-[0.25em] opacity-40">
+        Shipping Charge
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          setFreeShipping(!freeShipping);
+          if (!freeShipping) setShippingPrice("0");
+        }}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[8px] uppercase tracking-[0.15em] transition-all ${
+          freeShipping
+            ? "bg-[#6B7E60] border-[#6B7E60] text-white"
+            : "border-[#2B0A0F]/15 opacity-40 hover:opacity-70"
+        }`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${freeShipping ? "bg-white" : "bg-[#2B0A0F]/40"}`} />
+        {freeShipping ? "Free Shipping" : "Set Free"}
+      </button>
+    </div>
+
+    {!freeShipping ? (
+      <div className="space-y-3">
+        {!shippingCalculated && (
+          <button
+            type="button"
+            onClick={calculateShipping}
+            disabled={shippingLoading || pickupPincode.length !== 6}
+            className={`w-full py-3 rounded-full border text-[10px] uppercase tracking-[0.2em] transition-all ${
+              pickupPincode.length === 6 && !shippingLoading
+                ? "border-[#B48A5A] text-[#B48A5A] hover:bg-[#B48A5A]/08"
+                : "border-[#2B0A0F]/10 text-[#2B0A0F]/25 cursor-not-allowed"
+            }`}
+          >
+            {shippingLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+                </svg>
+                Calculating...
+              </span>
+            ) : pickupPincode.length !== 6
+              ? "Enter your pincode first"
+              : "✦ Calculate Shipping Price"
+            }
+          </button>
+        )}
+
+        {shippingCalculated && (
+          <div className="rounded-xl border border-[#6B7E60]/30 bg-[#6B7E60]/05 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-[#6B7E60]">
+                ✦ Suggested minimum: ₹{minShippingPrice}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShippingCalculated(false)}
+                className="text-[8px] opacity-30 hover:opacity-60 uppercase tracking-[0.1em]"
+              >
+                recalculate
+              </button>
+            </div>
+            {courierInfo && (
+              <p className="text-[9px] opacity-40">
+                via {courierInfo.name} · est. {courierInfo.days} days
+              </p>
+            )}
+            <div className="pt-1">
+              <input
+                suppressHydrationWarning
+                type="number"
+                inputMode="numeric"
+                min={minShippingPrice}
+                value={shippingPrice}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 0;
+                  setShippingPrice(Math.max(val, minShippingPrice).toString());
+                }}
+                className="w-full bg-transparent border-b border-[#2B0A0F]/20 pb-2 outline-none text-base placeholder:opacity-20"
+              />
+              <p className="text-[9px] opacity-25 mt-1">
+                You can charge more than ₹{minShippingPrice} but not less · buyer pays this
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    ) : (
+      <p className="text-[9px] text-[#6B7E60] pb-3">
+        ✦ Free shipping makes your listing stand out
       </p>
-    </>
-  ) : (
-    <p className="text-[9px] text-[#6B7E60] pb-3">
-      ✦ Free shipping makes your listing stand out
-    </p>
-  )}
+    )}
+  </div>
+
 </div>
 
                     {/* City */}
