@@ -25,7 +25,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://checkout.razorpay.com",
       "img-src 'self' blob: data: https: https://placehold.co https://azdaukmtpptozpebqtug.supabase.co https://cdn.razorpay.com",
       "font-src 'self' https:",
-      "connect-src 'self' https: https://azdaukmtpptozpebqtug.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com",
+      "connect-src 'self' https: wss: https://azdaukmtpptozpebqtug.supabase.co wss://azdaukmtpptozpebqtug.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com",
       "frame-src https://api.razorpay.com https://checkout.razorpay.com",
     ].join("; "),
   },
