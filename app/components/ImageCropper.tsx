@@ -26,25 +26,30 @@ async function getCroppedFile(
   pixelCrop: Area,
   originalFileName: string = "photo.jpg"
 ): Promise<File> {
-  const image = await createImageBitmap(await fetch(imageSrc).then((r) => r.blob()));
-  const canvas = document.createElement("canvas");
-  canvas.width  = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-  const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(
-    image,
-    pixelCrop.x, pixelCrop.y,
-    pixelCrop.width, pixelCrop.height,
-    0, 0,
-    pixelCrop.width, pixelCrop.height
-  );
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) { reject(new Error("Canvas is empty")); return; }
-      const ext  = originalFileName.split(".").pop() || "jpg";
-      const name = originalFileName.replace(/\.[^.]+$/, `_cropped.${ext}`);
-      resolve(new File([blob], name, { type: blob.type }));
-    }, "image/jpeg", 0.92);
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width  = pixelCrop.width;
+      canvas.height = pixelCrop.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(
+        image,
+        pixelCrop.x, pixelCrop.y,
+        pixelCrop.width, pixelCrop.height,
+        0, 0,
+        pixelCrop.width, pixelCrop.height
+      );
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error("Canvas is empty")); return; }
+        const ext  = originalFileName.split(".").pop() || "jpg";
+        const name = originalFileName.replace(/\.[^.]+$/, `_cropped.${ext}`);
+        resolve(new File([blob], name, { type: "image/jpeg" }));
+      }, "image/jpeg", 0.92);
+    };
+    image.onerror = reject;
+    image.src = imageSrc;
   });
 }
 
