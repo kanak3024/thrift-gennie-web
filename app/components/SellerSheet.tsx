@@ -155,7 +155,7 @@ export default function SellerSheet({ sellerId, prefetchedProfile, onClose }: Pr
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-[61] bg-[#1A060B] rounded-t-3xl border-t border-white/10"
+            className="fixed bottom-0 left-0 right-0 z-[61] bg-[#1A060B] rounded-t-3xl border-t border-white/10 max-h-[85vh] overflow-y-auto"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             {/* drag handle */}
